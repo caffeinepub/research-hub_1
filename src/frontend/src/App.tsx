@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertCircle,
   BookOpen,
+  Clapperboard,
   Film,
   Globe,
   Image,
@@ -15,6 +16,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useRef, useState } from "react";
 import { ArticlesTab } from "./components/ArticlesTab";
+import { FilmsTab } from "./components/FilmsTab";
 import { ImagesTab } from "./components/ImagesTab";
 import { VideosTab } from "./components/VideosTab";
 import { useResearch } from "./hooks/useResearch";
@@ -60,6 +62,7 @@ export default function App() {
   const articleCount = results.articles.length;
   const imageCount = results.images.length;
   const videoCount = results.videos.length;
+  const filmCount = results.films.length;
 
   // inputRef used for potential future focus management
   void inputRef;
@@ -226,13 +229,13 @@ export default function App() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-4"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-4"
           >
             {[
               {
                 icon: BookOpen,
-                title: "Wikipedia & More Articles",
-                desc: "Search Wikipedia, Project Gutenberg, PubMed, and Internet Archive — all inline",
+                title: "Wikipedia & Articles",
+                desc: "Search Wikipedia, Project Gutenberg, PubMed, NSF, NIH, and Internet Archive inline",
                 color: "oklch(0.52 0.18 220)",
               },
               {
@@ -244,8 +247,14 @@ export default function App() {
               {
                 icon: Film,
                 title: "Open Media Videos",
-                desc: "Watch NASA, Internet Archive, British Pathé, C-SPAN, Prelinger, DPLA, and more",
+                desc: "Watch NASA, Internet Archive, British Pathé, C-SPAN, Vimeo CC, and archived collections",
                 color: "oklch(0.78 0.17 55)",
+              },
+              {
+                icon: Clapperboard,
+                title: "Films & Cinema",
+                desc: "Stream public domain films from YouTube, Archive.org Feature Films, Prelinger, and more",
+                color: "oklch(0.72 0.18 15)",
               },
             ].map(({ icon: Icon, title, desc, color }, i) => (
               <motion.div
@@ -307,7 +316,7 @@ export default function App() {
             )}
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="mb-6 h-auto p-1 gap-1 bg-muted/60">
+              <TabsList className="mb-6 h-auto p-1 gap-1 bg-muted/60 flex-wrap">
                 <TabsTrigger
                   data-ocid="tabs.articles_tab"
                   value="articles"
@@ -360,6 +369,25 @@ export default function App() {
                     )}
                   </TabsTrigger>
                 )}
+
+                {(isLoading || filmCount > 0) && (
+                  <TabsTrigger
+                    data-ocid="tabs.films_tab"
+                    value="films"
+                    className="flex items-center gap-2 px-4 py-2"
+                  >
+                    <Clapperboard className="w-4 h-4" />
+                    Films
+                    {hasResults && filmCount > 0 && (
+                      <Badge
+                        variant="secondary"
+                        className="ml-1 text-xs px-1.5 py-0"
+                      >
+                        {filmCount}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                )}
               </TabsList>
 
               <TabsContent value="articles">
@@ -385,6 +413,14 @@ export default function App() {
                   fuzzyUsed={fuzzyUsed}
                 />
               </TabsContent>
+
+              <TabsContent value="films">
+                <FilmsTab
+                  films={results.films}
+                  loading={isLoading}
+                  fuzzyUsed={fuzzyUsed}
+                />
+              </TabsContent>
             </Tabs>
           </motion.div>
         )}
@@ -396,8 +432,8 @@ export default function App() {
           <div className="flex items-center gap-2">
             <Globe className="w-4 h-4" />
             <span>
-              Research Hub — Wikipedia, NASA, Internet Archive, British Pathé
-              &amp; more
+              Research Hub — Wikipedia, NASA, Internet Archive, British Pathé,
+              YouTube &amp; more
             </span>
           </div>
           <p>

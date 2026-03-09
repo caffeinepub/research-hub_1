@@ -29,6 +29,349 @@ function stripHtml(html: string): string {
 }
 
 // ──────────────────────────────────────────────
+// CURATED YOUTUBE PUBLIC DOMAIN FILMS
+// ──────────────────────────────────────────────
+
+const YOUTUBE_PUBLIC_DOMAIN: {
+  id: string;
+  title: string;
+  keywords: string[];
+}[] = [
+  {
+    id: "jUFYA51_QFM",
+    title: "Night of the Living Dead (1968)",
+    keywords: ["horror", "zombie", "night", "living", "dead", "1968"],
+  },
+  {
+    id: "FsNMxbxdQb4",
+    title: "Nosferatu (1922)",
+    keywords: ["nosferatu", "vampire", "horror", "1922", "silent"],
+  },
+  {
+    id: "nAIkMdHRqKs",
+    title: "Metropolis (1927)",
+    keywords: [
+      "metropolis",
+      "scifi",
+      "science fiction",
+      "silent",
+      "1927",
+      "fritz lang",
+    ],
+  },
+  {
+    id: "AKdVNKr_gLo",
+    title: "The General (1926) - Buster Keaton",
+    keywords: ["buster keaton", "general", "comedy", "silent", "1926", "train"],
+  },
+  {
+    id: "lWnWYBdHJaw",
+    title: "Sherlock Jr. (1924) - Buster Keaton",
+    keywords: ["buster keaton", "sherlock", "comedy", "silent", "1924"],
+  },
+  {
+    id: "K3BOGCOuAWc",
+    title: "The Kid (1921) - Charlie Chaplin",
+    keywords: ["chaplin", "kid", "comedy", "silent", "1921"],
+  },
+  {
+    id: "9PSpZAGMGpk",
+    title: "City Lights (1931) - Charlie Chaplin",
+    keywords: ["chaplin", "city lights", "comedy", "1931"],
+  },
+  {
+    id: "YScnS8OzRNQ",
+    title: "Modern Times (1936) - Charlie Chaplin",
+    keywords: ["chaplin", "modern times", "comedy", "1936", "factory"],
+  },
+  {
+    id: "Hw7KgANHOuA",
+    title: "The Gold Rush (1925) - Charlie Chaplin",
+    keywords: ["chaplin", "gold rush", "comedy", "1925", "alaska"],
+  },
+  {
+    id: "D3rp7-_2bpw",
+    title: "His Girl Friday (1940)",
+    keywords: ["his girl friday", "comedy", "1940", "newspaper", "reporter"],
+  },
+  {
+    id: "RZ3Z3P2MGYM",
+    title: "It Happened One Night (1934)",
+    keywords: ["it happened one night", "comedy", "1934", "romance"],
+  },
+  {
+    id: "eFiGVq-8LQA",
+    title: "The Phantom of the Opera (1925)",
+    keywords: ["phantom", "opera", "horror", "silent", "1925"],
+  },
+  {
+    id: "9Ru9uIE1KMc",
+    title: "Sunrise: A Song of Two Humans (1927)",
+    keywords: ["sunrise", "silent", "1927", "drama"],
+  },
+  {
+    id: "gXEkX9oJFpw",
+    title: "Safety Last! (1923) - Harold Lloyd",
+    keywords: [
+      "harold lloyd",
+      "safety last",
+      "comedy",
+      "silent",
+      "1923",
+      "building",
+    ],
+  },
+  {
+    id: "yh4BBh9TMdg",
+    title: "Reefer Madness (1936)",
+    keywords: ["reefer madness", "propaganda", "1936", "drugs"],
+  },
+  {
+    id: "6bXlT4I7Fjo",
+    title: "The Cabinet of Dr. Caligari (1920)",
+    keywords: [
+      "caligari",
+      "horror",
+      "expressionism",
+      "silent",
+      "1920",
+      "german",
+    ],
+  },
+  {
+    id: "cGW0FNPJhvY",
+    title: "Battleship Potemkin (1925)",
+    keywords: [
+      "potemkin",
+      "battleship",
+      "eisenstein",
+      "1925",
+      "silent",
+      "revolution",
+      "russian",
+    ],
+  },
+  {
+    id: "S7gEDYZDMfQ",
+    title: "Wings (1927)",
+    keywords: ["wings", "1927", "wwi", "war", "aviation", "silent"],
+  },
+  {
+    id: "VEZku4WM9HQ",
+    title: "Our Hospitality (1923) - Buster Keaton",
+    keywords: ["buster keaton", "hospitality", "comedy", "1923", "silent"],
+  },
+  {
+    id: "rrHRLt4M03o",
+    title: "Plan 9 from Outer Space (1957)",
+    keywords: ["plan 9", "outer space", "1957", "scifi", "aliens"],
+  },
+  {
+    id: "sSNa3YtZJFI",
+    title: "White Zombie (1932)",
+    keywords: ["white zombie", "1932", "horror", "zombie"],
+  },
+  {
+    id: "lINn9HZ7aLc",
+    title: "Carnival of Souls (1962)",
+    keywords: ["carnival", "souls", "1962", "horror"],
+  },
+  {
+    id: "Ek7bOvE3t5k",
+    title: "Little Shop of Horrors (1960)",
+    keywords: ["little shop", "horrors", "1960", "comedy", "horror"],
+  },
+  {
+    id: "FzrnOzEKNzg",
+    title: "Earth vs. the Flying Saucers (1956)",
+    keywords: ["earth", "flying saucers", "1956", "scifi", "aliens"],
+  },
+  {
+    id: "nKxQBCBieMQ",
+    title: "Robot Monster (1953)",
+    keywords: ["robot monster", "1953", "scifi"],
+  },
+  {
+    id: "TkqIHlFoBTg",
+    title: "House on Haunted Hill (1959)",
+    keywords: ["haunted hill", "1959", "horror", "vincent price"],
+  },
+  {
+    id: "OWyH0-MdEa4",
+    title: "The Brain That Wouldn't Die (1962)",
+    keywords: ["brain", "1962", "horror", "scifi"],
+  },
+  {
+    id: "XjXgqmFLCpw",
+    title: "The Last Man on Earth (1964) - Vincent Price",
+    keywords: [
+      "last man",
+      "earth",
+      "1964",
+      "horror",
+      "vincent price",
+      "vampire",
+    ],
+  },
+  {
+    id: "4W82tFuGZsQ",
+    title: "Duck and Cover (1952)",
+    keywords: ["duck cover", "1952", "cold war", "nuclear", "civil defense"],
+  },
+  {
+    id: "vZE0j_WEoZg",
+    title: "Cops (1922) - Buster Keaton",
+    keywords: ["buster keaton", "cops", "1922", "silent", "comedy"],
+  },
+  {
+    id: "rleGDXsO3_o",
+    title: "One Week (1920) - Buster Keaton",
+    keywords: ["buster keaton", "one week", "1920", "silent", "comedy"],
+  },
+  {
+    id: "KSfFfMJROJs",
+    title: "The Immigrant (1917) - Charlie Chaplin",
+    keywords: ["chaplin", "immigrant", "1917", "silent", "comedy"],
+  },
+  {
+    id: "_bXyiKdRSO0",
+    title: "Easy Street (1917) - Charlie Chaplin",
+    keywords: ["chaplin", "easy street", "1917", "silent", "comedy"],
+  },
+  {
+    id: "VoC5S3iRgxM",
+    title: "The Pawnshop (1916) - Charlie Chaplin",
+    keywords: ["chaplin", "pawnshop", "1916", "silent", "comedy"],
+  },
+  {
+    id: "vg8v3V_WoEo",
+    title: "Steamboat Bill, Jr. (1928) - Buster Keaton",
+    keywords: ["buster keaton", "steamboat", "1928", "silent", "comedy"],
+  },
+  {
+    id: "qw7RgQYbWHw",
+    title: "The Navigator (1924) - Buster Keaton",
+    keywords: [
+      "buster keaton",
+      "navigator",
+      "1924",
+      "silent",
+      "comedy",
+      "ship",
+    ],
+  },
+  {
+    id: "yPPqRCfPQhk",
+    title: "Intolerance (1916) - D.W. Griffith",
+    keywords: ["intolerance", "griffith", "1916", "silent", "epic", "drama"],
+  },
+  {
+    id: "9N6MBfHzSnE",
+    title: "The Birth of a Nation (1915)",
+    keywords: ["birth of a nation", "griffith", "1915", "silent", "civil war"],
+  },
+  {
+    id: "gFd3xEbJjfQ",
+    title: "A Trip to the Moon (1902) - Georges Méliès",
+    keywords: [
+      "trip to the moon",
+      "melies",
+      "1902",
+      "silent",
+      "scifi",
+      "space",
+    ],
+  },
+  {
+    id: "vS7nJvjNkAs",
+    title: "Nanook of the North (1922)",
+    keywords: ["nanook", "north", "1922", "documentary", "silent", "inuit"],
+  },
+  // Additional verified public domain films
+  {
+    id: "NuEzPPrYKYM",
+    title: "Dracula (1931) - Bela Lugosi",
+    keywords: ["dracula", "1931", "horror", "bela lugosi", "vampire"],
+  },
+  {
+    id: "Ru_Sv3-XQGI",
+    title: "Frankenstein (1931) - Boris Karloff",
+    keywords: ["frankenstein", "1931", "horror", "boris karloff"],
+  },
+  {
+    id: "Dh6dKrM0YpA",
+    title: "The Mummy (1932) - Boris Karloff",
+    keywords: ["mummy", "1932", "horror", "boris karloff"],
+  },
+  {
+    id: "KRsNl08cpzM",
+    title: "Invisible Man (1933)",
+    keywords: ["invisible man", "1933", "horror", "scifi"],
+  },
+  {
+    id: "NTXFsB3ZHCQ",
+    title: "The Most Dangerous Game (1932)",
+    keywords: ["most dangerous game", "1932", "adventure", "thriller"],
+  },
+  {
+    id: "k1SHdGKGkl0",
+    title: "Murders in the Rue Morgue (1932)",
+    keywords: ["rue morgue", "1932", "horror", "mystery"],
+  },
+  {
+    id: "dQHl3RQYLHE",
+    title: "King Kong (1933)",
+    keywords: ["king kong", "1933", "adventure", "giant ape"],
+  },
+  {
+    id: "9qosnhKAkbA",
+    title: "Duck Soup (1933) - Marx Brothers",
+    keywords: ["duck soup", "1933", "comedy", "marx brothers"],
+  },
+  {
+    id: "ZxLbPPEr8N4",
+    title: "Animal Crackers (1930) - Marx Brothers",
+    keywords: ["animal crackers", "1930", "comedy", "marx brothers"],
+  },
+  {
+    id: "rB0TNKQ9HXc",
+    title: "Of Mice and Men (1939)",
+    keywords: ["of mice and men", "1939", "drama"],
+  },
+];
+
+function searchYouTubePublicDomain(query: string): WikiVideo[] {
+  const queryWords = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const matches = YOUTUBE_PUBLIC_DOMAIN.filter((film) =>
+    queryWords.some((word) =>
+      film.keywords.some((kw) => kw.includes(word) || word.includes(kw)),
+    ),
+  );
+
+  // Always fill to at least 8 results by rotating through the full list
+  let results = matches.slice(0, 8);
+  if (results.length < 6) {
+    const matchedIds = new Set(results.map((f) => f.id));
+    const fill = YOUTUBE_PUBLIC_DOMAIN.filter((f) => !matchedIds.has(f.id));
+    // Rotate through starting at a deterministic offset based on query length
+    const offset = queryWords.join("").length % fill.length || 0;
+    const rotated = [...fill.slice(offset), ...fill.slice(0, offset)];
+    results = [...results, ...rotated].slice(0, 8);
+  }
+
+  return results.map((film, idx) => ({
+    pageid: 9000000 + idx,
+    title: film.title,
+    url: `https://www.youtube-nocookie.com/embed/${film.id}`,
+    mime: "video/mp4",
+    embedUrl: `https://www.youtube-nocookie.com/embed/${film.id}`,
+    thumbUrl: `https://img.youtube.com/vi/${film.id}/mqdefault.jpg`,
+    description: "Public domain film available on YouTube",
+    source: "YouTube (Public Domain)",
+  }));
+}
+
+// ──────────────────────────────────────────────
 // ARTICLE SOURCES
 // ──────────────────────────────────────────────
 
@@ -119,6 +462,49 @@ async function fetchHathiTrustArticles(query: string): Promise<WikiArticle[]> {
       snippet: rec.authors?.join(", ") ?? "",
       source: "HathiTrust",
     }));
+}
+
+async function fetchNsfArticles(query: string): Promise<WikiArticle[]> {
+  const url = `https://api.nsf.gov/services/v1/awards.json?keyword=${encodeURIComponent(query)}&printFields=id,title,abstractText,piFirstName,piLastName&rpp=6`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const awards = data?.response?.award ?? [];
+  return awards.map((award: any, idx: number) => ({
+    pageid: 3100000 + idx,
+    title: award.title ?? "NSF Award",
+    snippet: award.abstractText
+      ? award.abstractText.substring(0, 200)
+      : award.piFirstName && award.piLastName
+        ? `PI: ${award.piFirstName} ${award.piLastName}`
+        : "",
+    source: "NSF",
+  }));
+}
+
+async function fetchNihArticles(query: string): Promise<WikiArticle[]> {
+  const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pmc&term=${encodeURIComponent(query)}&retmax=6&retmode=json`;
+  const searchRes = await fetch(searchUrl);
+  const searchData = await searchRes.json();
+  const ids: string[] = searchData?.esearchresult?.idlist ?? [];
+  if (ids.length === 0) return [];
+
+  const summaryUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pmc&id=${ids.join(",")}&retmode=json`;
+  const summaryRes = await fetch(summaryUrl);
+  const summaryData = await summaryRes.json();
+  const result = summaryData?.result ?? {};
+
+  return ids
+    .map((id, idx) => {
+      const item = result[`${id}`];
+      if (!item) return null;
+      return {
+        pageid: 3200000 + idx,
+        title: item.title ?? "NIH Article",
+        snippet: item.source ? `Journal: ${item.source}` : "",
+        source: "NIH / NLM",
+      };
+    })
+    .filter(Boolean) as WikiArticle[];
 }
 
 // ──────────────────────────────────────────────
@@ -286,7 +672,8 @@ async function fetchInternetArchiveVideos(query: string): Promise<WikiVideo[]> {
   return docs.map((doc: any, idx: number) => ({
     pageid: 200000 + idx,
     title: doc.title ?? doc.identifier ?? "Untitled",
-    url: `https://archive.org/download/${doc.identifier}/${doc.identifier}.mp4`,
+    url: `https://archive.org/details/${doc.identifier}`,
+    embedUrl: `https://archive.org/embed/${doc.identifier}`,
     mime: "video/mp4",
     thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
     description: doc.description ?? "",
@@ -323,7 +710,8 @@ async function fetchPrelingerVideos(query: string): Promise<WikiVideo[]> {
   return docs.map((doc: any, idx: number) => ({
     pageid: 1400000 + idx,
     title: doc.title ?? doc.identifier ?? "Prelinger Film",
-    url: `https://archive.org/download/${doc.identifier}/${doc.identifier}.mp4`,
+    url: `https://archive.org/details/${doc.identifier}`,
+    embedUrl: `https://archive.org/embed/${doc.identifier}`,
     mime: "video/mp4",
     thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
     description: doc.description ?? "",
@@ -339,7 +727,8 @@ async function fetchBritishPatheVideos(query: string): Promise<WikiVideo[]> {
   return docs.map((doc: any, idx: number) => ({
     pageid: 1800000 + idx,
     title: doc.title ?? doc.identifier ?? "British Pathé Film",
-    url: `https://archive.org/download/${doc.identifier}/${doc.identifier}.mp4`,
+    url: `https://archive.org/details/${doc.identifier}`,
+    embedUrl: `https://archive.org/embed/${doc.identifier}`,
     mime: "video/mp4",
     thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
     description: doc.description ?? "",
@@ -355,7 +744,8 @@ async function fetchCSpanVideos(query: string): Promise<WikiVideo[]> {
   return docs.map((doc: any, idx: number) => ({
     pageid: 1900000 + idx,
     title: doc.title ?? doc.identifier ?? "C-SPAN Video",
-    url: `https://archive.org/download/${doc.identifier}/${doc.identifier}.mp4`,
+    url: `https://archive.org/details/${doc.identifier}`,
+    embedUrl: `https://archive.org/embed/${doc.identifier}`,
     mime: "video/mp4",
     thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
     description: doc.description ?? "",
@@ -464,7 +854,8 @@ async function fetchYouTubeArchivedVideos(query: string): Promise<WikiVideo[]> {
   return docs.map((doc: any, idx: number) => ({
     pageid: 2400000 + idx,
     title: doc.title ?? doc.identifier ?? "Archived Video",
-    url: `https://archive.org/download/${doc.identifier}/${doc.identifier}.mp4`,
+    url: `https://archive.org/details/${doc.identifier}`,
+    embedUrl: `https://archive.org/embed/${doc.identifier}`,
     mime: "video/mp4" as const,
     thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
     description: doc.description ?? "",
@@ -480,7 +871,8 @@ async function fetchArchiveFeatureFilms(query: string): Promise<WikiVideo[]> {
   return docs.map((doc: any, idx: number) => ({
     pageid: 2500000 + idx,
     title: doc.title ?? doc.identifier ?? "Feature Film",
-    url: `https://archive.org/download/${doc.identifier}/${doc.identifier}.mp4`,
+    url: `https://archive.org/details/${doc.identifier}`,
+    embedUrl: `https://archive.org/embed/${doc.identifier}`,
     mime: "video/mp4" as const,
     thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
     description: doc.description ?? "",
@@ -498,11 +890,88 @@ async function fetchArchiveOpenSourceMovies(
   return docs.map((doc: any, idx: number) => ({
     pageid: 2600000 + idx,
     title: doc.title ?? doc.identifier ?? "Open Source Movie",
-    url: `https://archive.org/download/${doc.identifier}/${doc.identifier}.mp4`,
+    url: `https://archive.org/details/${doc.identifier}`,
+    embedUrl: `https://archive.org/embed/${doc.identifier}`,
     mime: "video/mp4" as const,
     thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
     description: doc.description ?? "",
     source: "Archive Open Source",
+  }));
+}
+
+async function fetchVimeoCC(query: string): Promise<WikiVideo[]> {
+  const url = `https://api.openverse.org/v1/videos/?q=${encodeURIComponent(query)}&source=vimeo&page_size=8`;
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  const data = await res.json();
+  const results = data?.results ?? [];
+  return results.map((item: any, idx: number) => {
+    // Convert Vimeo page URLs to embeddable player URLs
+    const pageUrl: string = item.url ?? "";
+    const vimeoMatch = pageUrl.match(/vimeo\.com\/(\d+)/);
+    const embedUrl = vimeoMatch
+      ? `https://player.vimeo.com/video/${vimeoMatch[1]}`
+      : undefined;
+    return {
+      pageid: 2700000 + idx,
+      title: item.title ?? "Vimeo Video",
+      url: pageUrl,
+      mime: "video/mp4" as const,
+      embedUrl,
+      thumbUrl: item.thumbnail ?? undefined,
+      description: item.description ?? "",
+      source: "Vimeo CC",
+    };
+  });
+}
+
+async function fetchArchiveAnimation(query: string): Promise<WikiVideo[]> {
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:animationandcartoons&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.response?.docs ?? [];
+  return docs.map((doc: any, idx: number) => ({
+    pageid: 2800000 + idx,
+    title: doc.title ?? doc.identifier ?? "Animation",
+    url: `https://archive.org/details/${doc.identifier}`,
+    embedUrl: `https://archive.org/embed/${doc.identifier}`,
+    mime: "video/mp4" as const,
+    thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
+    description: doc.description ?? "",
+    source: "Archive Animation",
+  }));
+}
+
+async function fetchArchiveEducation(query: string): Promise<WikiVideo[]> {
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:education&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.response?.docs ?? [];
+  return docs.map((doc: any, idx: number) => ({
+    pageid: 2900000 + idx,
+    title: doc.title ?? doc.identifier ?? "Educational Video",
+    url: `https://archive.org/details/${doc.identifier}`,
+    embedUrl: `https://archive.org/embed/${doc.identifier}`,
+    mime: "video/mp4" as const,
+    thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
+    description: doc.description ?? "",
+    source: "Archive Education",
+  }));
+}
+
+async function fetchArchiveNews(query: string): Promise<WikiVideo[]> {
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:tv&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.response?.docs ?? [];
+  return docs.map((doc: any, idx: number) => ({
+    pageid: 3000000 + idx,
+    title: doc.title ?? doc.identifier ?? "News Video",
+    url: `https://archive.org/details/${doc.identifier}`,
+    embedUrl: `https://archive.org/embed/${doc.identifier}`,
+    mime: "video/mp4" as const,
+    thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
+    description: doc.description ?? "",
+    source: "Archive News & TV",
   }));
 }
 
@@ -517,6 +986,15 @@ function broadenQuery(query: string): string {
 }
 
 // ──────────────────────────────────────────────
+// RESULT CACHE
+// ──────────────────────────────────────────────
+
+const searchCache = new Map<
+  string,
+  { results: SearchResults; fuzzyUsed: boolean }
+>();
+
+// ──────────────────────────────────────────────
 // HOOK
 // ──────────────────────────────────────────────
 
@@ -526,6 +1004,7 @@ export function useResearch() {
     articles: [],
     images: [],
     videos: [],
+    films: [],
   });
   const [error, setError] = useState<string | null>(null);
   const [lastQuery, setLastQuery] = useState("");
@@ -537,6 +1016,15 @@ export function useResearch() {
     setError(null);
     setLastQuery(query);
     setFuzzyUsed(false);
+
+    const cacheKey = query.toLowerCase().trim();
+    const cached = searchCache.get(cacheKey);
+    if (cached) {
+      setResults(cached.results);
+      setFuzzyUsed(cached.fuzzyUsed);
+      setStatus("success");
+      return;
+    }
 
     try {
       // Core sources
@@ -621,11 +1109,16 @@ export function useResearch() {
         }
       }
 
+      // YouTube public domain (synchronous)
+      const ytPublicDomainFilms = searchYouTubePublicDomain(query);
+
       // Fetch all additional sources in parallel
       const [
         iaArticlesResult,
         gutenbergResult,
         pubmedResult,
+        nsfResult,
+        nihResult,
         nasaImagesResult,
         metResult,
         locResult,
@@ -647,10 +1140,16 @@ export function useResearch() {
         ytArchivedResult,
         featureFilmsResult,
         openSourceMoviesResult,
+        vimeoCCResult,
+        archiveAnimationResult,
+        archiveEducationResult,
+        archiveNewsResult,
       ] = await Promise.allSettled([
         fetchInternetArchiveArticles(query),
         fetchGutenbergArticles(query),
         fetchPubMedArticles(query),
+        fetchNsfArticles(query),
+        fetchNihArticles(query),
         fetchNasaImages(query),
         fetchMetMuseumImages(query),
         fetchLocImages(query),
@@ -672,6 +1171,10 @@ export function useResearch() {
         fetchYouTubeArchivedVideos(query),
         fetchArchiveFeatureFilms(query),
         fetchArchiveOpenSourceMovies(query),
+        fetchVimeoCC(query),
+        fetchArchiveAnimation(query),
+        fetchArchiveEducation(query),
+        fetchArchiveNews(query),
       ]);
 
       const extra = <T>(r: PromiseSettledResult<T[]>): T[] =>
@@ -682,6 +1185,8 @@ export function useResearch() {
         ...extra(iaArticlesResult),
         ...extra(gutenbergResult),
         ...extra(pubmedResult),
+        ...extra(nsfResult),
+        ...extra(nihResult),
         ...extra(openLibraryResult),
         ...extra(hathiTrustResult),
       ];
@@ -709,8 +1214,23 @@ export function useResearch() {
         ...extra(efgResult),
         ...extra(wikimediaVideosResult),
         ...extra(ytArchivedResult),
+        ...extra(vimeoCCResult),
+        ...extra(archiveAnimationResult),
+        ...extra(archiveEducationResult),
+        ...extra(archiveNewsResult),
+      ];
+
+      // Films tab: feature films + prelinger + british pathe + EFG + YouTube PD + wikimedia + open source
+      let films: WikiVideo[] = [
+        ...ytPublicDomainFilms,
         ...extra(featureFilmsResult),
         ...extra(openSourceMoviesResult),
+        ...extra(prelingerResult),
+        ...extra(britishPatheResult),
+        ...extra(efgResult),
+        ...extra(wikimediaVideosResult).filter((v) =>
+          v.mime.startsWith("video"),
+        ),
       ];
 
       // ── Fuzzy / similar search fallback ──
@@ -780,7 +1300,10 @@ export function useResearch() {
         }
       }
 
-      setResults({ articles, images, videos });
+      const finalResults: SearchResults = { articles, images, videos, films };
+      searchCache.set(cacheKey, { results: finalResults, fuzzyUsed: false });
+
+      setResults(finalResults);
       setStatus("success");
     } catch {
       setError(

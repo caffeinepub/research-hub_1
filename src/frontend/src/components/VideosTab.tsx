@@ -25,9 +25,18 @@ const SOURCE_COLORS: Record<string, string> = {
   "European Film Gateway":
     "bg-emerald-600/10 text-emerald-400 border-emerald-600/20",
   "YouTube (Archived)": "bg-red-500/10 text-red-400 border-red-500/20",
+  "YouTube (Public Domain)": "bg-red-600/10 text-red-500 border-red-600/20",
   "Archive Feature Films":
     "bg-orange-500/10 text-orange-400 border-orange-500/20",
   "Archive Open Source": "bg-teal-500/10 text-teal-400 border-teal-500/20",
+  "Vimeo CC": "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
+  "Archive Animation": "bg-violet-500/10 text-violet-400 border-violet-500/20",
+  "Archive Education": "bg-green-500/10 text-green-400 border-green-500/20",
+  "Archive News & TV": "bg-slate-500/10 text-slate-400 border-slate-500/20",
+  NSF: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
+  "NIH / NLM": "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  "Science.gov": "bg-teal-600/10 text-teal-400 border-teal-600/20",
+  NOAA: "bg-blue-600/10 text-blue-400 border-blue-600/20",
 };
 
 function VideoThumb({ video }: { video: WikiVideo }) {
@@ -100,9 +109,20 @@ export function VideosTab({ videos, loading, fuzzyUsed }: Props) {
   const ytArchivedVideos = videos.filter(
     (v) => v.source === "YouTube (Archived)",
   );
-  const regularVideos = videos.filter((v) => v.source !== "YouTube (Archived)");
+  const ytPublicDomainVideos = videos.filter(
+    (v) => v.source === "YouTube (Public Domain)",
+  );
+  const regularVideos = videos.filter(
+    (v) =>
+      v.source !== "YouTube (Archived)" &&
+      v.source !== "YouTube (Public Domain)",
+  );
 
-  const allVideos = [...ytArchivedVideos, ...regularVideos];
+  const allVideos = [
+    ...ytPublicDomainVideos,
+    ...ytArchivedVideos,
+    ...regularVideos,
+  ];
   const activeVideo = selected ?? allVideos[0] ?? null;
 
   if (loading) {
@@ -158,8 +178,8 @@ export function VideosTab({ videos, loading, fuzzyUsed }: Props) {
               className="w-full aspect-video"
               style={{ maxHeight: "500px" }}
               allowFullScreen
-              allow="autoplay; encrypted-media"
-              sandbox="allow-scripts allow-same-origin allow-presentation"
+              allow="autoplay; encrypted-media; picture-in-picture"
+              sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-forms allow-pointer-lock"
               title={activeVideo.title}
             />
           ) : (
@@ -196,6 +216,68 @@ export function VideosTab({ videos, loading, fuzzyUsed }: Props) {
             )}
           </div>
         </motion.div>
+      )}
+
+      {/* YouTube Public Domain section */}
+      {ytPublicDomainVideos.length > 0 && (
+        <motion.section
+          data-ocid="videos.youtube_pd.section"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="rounded-2xl border border-red-600/25 bg-red-600/5 p-4 space-y-3"
+        >
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Youtube className="w-4 h-4 text-red-500" />
+              <h4 className="font-display font-semibold text-sm text-foreground">
+                Public Domain Films on YouTube
+              </h4>
+            </div>
+            <Badge
+              variant="outline"
+              className="ml-auto text-[10px] border-red-600/30 text-red-500 bg-red-600/10"
+            >
+              {ytPublicDomainVideos.length} film
+              {ytPublicDomainVideos.length !== 1 ? "s" : ""}
+            </Badge>
+          </div>
+
+          <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-thin">
+            {ytPublicDomainVideos.map((video, idx) => (
+              <motion.div
+                key={video.pageid}
+                data-ocid={`videos.youtube_pd.item.${idx + 1}`}
+                initial={{ opacity: 0, x: 12 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: idx * 0.05 }}
+                className={`flex-shrink-0 w-56 bg-card border rounded-xl p-3 flex gap-2.5 items-start cursor-pointer transition-colors hover:border-red-600/40 ${
+                  activeVideo?.pageid === video.pageid
+                    ? "border-red-600/50 bg-red-600/5"
+                    : "border-border/60"
+                }`}
+                onClick={() => setSelected(video)}
+              >
+                <div className="flex-shrink-0 w-12 h-9 bg-muted rounded-lg flex items-center justify-center overflow-hidden">
+                  {video.thumbUrl ? (
+                    <img
+                      src={video.thumbUrl}
+                      alt={video.title}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Youtube className="w-4 h-4 text-red-500" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium text-foreground line-clamp-3 leading-tight">
+                    {video.title}
+                  </p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.section>
       )}
 
       {/* YouTube Archived section */}
@@ -267,7 +349,7 @@ export function VideosTab({ videos, loading, fuzzyUsed }: Props) {
         </motion.section>
       )}
 
-      {/* Main grid — all non-YouTube-archived videos */}
+      {/* Main grid — regular videos */}
       {regularVideos.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {regularVideos.map((video, idx) => (

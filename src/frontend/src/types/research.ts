@@ -40,6 +40,7 @@ export interface SearchResults {
   articles: WikiArticle[];
   images: WikiImage[];
   videos: WikiVideo[];
+  films: WikiVideo[];
 }
 
 export type SearchStatus = "idle" | "loading" | "success" | "error";
