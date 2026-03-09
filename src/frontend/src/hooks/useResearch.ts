@@ -405,23 +405,33 @@ async function fetchDplaVideos(query: string): Promise<WikiVideo[]> {
     }));
 }
 
+/** Fixed: use edmIsShownBy for direct media URL; only set embedUrl for actual embeddable video files */
 async function fetchEuropeanFilmGateway(query: string): Promise<WikiVideo[]> {
   const url = `https://api.europeana.eu/record/v2/search.json?wskey=api2demo&query=${encodeURIComponent(query)}&qf=TYPE:VIDEO&rows=6`;
   const res = await fetch(url);
   const data = await res.json();
   const items = data?.items ?? [];
-  return items
-    .filter((item: any) => item.edmPreview?.[0] || item.edmIsShownAt?.[0])
-    .map((item: any, idx: number) => ({
-      pageid: 2200000 + idx,
+  const EMBEDDABLE = /\.(mp4|webm|ogg)$/i;
+  const results: WikiVideo[] = [];
+  for (const item of items) {
+    const directUrl: string = item.edmIsShownBy?.[0] ?? "";
+    const pageUrl: string = item.edmIsShownAt?.[0] ?? "";
+    const videoUrl = directUrl || pageUrl;
+    if (!videoUrl) continue;
+    const isEmbeddable =
+      EMBEDDABLE.test(videoUrl) || videoUrl.includes("player");
+    results.push({
+      pageid: 2200000 + results.length,
       title: item.title?.[0] ?? "European Film",
-      url: item.edmIsShownAt?.[0] ?? "",
+      url: videoUrl,
       mime: "video/mp4" as const,
       thumbUrl: item.edmPreview?.[0] ?? undefined,
       description: item.dcDescription?.[0] ?? "",
-      embedUrl: item.edmIsShownAt?.[0] ?? undefined,
+      embedUrl: isEmbeddable ? videoUrl : undefined,
       source: "European Film Gateway",
-    }));
+    });
+  }
+  return results;
 }
 
 async function fetchWikimediaVideos(query: string): Promise<WikiVideo[]> {
@@ -443,6 +453,57 @@ async function fetchWikimediaVideos(query: string): Promise<WikiVideo[]> {
         source: "Wikimedia Commons",
       };
     });
+}
+
+/** YouTube-archived videos preserved on Internet Archive */
+async function fetchYouTubeArchivedVideos(query: string): Promise<WikiVideo[]> {
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:youtube&fl[]=identifier,title,description&rows=8&output=json&mediatype=movies`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.response?.docs ?? [];
+  return docs.map((doc: any, idx: number) => ({
+    pageid: 2400000 + idx,
+    title: doc.title ?? doc.identifier ?? "Archived Video",
+    url: `https://archive.org/download/${doc.identifier}/${doc.identifier}.mp4`,
+    mime: "video/mp4" as const,
+    thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
+    description: doc.description ?? "",
+    source: "YouTube (Archived)",
+  }));
+}
+
+async function fetchArchiveFeatureFilms(query: string): Promise<WikiVideo[]> {
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:feature_films&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.response?.docs ?? [];
+  return docs.map((doc: any, idx: number) => ({
+    pageid: 2500000 + idx,
+    title: doc.title ?? doc.identifier ?? "Feature Film",
+    url: `https://archive.org/download/${doc.identifier}/${doc.identifier}.mp4`,
+    mime: "video/mp4" as const,
+    thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
+    description: doc.description ?? "",
+    source: "Archive Feature Films",
+  }));
+}
+
+async function fetchArchiveOpenSourceMovies(
+  query: string,
+): Promise<WikiVideo[]> {
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:opensource_movies&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.response?.docs ?? [];
+  return docs.map((doc: any, idx: number) => ({
+    pageid: 2600000 + idx,
+    title: doc.title ?? doc.identifier ?? "Open Source Movie",
+    url: `https://archive.org/download/${doc.identifier}/${doc.identifier}.mp4`,
+    mime: "video/mp4" as const,
+    thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
+    description: doc.description ?? "",
+    source: "Archive Open Source",
+  }));
 }
 
 // ──────────────────────────────────────────────
@@ -583,6 +644,9 @@ export function useResearch() {
         dplaResult,
         efgResult,
         wikimediaVideosResult,
+        ytArchivedResult,
+        featureFilmsResult,
+        openSourceMoviesResult,
       ] = await Promise.allSettled([
         fetchInternetArchiveArticles(query),
         fetchGutenbergArticles(query),
@@ -605,6 +669,9 @@ export function useResearch() {
         fetchDplaVideos(query),
         fetchEuropeanFilmGateway(query),
         fetchWikimediaVideos(query),
+        fetchYouTubeArchivedVideos(query),
+        fetchArchiveFeatureFilms(query),
+        fetchArchiveOpenSourceMovies(query),
       ]);
 
       const extra = <T>(r: PromiseSettledResult<T[]>): T[] =>
@@ -641,6 +708,9 @@ export function useResearch() {
         ...extra(dplaResult),
         ...extra(efgResult),
         ...extra(wikimediaVideosResult),
+        ...extra(ytArchivedResult),
+        ...extra(featureFilmsResult),
+        ...extra(openSourceMoviesResult),
       ];
 
       // ── Fuzzy / similar search fallback ──

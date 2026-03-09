@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Play, Video } from "lucide-react";
+import { Archive, Play, Video, Youtube } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import type { WikiVideo } from "../types/research";
@@ -19,17 +19,91 @@ const SOURCE_COLORS: Record<string, string> = {
   NASA: "bg-sky-500/10 text-sky-400 border-sky-500/20",
   "Prelinger Archives": "bg-rose-500/10 text-rose-400 border-rose-500/20",
   "British Pathé": "bg-red-600/10 text-red-400 border-red-600/20",
-  "C-SPAN Archive":
-    "bg-navy-500/10 text-blue-800 border-blue-900/20 dark:text-blue-300 dark:border-blue-700/30 bg-blue-900/10",
+  "C-SPAN Archive": "bg-blue-900/10 text-blue-300 border-blue-700/30",
   "Library of Congress": "bg-red-700/10 text-red-500 border-red-700/20",
   DPLA: "bg-purple-500/10 text-purple-400 border-purple-500/20",
   "European Film Gateway":
     "bg-emerald-600/10 text-emerald-400 border-emerald-600/20",
+  "YouTube (Archived)": "bg-red-500/10 text-red-400 border-red-500/20",
+  "Archive Feature Films":
+    "bg-orange-500/10 text-orange-400 border-orange-500/20",
+  "Archive Open Source": "bg-teal-500/10 text-teal-400 border-teal-500/20",
 };
+
+function VideoThumb({ video }: { video: WikiVideo }) {
+  return (
+    <div className="flex-shrink-0 w-14 h-10 bg-muted rounded-lg flex items-center justify-center overflow-hidden">
+      {video.thumbUrl ? (
+        <img
+          src={video.thumbUrl}
+          alt={video.title}
+          className="w-full h-full object-cover"
+        />
+      ) : (
+        <Play className="w-5 h-5 text-muted-foreground" />
+      )}
+    </div>
+  );
+}
+
+function VideoCard({
+  video,
+  index,
+  isActive,
+  onClick,
+  ocidPrefix,
+}: {
+  video: WikiVideo;
+  index: number;
+  isActive: boolean;
+  onClick: () => void;
+  ocidPrefix: string;
+}) {
+  return (
+    <motion.div
+      key={video.pageid}
+      data-ocid={`${ocidPrefix}.item.${index}`}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.04 }}
+      className={`video-thumb bg-card border border-border/60 rounded-xl p-3 flex gap-3 items-start cursor-pointer ${
+        isActive ? "active" : ""
+      }`}
+      onClick={onClick}
+    >
+      <VideoThumb video={video} />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-foreground line-clamp-2 leading-tight">
+          {video.title}
+        </p>
+        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+          <p className="text-xs text-muted-foreground font-mono uppercase">
+            {video.mime.split("/")[1]}
+          </p>
+          <Badge
+            variant="outline"
+            className={`text-[10px] py-0 px-1.5 border ${
+              SOURCE_COLORS[video.source] ?? "bg-muted/50 text-muted-foreground"
+            }`}
+          >
+            {video.source}
+          </Badge>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
 
 export function VideosTab({ videos, loading, fuzzyUsed }: Props) {
   const [selected, setSelected] = useState<WikiVideo | null>(null);
-  const activeVideo = selected ?? videos[0] ?? null;
+
+  const ytArchivedVideos = videos.filter(
+    (v) => v.source === "YouTube (Archived)",
+  );
+  const regularVideos = videos.filter((v) => v.source !== "YouTube (Archived)");
+
+  const allVideos = [...ytArchivedVideos, ...regularVideos];
+  const activeVideo = selected ?? allVideos[0] ?? null;
 
   if (loading) {
     return (
@@ -69,6 +143,7 @@ export function VideosTab({ videos, loading, fuzzyUsed }: Props) {
         </p>
       )}
 
+      {/* Main video player */}
       {activeVideo && (
         <motion.div
           data-ocid="videos.player"
@@ -123,52 +198,90 @@ export function VideosTab({ videos, loading, fuzzyUsed }: Props) {
         </motion.div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {videos.map((video, idx) => (
-          <motion.div
-            key={video.pageid}
-            data-ocid={`videos.item.${idx + 1}`}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: idx * 0.05 }}
-            className={`video-thumb bg-card border border-border/60 rounded-xl p-3 flex gap-3 items-start cursor-pointer ${
-              activeVideo?.pageid === video.pageid ? "active" : ""
-            }`}
-            onClick={() => setSelected(video)}
-          >
-            <div className="flex-shrink-0 w-14 h-10 bg-muted rounded-lg flex items-center justify-center overflow-hidden">
-              {video.thumbUrl ? (
-                <img
-                  src={video.thumbUrl}
-                  alt={video.title}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <Play className="w-5 h-5 text-muted-foreground" />
-              )}
+      {/* YouTube Archived section */}
+      {ytArchivedVideos.length > 0 && (
+        <motion.section
+          data-ocid="videos.youtube_archived.section"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="rounded-2xl border border-red-500/20 bg-red-500/5 p-4 space-y-3"
+        >
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Youtube className="w-4 h-4 text-red-400" />
+              <h4 className="font-display font-semibold text-sm text-foreground">
+                Preserved from YouTube
+              </h4>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-foreground line-clamp-2 leading-tight">
-                {video.title}
-              </p>
-              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                <p className="text-xs text-muted-foreground font-mono uppercase">
-                  {video.mime.split("/")[1]}
-                </p>
-                <Badge
-                  variant="outline"
-                  className={`text-[10px] py-0 px-1.5 border ${
-                    SOURCE_COLORS[video.source] ??
-                    "bg-muted/50 text-muted-foreground"
-                  }`}
-                >
-                  {video.source}
-                </Badge>
-              </div>
+            <div className="flex items-center gap-1.5">
+              <Archive className="w-3 h-3 text-muted-foreground/60" />
+              <span className="text-[10px] text-muted-foreground/60 font-mono uppercase tracking-wider">
+                Removed / archived on Internet Archive
+              </span>
             </div>
-          </motion.div>
-        ))}
-      </div>
+            <Badge
+              variant="outline"
+              className="ml-auto text-[10px] border-red-500/30 text-red-400 bg-red-500/10"
+            >
+              {ytArchivedVideos.length} video
+              {ytArchivedVideos.length !== 1 ? "s" : ""}
+            </Badge>
+          </div>
+
+          {/* Horizontal scroll row */}
+          <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-thin">
+            {ytArchivedVideos.map((video, idx) => (
+              <motion.div
+                key={video.pageid}
+                data-ocid={`videos.youtube_archived.item.${idx + 1}`}
+                initial={{ opacity: 0, x: 12 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: idx * 0.05 }}
+                className={`flex-shrink-0 w-56 bg-card border rounded-xl p-3 flex gap-2.5 items-start cursor-pointer transition-colors hover:border-red-500/40 ${
+                  activeVideo?.pageid === video.pageid
+                    ? "border-red-500/50 bg-red-500/5"
+                    : "border-border/60"
+                }`}
+                onClick={() => setSelected(video)}
+              >
+                <div className="flex-shrink-0 w-12 h-9 bg-muted rounded-lg flex items-center justify-center overflow-hidden">
+                  {video.thumbUrl ? (
+                    <img
+                      src={video.thumbUrl}
+                      alt={video.title}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Youtube className="w-4 h-4 text-red-400" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium text-foreground line-clamp-3 leading-tight">
+                    {video.title}
+                  </p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.section>
+      )}
+
+      {/* Main grid — all non-YouTube-archived videos */}
+      {regularVideos.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {regularVideos.map((video, idx) => (
+            <VideoCard
+              key={video.pageid}
+              video={video}
+              index={idx + 1}
+              isActive={activeVideo?.pageid === video.pageid}
+              onClick={() => setSelected(video)}
+              ocidPrefix="videos"
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
