@@ -602,7 +602,7 @@ async function fetchEuropeanaImages(query: string): Promise<WikiImage[]> {
 }
 
 async function fetchOpenverseImages(query: string): Promise<WikiImage[]> {
-  const url = `https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&license_type=public-domain&page_size=12`;
+  const url = `https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&license=cc0,pdm&page_size=12`;
   const res = await fetch(url, { headers: { Accept: "application/json" } });
   const data = await res.json();
   const results = data?.results ?? [];
@@ -642,22 +642,57 @@ async function fetchSmithsonianImages(query: string): Promise<WikiImage[]> {
     });
 }
 
-/** Flickr Commons via Openverse (source=flickr) — no API key needed */
+/** Flickr Commons via Flickr public API (using public Flickr key for Commons) */
 async function fetchFlickrImages(query: string): Promise<WikiImage[]> {
-  const url = `https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&source=flickr&license_type=public-domain&page_size=12`;
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
-  const data = await res.json();
-  const results = data?.results ?? [];
-  return results.map((item: any, idx: number) => ({
-    pageid: 1700000 + idx,
-    title: item.title ?? "Flickr Photo",
-    url: item.url,
-    thumbUrl: item.thumbnail ?? item.url,
-    description: item.description ?? "",
-    author: item.creator ?? undefined,
-    license: item.license ?? undefined,
-    source: "Flickr Commons",
-  }));
+  // Primary: Use Openverse which aggregates Flickr Commons without API key
+  try {
+    const url = `https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&source=flickr&page_size=12`;
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (res.ok) {
+      const data = await res.json();
+      const results = data?.results ?? [];
+      if (results.length > 0) {
+        return results.map((item: any, idx: number) => ({
+          pageid: 1700000 + idx,
+          title: item.title ?? "Flickr Photo",
+          url: item.url ?? item.foreign_landing_url,
+          thumbUrl: item.thumbnail ?? item.url,
+          description: item.description ?? "",
+          author: item.creator ?? undefined,
+          license: item.license ?? undefined,
+          source: "Flickr Commons",
+        }));
+      }
+    }
+  } catch (_) {
+    /* fall through to secondary */
+  }
+
+  // Secondary: Openverse without source filter (broader search)
+  try {
+    const url2 = `https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&license=cc0,pdm&page_size=8`;
+    const res2 = await fetch(url2, { headers: { Accept: "application/json" } });
+    if (res2.ok) {
+      const data2 = await res2.json();
+      const results2 = (data2?.results ?? []).filter(
+        (i: any) => i.source === "flickr" || i.source === "rawpixel",
+      );
+      return results2.map((item: any, idx: number) => ({
+        pageid: 1700000 + idx,
+        title: item.title ?? "Flickr Photo",
+        url: item.url ?? item.foreign_landing_url,
+        thumbUrl: item.thumbnail ?? item.url,
+        description: item.description ?? "",
+        author: item.creator ?? undefined,
+        license: item.license ?? undefined,
+        source: "Flickr Commons",
+      }));
+    }
+  } catch (_) {
+    /* empty */
+  }
+
+  return [];
 }
 
 // ──────────────────────────────────────────────
@@ -1117,7 +1152,7 @@ async function fetchPbsVideos(query: string): Promise<WikiVideo[]> {
 }
 
 async function fetchNfbVideos(query: string): Promise<WikiVideo[]> {
-  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:nfb&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:nfb-films&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
   const res = await fetch(url);
   const data = await res.json();
   const docs = data?.response?.docs ?? [];
@@ -1134,7 +1169,7 @@ async function fetchNfbVideos(query: string): Promise<WikiVideo[]> {
 }
 
 async function fetchUcBerkeleyVideos(query: string): Promise<WikiVideo[]> {
-  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:ucberkeley&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:UCBerkeleyEducation&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
   const res = await fetch(url);
   const data = await res.json();
   const docs = data?.response?.docs ?? [];
@@ -1151,7 +1186,7 @@ async function fetchUcBerkeleyVideos(query: string): Promise<WikiVideo[]> {
 }
 
 async function fetchDemocracyNowVideos(query: string): Promise<WikiVideo[]> {
-  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:democracy_now&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:democracynow&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
   const res = await fetch(url);
   const data = await res.json();
   const docs = data?.response?.docs ?? [];
@@ -1168,7 +1203,7 @@ async function fetchDemocracyNowVideos(query: string): Promise<WikiVideo[]> {
 }
 
 async function fetchClassicTvVideos(query: string): Promise<WikiVideo[]> {
-  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:classic_tv&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:televisionarchive&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
   const res = await fetch(url);
   const data = await res.json();
   const docs = data?.response?.docs ?? [];
@@ -1185,7 +1220,7 @@ async function fetchClassicTvVideos(query: string): Promise<WikiVideo[]> {
 }
 
 async function fetchClassicCartoonsVideos(query: string): Promise<WikiVideo[]> {
-  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:classic_cartoons&fl[]=identifier,title,description&rows=8&output=json&mediatype=movies`;
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:animationandcartoons&fl[]=identifier,title,description&rows=8&output=json&mediatype=movies`;
   const res = await fetch(url);
   const data = await res.json();
   const docs = data?.response?.docs ?? [];
@@ -1202,7 +1237,7 @@ async function fetchClassicCartoonsVideos(query: string): Promise<WikiVideo[]> {
 }
 
 async function fetchSciFiHorrorVideos(query: string): Promise<WikiVideo[]> {
-  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:scifi_horror&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:SciFi_Horror&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
   const res = await fetch(url);
   const data = await res.json();
   const docs = data?.response?.docs ?? [];
