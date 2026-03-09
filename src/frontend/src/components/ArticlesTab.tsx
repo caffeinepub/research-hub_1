@@ -1,0 +1,124 @@
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { BookOpen, ChevronDown, ChevronUp } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import type { WikiArticle } from "../types/research";
+
+interface Props {
+  articles: WikiArticle[];
+  loading: boolean;
+  onExpand: (article: WikiArticle) => void;
+}
+
+const SKELETON_IDS = ["sk-a", "sk-b", "sk-c", "sk-d", "sk-e", "sk-f"];
+
+export function ArticlesTab({ articles, loading, onExpand }: Props) {
+  if (loading) {
+    return (
+      <div
+        data-ocid="search.loading_state"
+        className="grid grid-cols-1 md:grid-cols-2 gap-5"
+      >
+        {SKELETON_IDS.map((id) => (
+          <div key={id} className="article-card p-5 space-y-3">
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-5/6" />
+            <Skeleton className="h-3 w-4/5" />
+            <Skeleton className="h-8 w-24 mt-2" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (articles.length === 0) {
+    return (
+      <div
+        data-ocid="articles.empty_state"
+        className="flex flex-col items-center justify-center py-20 text-center"
+      >
+        <BookOpen className="w-12 h-12 text-muted-foreground/40 mb-4" />
+        <p className="text-muted-foreground text-lg font-display">
+          No articles found
+        </p>
+        <p className="text-muted-foreground/60 text-sm mt-1">
+          Try a different search term
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      {articles.map((article, idx) => (
+        <motion.div
+          key={article.pageid}
+          data-ocid={`articles.item.${idx + 1}`}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: idx * 0.05, duration: 0.3 }}
+          className="article-card"
+        >
+          {article.thumbnail && (
+            <div className="relative h-40 overflow-hidden">
+              <img
+                src={article.thumbnail.source}
+                alt={article.title}
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+            </div>
+          )}
+          <div className="p-5">
+            <h3 className="font-display font-semibold text-lg leading-tight mb-1 text-foreground">
+              {article.title}
+            </h3>
+            {article.description && (
+              <p className="text-xs text-muted-foreground mb-2 font-mono uppercase tracking-wider">
+                {article.description}
+              </p>
+            )}
+            <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">
+              {article.snippet}
+            </p>
+
+            <AnimatePresence>
+              {article.expanded && article.fullSummary && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="overflow-hidden"
+                >
+                  <p className="mt-3 text-sm text-foreground/80 leading-relaxed border-t border-border/60 pt-3">
+                    {article.fullSummary}
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="mt-3 text-primary hover:text-primary/80 px-0 font-medium"
+              onClick={() => onExpand(article)}
+            >
+              {article.expanded ? (
+                <>
+                  <ChevronUp className="w-4 h-4 mr-1" /> Show Less
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="w-4 h-4 mr-1" /> Read More
+                </>
+              )}
+            </Button>
+          </div>
+        </motion.div>
+      ))}
+    </div>
+  );
+}
