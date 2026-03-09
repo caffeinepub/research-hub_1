@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Archive, Play, Video, Youtube } from "lucide-react";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { WikiVideo } from "../types/research";
 
 interface Props {
@@ -45,6 +45,50 @@ const SOURCE_COLORS: Record<string, string> = {
   "TED Talks": "bg-rose-600/10 text-rose-400 border-rose-600/20",
   "News & Public Affairs": "bg-slate-600/10 text-slate-300 border-slate-600/20",
 };
+
+function isArchiveSource(source: string) {
+  return (
+    source.startsWith("Archive") ||
+    source === "Internet Archive" ||
+    source === "Prelinger Archives" ||
+    source === "YouTube (Archived)" ||
+    source === "C-SPAN Archive"
+  );
+}
+
+function VideoPlayer({ video }: { video: WikiVideo }) {
+  // For Archive.org embeds, remove sandbox restrictions so the player can function
+  if (video.embedUrl) {
+    const noSandbox =
+      isArchiveSource(video.source) || video.embedUrl.includes("archive.org");
+    return (
+      <iframe
+        src={video.embedUrl}
+        className="w-full aspect-video"
+        style={{ maxHeight: "500px" }}
+        allowFullScreen
+        allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+        {...(!noSandbox && {
+          sandbox:
+            "allow-scripts allow-same-origin allow-presentation allow-popups allow-forms allow-pointer-lock",
+        })}
+        title={video.title}
+      />
+    );
+  }
+  return (
+    // biome-ignore lint/a11y/useMediaCaption: public domain video source may not have captions
+    <video
+      key={video.url}
+      controls
+      className="w-full aspect-video"
+      style={{ maxHeight: "500px" }}
+    >
+      <source src={video.url} type={video.mime} />
+      Your browser does not support this video format.
+    </video>
+  );
+}
 
 function VideoThumb({ video }: { video: WikiVideo }) {
   return (
@@ -110,27 +154,96 @@ function VideoCard({
   );
 }
 
+function SourceFilters({
+  sources,
+  disabled,
+  onToggle,
+}: {
+  sources: string[];
+  disabled: Set<string>;
+  onToggle: (source: string) => void;
+}) {
+  if (sources.length <= 1) return null;
+  return (
+    <div
+      data-ocid="videos.source_filters"
+      className="flex flex-wrap gap-2 pb-2"
+    >
+      <span className="text-xs text-muted-foreground self-center mr-1">
+        Sources:
+      </span>
+      {sources.map((source) => {
+        const active = !disabled.has(source);
+        const colorClass =
+          SOURCE_COLORS[source] ?? "bg-muted/50 text-muted-foreground";
+        return (
+          <button
+            key={source}
+            type="button"
+            data-ocid={"videos.filter.toggle"}
+            onClick={() => onToggle(source)}
+            className={`text-[11px] px-2.5 py-0.5 rounded-full border font-medium transition-all ${
+              active
+                ? colorClass
+                : "bg-transparent text-muted-foreground/40 border-border/30 line-through"
+            }`}
+          >
+            {source}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function VideosTab({ videos, loading, fuzzyUsed }: Props) {
   const [selected, setSelected] = useState<WikiVideo | null>(null);
+  const [disabledSources, setDisabledSources] = useState<Set<string>>(
+    new Set(),
+  );
 
-  const ytArchivedVideos = videos.filter(
+  const allSources = useMemo(
+    () => Array.from(new Set(videos.map((v) => v.source))).sort(),
+    [videos],
+  );
+
+  const toggleSource = (source: string) => {
+    setDisabledSources((prev) => {
+      const next = new Set(prev);
+      if (next.has(source)) next.delete(source);
+      else next.add(source);
+      return next;
+    });
+  };
+
+  const filteredVideos = useMemo(
+    () => videos.filter((v) => !disabledSources.has(v.source)),
+    [videos, disabledSources],
+  );
+
+  const ytArchivedVideos = filteredVideos.filter(
     (v) => v.source === "YouTube (Archived)",
   );
-  const ytPublicDomainVideos = videos.filter(
+  const ytPublicDomainVideos = filteredVideos.filter(
     (v) => v.source === "YouTube (Public Domain)",
   );
-  const regularVideos = videos.filter(
+  const regularVideos = filteredVideos.filter(
     (v) =>
       v.source !== "YouTube (Archived)" &&
       v.source !== "YouTube (Public Domain)",
   );
 
-  const allVideos = [
+  const allFiltered = [
     ...ytPublicDomainVideos,
     ...ytArchivedVideos,
     ...regularVideos,
   ];
-  const activeVideo = selected ?? allVideos[0] ?? null;
+
+  // If selected video is filtered out, reset selection
+  const activeVideo =
+    selected && !disabledSources.has(selected.source)
+      ? selected
+      : (allFiltered[0] ?? null);
 
   if (loading) {
     return (
@@ -170,6 +283,12 @@ export function VideosTab({ videos, loading, fuzzyUsed }: Props) {
         </p>
       )}
 
+      <SourceFilters
+        sources={allSources}
+        disabled={disabledSources}
+        onToggle={toggleSource}
+      />
+
       {/* Main video player */}
       {activeVideo && (
         <motion.div
@@ -179,28 +298,7 @@ export function VideosTab({ videos, loading, fuzzyUsed }: Props) {
           animate={{ opacity: 1, y: 0 }}
           className="rounded-2xl overflow-hidden border border-border/60 bg-black"
         >
-          {activeVideo.embedUrl ? (
-            <iframe
-              src={activeVideo.embedUrl}
-              className="w-full aspect-video"
-              style={{ maxHeight: "500px" }}
-              allowFullScreen
-              allow="autoplay; encrypted-media; picture-in-picture"
-              sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-forms allow-pointer-lock"
-              title={activeVideo.title}
-            />
-          ) : (
-            // biome-ignore lint/a11y/useMediaCaption: public domain video source may not have captions
-            <video
-              key={activeVideo.url}
-              controls
-              className="w-full aspect-video"
-              style={{ maxHeight: "500px" }}
-            >
-              <source src={activeVideo.url} type={activeVideo.mime} />
-              Your browser does not support this video format.
-            </video>
-          )}
+          <VideoPlayer video={activeVideo} />
           <div className="p-4 bg-card">
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-display font-semibold text-base text-foreground flex-1">
@@ -318,7 +416,6 @@ export function VideosTab({ videos, loading, fuzzyUsed }: Props) {
             </Badge>
           </div>
 
-          {/* Horizontal scroll row */}
           <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-thin">
             {ytArchivedVideos.map((video, idx) => (
               <motion.div
@@ -369,6 +466,19 @@ export function VideosTab({ videos, loading, fuzzyUsed }: Props) {
               ocidPrefix="videos"
             />
           ))}
+        </div>
+      )}
+
+      {allFiltered.length === 0 && (
+        <div
+          data-ocid="videos.empty_state"
+          className="flex flex-col items-center justify-center py-16 text-center"
+        >
+          <Video className="w-10 h-10 text-muted-foreground/30 mb-3" />
+          <p className="text-muted-foreground">All sources filtered out</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">
+            Re-enable a source above to see results
+          </p>
         </div>
       )}
     </div>

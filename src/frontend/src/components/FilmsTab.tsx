@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Clapperboard, Play, Youtube } from "lucide-react";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { WikiVideo } from "../types/research";
 
 interface Props {
@@ -31,6 +31,51 @@ const SOURCE_COLORS: Record<string, string> = {
   "Sci-Fi & Horror Archive":
     "bg-purple-900/10 text-purple-300 border-purple-900/30",
 };
+
+function isArchiveSource(source: string) {
+  return (
+    source.startsWith("Archive") ||
+    source === "Internet Archive" ||
+    source === "Prelinger Archives" ||
+    source === "National Film Board" ||
+    source === "Classic Cartoons" ||
+    source === "Sci-Fi & Horror Archive" ||
+    source === "British Pathé"
+  );
+}
+
+function FilmPlayer({ film }: { film: WikiVideo }) {
+  if (film.embedUrl) {
+    const noSandbox =
+      isArchiveSource(film.source) || film.embedUrl.includes("archive.org");
+    return (
+      <iframe
+        src={film.embedUrl}
+        className="w-full aspect-video"
+        style={{ maxHeight: "500px" }}
+        allowFullScreen
+        allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+        {...(!noSandbox && {
+          sandbox:
+            "allow-scripts allow-same-origin allow-presentation allow-popups allow-forms allow-pointer-lock",
+        })}
+        title={film.title}
+      />
+    );
+  }
+  return (
+    // biome-ignore lint/a11y/useMediaCaption: public domain video source may not have captions
+    <video
+      key={film.url}
+      controls
+      className="w-full aspect-video"
+      style={{ maxHeight: "500px" }}
+    >
+      <source src={film.url} type={film.mime} />
+      Your browser does not support this video format.
+    </video>
+  );
+}
 
 function FilmThumb({ film }: { film: WikiVideo }) {
   return (
@@ -91,18 +136,83 @@ function FilmCard({
   );
 }
 
+function SourceFilters({
+  sources,
+  disabled,
+  onToggle,
+}: {
+  sources: string[];
+  disabled: Set<string>;
+  onToggle: (source: string) => void;
+}) {
+  if (sources.length <= 1) return null;
+  return (
+    <div data-ocid="films.source_filters" className="flex flex-wrap gap-2 pb-2">
+      <span className="text-xs text-muted-foreground self-center mr-1">
+        Sources:
+      </span>
+      {sources.map((source) => {
+        const active = !disabled.has(source);
+        const colorClass =
+          SOURCE_COLORS[source] ?? "bg-muted/50 text-muted-foreground";
+        return (
+          <button
+            key={source}
+            type="button"
+            data-ocid={"films.filter.toggle"}
+            onClick={() => onToggle(source)}
+            className={`text-[11px] px-2.5 py-0.5 rounded-full border font-medium transition-all ${
+              active
+                ? colorClass
+                : "bg-transparent text-muted-foreground/40 border-border/30 line-through"
+            }`}
+          >
+            {source}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function FilmsTab({ films, loading, fuzzyUsed }: Props) {
   const [selected, setSelected] = useState<WikiVideo | null>(null);
+  const [disabledSources, setDisabledSources] = useState<Set<string>>(
+    new Set(),
+  );
 
-  const ytPublicDomainFilms = films.filter(
+  const allSources = useMemo(
+    () => Array.from(new Set(films.map((f) => f.source))).sort(),
+    [films],
+  );
+
+  const toggleSource = (source: string) => {
+    setDisabledSources((prev) => {
+      const next = new Set(prev);
+      if (next.has(source)) next.delete(source);
+      else next.add(source);
+      return next;
+    });
+  };
+
+  const filteredFilms = useMemo(
+    () => films.filter((f) => !disabledSources.has(f.source)),
+    [films, disabledSources],
+  );
+
+  const ytPublicDomainFilms = filteredFilms.filter(
     (v) => v.source === "YouTube (Public Domain)",
   );
-  const otherFilms = films.filter(
+  const otherFilms = filteredFilms.filter(
     (v) => v.source !== "YouTube (Public Domain)",
   );
 
-  const allFilms = [...ytPublicDomainFilms, ...otherFilms];
-  const activeFilm = selected ?? allFilms[0] ?? null;
+  const allFiltered = [...ytPublicDomainFilms, ...otherFilms];
+
+  const activeFilm =
+    selected && !disabledSources.has(selected.source)
+      ? selected
+      : (allFiltered[0] ?? null);
 
   if (loading) {
     return (
@@ -142,6 +252,12 @@ export function FilmsTab({ films, loading, fuzzyUsed }: Props) {
         </p>
       )}
 
+      <SourceFilters
+        sources={allSources}
+        disabled={disabledSources}
+        onToggle={toggleSource}
+      />
+
       {/* Main film player */}
       {activeFilm && (
         <motion.div
@@ -151,28 +267,7 @@ export function FilmsTab({ films, loading, fuzzyUsed }: Props) {
           animate={{ opacity: 1, y: 0 }}
           className="rounded-2xl overflow-hidden border border-border/60 bg-black"
         >
-          {activeFilm.embedUrl ? (
-            <iframe
-              src={activeFilm.embedUrl}
-              className="w-full aspect-video"
-              style={{ maxHeight: "500px" }}
-              allowFullScreen
-              allow="autoplay; encrypted-media; picture-in-picture"
-              sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-forms allow-pointer-lock"
-              title={activeFilm.title}
-            />
-          ) : (
-            // biome-ignore lint/a11y/useMediaCaption: public domain video source may not have captions
-            <video
-              key={activeFilm.url}
-              controls
-              className="w-full aspect-video"
-              style={{ maxHeight: "500px" }}
-            >
-              <source src={activeFilm.url} type={activeFilm.mime} />
-              Your browser does not support this video format.
-            </video>
-          )}
+          <FilmPlayer film={activeFilm} />
           <div className="p-4 bg-card">
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-display font-semibold text-base text-foreground flex-1">
@@ -222,7 +317,6 @@ export function FilmsTab({ films, loading, fuzzyUsed }: Props) {
             </Badge>
           </div>
 
-          {/* Horizontal scroll row */}
           <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-thin">
             {ytPublicDomainFilms.map((film, idx) => (
               <motion.div
@@ -283,6 +377,19 @@ export function FilmsTab({ films, loading, fuzzyUsed }: Props) {
               />
             ))}
           </div>
+        </div>
+      )}
+
+      {allFiltered.length === 0 && (
+        <div
+          data-ocid="films.empty_state"
+          className="flex flex-col items-center justify-center py-16 text-center"
+        >
+          <Clapperboard className="w-10 h-10 text-muted-foreground/30 mb-3" />
+          <p className="text-muted-foreground">All sources filtered out</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">
+            Re-enable a source above to see results
+          </p>
         </div>
       )}
     </div>
