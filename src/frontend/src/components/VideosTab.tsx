@@ -37,6 +37,13 @@ const SOURCE_COLORS: Record<string, string> = {
   "NIH / NLM": "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
   "Science.gov": "bg-teal-600/10 text-teal-400 border-teal-600/20",
   NOAA: "bg-blue-600/10 text-blue-400 border-blue-600/20",
+  "PBS NewsHour": "bg-blue-800/10 text-blue-300 border-blue-800/30",
+  "UC Berkeley": "bg-yellow-600/10 text-yellow-400 border-yellow-600/20",
+  "Democracy Now": "bg-pink-600/10 text-pink-400 border-pink-600/20",
+  "Classic TV": "bg-stone-500/10 text-stone-300 border-stone-500/20",
+  "MIT OpenCourseWare": "bg-red-800/10 text-red-300 border-red-800/20",
+  "TED Talks": "bg-rose-600/10 text-rose-400 border-rose-600/20",
+  "News & Public Affairs": "bg-slate-600/10 text-slate-300 border-slate-600/20",
 };
 
 function VideoThumb({ video }: { video: WikiVideo }) {

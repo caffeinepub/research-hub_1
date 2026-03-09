@@ -26,6 +26,10 @@ const SOURCE_COLORS: Record<string, string> = {
   "Internet Archive": "bg-amber-500/10 text-amber-400 border-amber-500/20",
   DPLA: "bg-purple-500/10 text-purple-400 border-purple-500/20",
   NASA: "bg-sky-500/10 text-sky-400 border-sky-500/20",
+  "National Film Board": "bg-red-900/10 text-red-300 border-red-900/30",
+  "Classic Cartoons": "bg-yellow-500/10 text-yellow-300 border-yellow-500/20",
+  "Sci-Fi & Horror Archive":
+    "bg-purple-900/10 text-purple-300 border-purple-900/30",
 };
 
 function FilmThumb({ film }: { film: WikiVideo }) {

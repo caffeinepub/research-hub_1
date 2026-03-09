@@ -19,6 +19,11 @@ const SOURCE_COLORS: Record<string, string> = {
   "Project Gutenberg":
     "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
   PubMed: "bg-rose-500/10 text-rose-400 border-rose-500/20",
+  arXiv: "bg-red-500/10 text-red-400 border-red-500/20",
+  CrossRef: "bg-orange-600/10 text-orange-400 border-orange-600/20",
+  DOAJ: "bg-green-600/10 text-green-400 border-green-600/20",
+  NSF: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
+  "NIH / NLM": "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
 };
 
 export function ArticlesTab({ articles, loading, onExpand }: Props) {

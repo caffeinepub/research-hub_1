@@ -35,6 +35,10 @@ const SOURCE_COLORS: Record<string, string> = {
   Openverse: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
   Smithsonian: "bg-orange-500/10 text-orange-400 border-orange-500/20",
   "Flickr Commons": "bg-pink-500/10 text-pink-400 border-pink-500/20",
+  "Art Institute of Chicago": "bg-red-700/10 text-red-400 border-red-700/20",
+  "Cleveland Museum": "bg-teal-700/10 text-teal-400 border-teal-700/20",
+  DPLA: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+  Rijksmuseum: "bg-orange-600/10 text-orange-400 border-orange-600/20",
 };
 
 export function ImagesTab({ images, loading, fuzzyUsed }: Props) {

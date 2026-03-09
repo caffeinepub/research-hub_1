@@ -432,8 +432,9 @@ export default function App() {
           <div className="flex items-center gap-2">
             <Globe className="w-4 h-4" />
             <span>
-              Research Hub — Wikipedia, NASA, Internet Archive, British Pathé,
-              YouTube &amp; more
+              Research Hub — Wikipedia, NASA, PBS, TED Talks, MIT
+              OpenCourseWare, NFB, Internet Archive, Rijksmuseum &amp; 40+
+              sources
             </span>
           </div>
           <p>

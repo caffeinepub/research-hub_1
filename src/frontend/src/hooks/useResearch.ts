@@ -976,6 +976,302 @@ async function fetchArchiveNews(query: string): Promise<WikiVideo[]> {
 }
 
 // ──────────────────────────────────────────────
+// NEW SOURCES v9
+// ──────────────────────────────────────────────
+
+async function fetchArxivArticles(query: string): Promise<WikiArticle[]> {
+  const url = `https://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(query)}&start=0&max_results=6`;
+  const res = await fetch(url);
+  const text = await res.text();
+  const parser = new DOMParser();
+  const xml = parser.parseFromString(text, "application/xml");
+  const entries = Array.from(xml.querySelectorAll("entry"));
+  return entries.map((entry, idx) => ({
+    pageid: 4000000 + idx,
+    title: entry.querySelector("title")?.textContent?.trim() ?? "arXiv Paper",
+    snippet:
+      entry.querySelector("summary")?.textContent?.trim().substring(0, 200) ??
+      "",
+    source: "arXiv",
+  }));
+}
+
+async function fetchCrossRefArticles(query: string): Promise<WikiArticle[]> {
+  const url = `https://api.crossref.org/works?query=${encodeURIComponent(query)}&rows=6&select=DOI,title,abstract,author`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const items = data?.message?.items ?? [];
+  return items.map((item: any, idx: number) => ({
+    pageid: 4100000 + idx,
+    title: Array.isArray(item.title)
+      ? item.title[0]
+      : (item.title ?? "CrossRef Article"),
+    snippet: item.abstract
+      ? item.abstract.substring(0, 200).replace(/<[^>]*>/g, "")
+      : item.author?.[0]
+        ? `${item.author[0].given ?? ""} ${item.author[0].family ?? ""}`.trim()
+        : "",
+    source: "CrossRef",
+  }));
+}
+
+async function fetchDoajArticles(query: string): Promise<WikiArticle[]> {
+  const url = `https://doaj.org/api/search/articles/${encodeURIComponent(query)}?pageSize=6`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const results = data?.results ?? [];
+  return results.map((item: any, idx: number) => ({
+    pageid: 4200000 + idx,
+    title: item.bibjson?.title ?? "DOAJ Article",
+    snippet:
+      item.bibjson?.abstract?.substring(0, 200) ??
+      item.bibjson?.author?.[0]?.name ??
+      "",
+    source: "DOAJ",
+  }));
+}
+
+async function fetchArtInstituteImages(query: string): Promise<WikiImage[]> {
+  const url = `https://api.artic.edu/api/v1/artworks/search?q=${encodeURIComponent(query)}&limit=8&fields=id,title,image_id,artist_display,description`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const items = data?.data ?? [];
+  return items
+    .filter((item: any) => item.image_id)
+    .map((item: any, idx: number) => ({
+      pageid: 4300000 + idx,
+      title: item.title ?? "Artwork",
+      url: `https://www.artic.edu/iiif/2/${item.image_id}/full/843,/0/default.jpg`,
+      thumbUrl: `https://www.artic.edu/iiif/2/${item.image_id}/full/400,/0/default.jpg`,
+      description: item.artist_display ?? "",
+      source: "Art Institute of Chicago",
+    }));
+}
+
+async function fetchClevelandMuseumImages(query: string): Promise<WikiImage[]> {
+  const url = `https://openaccess-api.clevelandart.org/api/artworks?q=${encodeURIComponent(query)}&has_image=1&limit=8`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const items = data?.data ?? [];
+  return items
+    .filter((item: any) => item.images?.web?.url)
+    .map((item: any, idx: number) => ({
+      pageid: 4400000 + idx,
+      title: item.title ?? "Artwork",
+      url: item.images.web.url,
+      thumbUrl: item.images.web.url,
+      description: item.creators?.[0]?.description ?? "",
+      source: "Cleveland Museum",
+    }));
+}
+
+async function fetchDplaImages(query: string): Promise<WikiImage[]> {
+  const url = `https://api.dp.la/v2/items?q=${encodeURIComponent(query)}&sourceResource.type=image&page_size=8`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.docs ?? [];
+  return docs
+    .filter((doc: any) => doc.object)
+    .map((doc: any, idx: number) => ({
+      pageid: 4500000 + idx,
+      title: doc.sourceResource?.title?.[0] ?? "DPLA Image",
+      url: doc.object,
+      thumbUrl: doc.object,
+      description: doc.sourceResource?.description?.[0] ?? "",
+      source: "DPLA",
+    }));
+}
+
+async function fetchRijksmuseumImages(query: string): Promise<WikiImage[]> {
+  const url = `https://www.rijksmuseum.nl/api/en/collection?key=0fiuZFh4&q=${encodeURIComponent(query)}&imgonly=true&ps=8&s=relevance`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const items = data?.artObjects ?? [];
+  return items
+    .filter((item: any) => item.webImage?.url)
+    .map((item: any, idx: number) => ({
+      pageid: 4600000 + idx,
+      title: item.title ?? "Rijksmuseum Artwork",
+      url: item.webImage.url,
+      thumbUrl: item.headerImage?.url ?? item.webImage.url,
+      description: item.principalOrFirstMaker ?? "",
+      source: "Rijksmuseum",
+    }));
+}
+
+async function fetchPbsVideos(query: string): Promise<WikiVideo[]> {
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:pbsnewshour&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.response?.docs ?? [];
+  return docs.map((doc: any, idx: number) => ({
+    pageid: 4700000 + idx,
+    title: doc.title ?? doc.identifier ?? "PBS Video",
+    url: `https://archive.org/details/${doc.identifier}`,
+    embedUrl: `https://archive.org/embed/${doc.identifier}`,
+    mime: "video/mp4" as const,
+    thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
+    description: doc.description ?? "",
+    source: "PBS NewsHour",
+  }));
+}
+
+async function fetchNfbVideos(query: string): Promise<WikiVideo[]> {
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:nfb&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.response?.docs ?? [];
+  return docs.map((doc: any, idx: number) => ({
+    pageid: 4800000 + idx,
+    title: doc.title ?? doc.identifier ?? "NFB Film",
+    url: `https://archive.org/details/${doc.identifier}`,
+    embedUrl: `https://archive.org/embed/${doc.identifier}`,
+    mime: "video/mp4" as const,
+    thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
+    description: doc.description ?? "",
+    source: "National Film Board",
+  }));
+}
+
+async function fetchUcBerkeleyVideos(query: string): Promise<WikiVideo[]> {
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:ucberkeley&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.response?.docs ?? [];
+  return docs.map((doc: any, idx: number) => ({
+    pageid: 4900000 + idx,
+    title: doc.title ?? doc.identifier ?? "UC Berkeley Video",
+    url: `https://archive.org/details/${doc.identifier}`,
+    embedUrl: `https://archive.org/embed/${doc.identifier}`,
+    mime: "video/mp4" as const,
+    thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
+    description: doc.description ?? "",
+    source: "UC Berkeley",
+  }));
+}
+
+async function fetchDemocracyNowVideos(query: string): Promise<WikiVideo[]> {
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:democracy_now&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.response?.docs ?? [];
+  return docs.map((doc: any, idx: number) => ({
+    pageid: 5000000 + idx,
+    title: doc.title ?? doc.identifier ?? "Democracy Now Video",
+    url: `https://archive.org/details/${doc.identifier}`,
+    embedUrl: `https://archive.org/embed/${doc.identifier}`,
+    mime: "video/mp4" as const,
+    thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
+    description: doc.description ?? "",
+    source: "Democracy Now",
+  }));
+}
+
+async function fetchClassicTvVideos(query: string): Promise<WikiVideo[]> {
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:classic_tv&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.response?.docs ?? [];
+  return docs.map((doc: any, idx: number) => ({
+    pageid: 5100000 + idx,
+    title: doc.title ?? doc.identifier ?? "Classic TV Episode",
+    url: `https://archive.org/details/${doc.identifier}`,
+    embedUrl: `https://archive.org/embed/${doc.identifier}`,
+    mime: "video/mp4" as const,
+    thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
+    description: doc.description ?? "",
+    source: "Classic TV",
+  }));
+}
+
+async function fetchClassicCartoonsVideos(query: string): Promise<WikiVideo[]> {
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:classic_cartoons&fl[]=identifier,title,description&rows=8&output=json&mediatype=movies`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.response?.docs ?? [];
+  return docs.map((doc: any, idx: number) => ({
+    pageid: 5200000 + idx,
+    title: doc.title ?? doc.identifier ?? "Classic Cartoon",
+    url: `https://archive.org/details/${doc.identifier}`,
+    embedUrl: `https://archive.org/embed/${doc.identifier}`,
+    mime: "video/mp4" as const,
+    thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
+    description: doc.description ?? "",
+    source: "Classic Cartoons",
+  }));
+}
+
+async function fetchSciFiHorrorVideos(query: string): Promise<WikiVideo[]> {
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:scifi_horror&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.response?.docs ?? [];
+  return docs.map((doc: any, idx: number) => ({
+    pageid: 5300000 + idx,
+    title: doc.title ?? doc.identifier ?? "Sci-Fi/Horror Film",
+    url: `https://archive.org/details/${doc.identifier}`,
+    embedUrl: `https://archive.org/embed/${doc.identifier}`,
+    mime: "video/mp4" as const,
+    thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
+    description: doc.description ?? "",
+    source: "Sci-Fi & Horror Archive",
+  }));
+}
+
+async function fetchMitOcwVideos(query: string): Promise<WikiVideo[]> {
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:mitopencourseware&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.response?.docs ?? [];
+  return docs.map((doc: any, idx: number) => ({
+    pageid: 5400000 + idx,
+    title: doc.title ?? doc.identifier ?? "MIT Lecture",
+    url: `https://archive.org/details/${doc.identifier}`,
+    embedUrl: `https://archive.org/embed/${doc.identifier}`,
+    mime: "video/mp4" as const,
+    thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
+    description: doc.description ?? "",
+    source: "MIT OpenCourseWare",
+  }));
+}
+
+async function fetchTedTalksVideos(query: string): Promise<WikiVideo[]> {
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:tedtalks&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.response?.docs ?? [];
+  return docs.map((doc: any, idx: number) => ({
+    pageid: 5500000 + idx,
+    title: doc.title ?? doc.identifier ?? "TED Talk",
+    url: `https://archive.org/details/${doc.identifier}`,
+    embedUrl: `https://archive.org/embed/${doc.identifier}`,
+    mime: "video/mp4" as const,
+    thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
+    description: doc.description ?? "",
+    source: "TED Talks",
+  }));
+}
+
+async function fetchNewsPublicAffairsVideos(
+  query: string,
+): Promise<WikiVideo[]> {
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:newsandpublicaffairs&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.response?.docs ?? [];
+  return docs.map((doc: any, idx: number) => ({
+    pageid: 5600000 + idx,
+    title: doc.title ?? doc.identifier ?? "News Video",
+    url: `https://archive.org/details/${doc.identifier}`,
+    embedUrl: `https://archive.org/embed/${doc.identifier}`,
+    mime: "video/mp4" as const,
+    thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
+    description: doc.description ?? "",
+    source: "News & Public Affairs",
+  }));
+}
+
+// ──────────────────────────────────────────────
 // FUZZY SEARCH HELPERS
 // ──────────────────────────────────────────────
 
@@ -1144,6 +1440,23 @@ export function useResearch() {
         archiveAnimationResult,
         archiveEducationResult,
         archiveNewsResult,
+        arxivResult,
+        crossRefResult,
+        doajResult,
+        artInstituteResult,
+        clevelandMuseumResult,
+        dplaImagesResult,
+        rijksmuseumResult,
+        pbsResult,
+        nfbResult,
+        ucBerkeleyResult,
+        democracyNowResult,
+        classicTvResult,
+        classicCartoonsResult,
+        sciFiHorrorResult,
+        mitOcwResult,
+        tedTalksResult,
+        newsPublicAffairsResult,
       ] = await Promise.allSettled([
         fetchInternetArchiveArticles(query),
         fetchGutenbergArticles(query),
@@ -1175,6 +1488,23 @@ export function useResearch() {
         fetchArchiveAnimation(query),
         fetchArchiveEducation(query),
         fetchArchiveNews(query),
+        fetchArxivArticles(query),
+        fetchCrossRefArticles(query),
+        fetchDoajArticles(query),
+        fetchArtInstituteImages(query),
+        fetchClevelandMuseumImages(query),
+        fetchDplaImages(query),
+        fetchRijksmuseumImages(query),
+        fetchPbsVideos(query),
+        fetchNfbVideos(query),
+        fetchUcBerkeleyVideos(query),
+        fetchDemocracyNowVideos(query),
+        fetchClassicTvVideos(query),
+        fetchClassicCartoonsVideos(query),
+        fetchSciFiHorrorVideos(query),
+        fetchMitOcwVideos(query),
+        fetchTedTalksVideos(query),
+        fetchNewsPublicAffairsVideos(query),
       ]);
 
       const extra = <T>(r: PromiseSettledResult<T[]>): T[] =>
@@ -1189,6 +1519,9 @@ export function useResearch() {
         ...extra(nihResult),
         ...extra(openLibraryResult),
         ...extra(hathiTrustResult),
+        ...extra(arxivResult),
+        ...extra(crossRefResult),
+        ...extra(doajResult),
       ];
 
       let images: WikiImage[] = [
@@ -1200,6 +1533,10 @@ export function useResearch() {
         ...extra(openverseResult),
         ...extra(smithsonianResult),
         ...extra(flickrResult),
+        ...extra(artInstituteResult),
+        ...extra(clevelandMuseumResult),
+        ...extra(dplaImagesResult),
+        ...extra(rijksmuseumResult),
       ];
 
       let videos: WikiVideo[] = [
@@ -1218,6 +1555,13 @@ export function useResearch() {
         ...extra(archiveAnimationResult),
         ...extra(archiveEducationResult),
         ...extra(archiveNewsResult),
+        ...extra(pbsResult),
+        ...extra(ucBerkeleyResult),
+        ...extra(democracyNowResult),
+        ...extra(classicTvResult),
+        ...extra(mitOcwResult),
+        ...extra(tedTalksResult),
+        ...extra(newsPublicAffairsResult),
       ];
 
       // Films tab: feature films + prelinger + british pathe + EFG + YouTube PD + wikimedia + open source
@@ -1231,6 +1575,9 @@ export function useResearch() {
         ...extra(wikimediaVideosResult).filter((v) =>
           v.mime.startsWith("video"),
         ),
+        ...extra(nfbResult),
+        ...extra(classicCartoonsResult),
+        ...extra(sciFiHorrorResult),
       ];
 
       // ── Fuzzy / similar search fallback ──
