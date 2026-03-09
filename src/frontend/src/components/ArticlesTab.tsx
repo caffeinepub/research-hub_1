@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BookOpen, ChevronDown, ChevronUp } from "lucide-react";
@@ -11,6 +12,14 @@ interface Props {
 }
 
 const SKELETON_IDS = ["sk-a", "sk-b", "sk-c", "sk-d", "sk-e", "sk-f"];
+
+const SOURCE_COLORS: Record<string, string> = {
+  Wikipedia: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  "Internet Archive": "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  "Project Gutenberg":
+    "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  PubMed: "bg-rose-500/10 text-rose-400 border-rose-500/20",
+};
 
 export function ArticlesTab({ articles, loading, onExpand }: Props) {
   if (loading) {
@@ -71,9 +80,20 @@ export function ArticlesTab({ articles, loading, onExpand }: Props) {
             </div>
           )}
           <div className="p-5">
-            <h3 className="font-display font-semibold text-lg leading-tight mb-1 text-foreground">
-              {article.title}
-            </h3>
+            <div className="flex items-start gap-2 flex-wrap mb-1">
+              <h3 className="font-display font-semibold text-lg leading-tight text-foreground flex-1">
+                {article.title}
+              </h3>
+              <Badge
+                variant="outline"
+                className={`text-xs shrink-0 border ${
+                  SOURCE_COLORS[article.source] ??
+                  "bg-muted/50 text-muted-foreground"
+                }`}
+              >
+                {article.source}
+              </Badge>
+            </div>
             {article.description && (
               <p className="text-xs text-muted-foreground mb-2 font-mono uppercase tracking-wider">
                 {article.description}

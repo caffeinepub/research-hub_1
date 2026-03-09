@@ -125,7 +125,7 @@ export default function App() {
                 className="text-base mb-6 text-center"
                 style={{ color: "oklch(0.72 0.08 230)" }}
               >
-                Explore Wikipedia, public domain images & videos — all in one
+                Explore Wikipedia, NASA, Internet Archive & more — all in one
                 place
               </motion.p>
             )}
@@ -224,20 +224,20 @@ export default function App() {
             {[
               {
                 icon: BookOpen,
-                title: "Wikipedia Articles",
-                desc: "Instant access to millions of encyclopedia entries with full summaries",
+                title: "Wikipedia & More Articles",
+                desc: "Search Wikipedia, Project Gutenberg, PubMed, and Internet Archive — all inline",
                 color: "oklch(0.52 0.18 220)",
               },
               {
                 icon: Image,
                 title: "Public Domain Images",
-                desc: "Browse freely licensed photographs, illustrations, and artwork",
+                desc: "Browse NASA, Met Museum, Library of Congress, Europeana, and Wikimedia Commons",
                 color: "oklch(0.65 0.18 200)",
               },
               {
                 icon: Film,
                 title: "Open Media Videos",
-                desc: "Watch documentary clips and educational videos directly on-site",
+                desc: "Watch NASA missions, Internet Archive films, and educational footage on-site",
                 color: "oklch(0.78 0.17 55)",
               },
             ].map(({ icon: Icon, title, desc, color }, i) => (
@@ -380,7 +380,10 @@ export default function App() {
         <div className="container mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
             <Globe className="w-4 h-4" />
-            <span>Research Hub — Powered by Wikipedia & Wikimedia Commons</span>
+            <span>
+              Research Hub — Powered by Wikipedia, NASA, Internet Archive &amp;
+              more
+            </span>
           </div>
           <p>
             © {new Date().getFullYear()}. Built with ❤️ using{" "}

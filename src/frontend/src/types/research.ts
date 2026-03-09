@@ -2,6 +2,7 @@ export interface WikiArticle {
   pageid: number;
   title: string;
   snippet: string;
+  source: string;
   thumbnail?: {
     source: string;
     width: number;
@@ -18,6 +19,7 @@ export interface WikiImage {
   title: string;
   url: string;
   thumbUrl: string;
+  source: string;
   description?: string;
   author?: string;
   license?: string;
@@ -28,6 +30,7 @@ export interface WikiVideo {
   title: string;
   url: string;
   mime: string;
+  source: string;
   thumbUrl?: string;
   description?: string;
 }

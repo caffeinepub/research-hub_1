@@ -25,6 +25,14 @@ const SKELETON_IDS = [
   "sk-l",
 ];
 
+const SOURCE_COLORS: Record<string, string> = {
+  "Wikimedia Commons": "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  NASA: "bg-sky-500/10 text-sky-400 border-sky-500/20",
+  "Met Museum": "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  "Library of Congress": "bg-red-500/10 text-red-400 border-red-500/20",
+  Europeana: "bg-violet-500/10 text-violet-400 border-violet-500/20",
+};
+
 export function ImagesTab({ images, loading }: Props) {
   const [lightbox, setLightbox] = useState<WikiImage | null>(null);
 
@@ -84,6 +92,18 @@ export function ImagesTab({ images, loading }: Props) {
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200 flex items-center justify-center">
                 <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
               </div>
+              {/* Source badge overlay */}
+              <div className="absolute bottom-1.5 left-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] py-0 px-1.5 border backdrop-blur-sm ${
+                    SOURCE_COLORS[img.source] ??
+                    "bg-black/60 text-white border-white/20"
+                  }`}
+                >
+                  {img.source}
+                </Badge>
+              </div>
             </div>
             <p className="mt-1.5 text-xs text-muted-foreground line-clamp-1 px-0.5">
               {img.title}
@@ -113,6 +133,7 @@ export function ImagesTab({ images, loading }: Props) {
             >
               <button
                 type="button"
+                data-ocid="lightbox.close_button"
                 className="absolute top-3 right-3 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
                 onClick={() => setLightbox(null)}
                 aria-label="Close"
@@ -125,9 +146,20 @@ export function ImagesTab({ images, loading }: Props) {
                 className="w-full max-h-[70vh] object-contain bg-black/10"
               />
               <div className="p-4">
-                <h3 className="font-display font-semibold text-base text-foreground">
-                  {lightbox.title}
-                </h3>
+                <div className="flex items-start gap-2 flex-wrap">
+                  <h3 className="font-display font-semibold text-base text-foreground flex-1">
+                    {lightbox.title}
+                  </h3>
+                  <Badge
+                    variant="outline"
+                    className={`text-xs shrink-0 border ${
+                      SOURCE_COLORS[lightbox.source] ??
+                      "bg-muted/50 text-muted-foreground"
+                    }`}
+                  >
+                    {lightbox.source}
+                  </Badge>
+                </div>
                 {lightbox.description && (
                   <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
                     {lightbox.description}
