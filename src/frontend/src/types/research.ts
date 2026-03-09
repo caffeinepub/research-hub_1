@@ -33,6 +33,7 @@ export interface WikiVideo {
   source: string;
   thumbUrl?: string;
   description?: string;
+  embedUrl?: string;
 }
 
 export interface SearchResults {

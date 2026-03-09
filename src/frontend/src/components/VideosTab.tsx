@@ -8,6 +8,7 @@ import type { WikiVideo } from "../types/research";
 interface Props {
   videos: WikiVideo[];
   loading: boolean;
+  fuzzyUsed?: boolean;
 }
 
 const SKELETON_IDS = ["sk-a", "sk-b", "sk-c", "sk-d", "sk-e", "sk-f"];
@@ -16,9 +17,17 @@ const SOURCE_COLORS: Record<string, string> = {
   "Wikimedia Commons": "bg-blue-500/10 text-blue-400 border-blue-500/20",
   "Internet Archive": "bg-amber-500/10 text-amber-400 border-amber-500/20",
   NASA: "bg-sky-500/10 text-sky-400 border-sky-500/20",
+  "Prelinger Archives": "bg-rose-500/10 text-rose-400 border-rose-500/20",
+  "British Pathé": "bg-red-600/10 text-red-400 border-red-600/20",
+  "C-SPAN Archive":
+    "bg-navy-500/10 text-blue-800 border-blue-900/20 dark:text-blue-300 dark:border-blue-700/30 bg-blue-900/10",
+  "Library of Congress": "bg-red-700/10 text-red-500 border-red-700/20",
+  DPLA: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+  "European Film Gateway":
+    "bg-emerald-600/10 text-emerald-400 border-emerald-600/20",
 };
 
-export function VideosTab({ videos, loading }: Props) {
+export function VideosTab({ videos, loading, fuzzyUsed }: Props) {
   const [selected, setSelected] = useState<WikiVideo | null>(null);
   const activeVideo = selected ?? videos[0] ?? null;
 
@@ -54,6 +63,12 @@ export function VideosTab({ videos, loading }: Props) {
 
   return (
     <div className="space-y-6">
+      {fuzzyUsed && (
+        <p className="text-xs text-muted-foreground/70 italic">
+          Showing related results
+        </p>
+      )}
+
       {activeVideo && (
         <motion.div
           data-ocid="videos.player"
@@ -62,16 +77,28 @@ export function VideosTab({ videos, loading }: Props) {
           animate={{ opacity: 1, y: 0 }}
           className="rounded-2xl overflow-hidden border border-border/60 bg-black"
         >
-          {/* biome-ignore lint/a11y/useMediaCaption: public domain video source may not have captions */}
-          <video
-            key={activeVideo.url}
-            controls
-            className="w-full aspect-video"
-            style={{ maxHeight: "500px" }}
-          >
-            <source src={activeVideo.url} type={activeVideo.mime} />
-            Your browser does not support this video format.
-          </video>
+          {activeVideo.embedUrl ? (
+            <iframe
+              src={activeVideo.embedUrl}
+              className="w-full aspect-video"
+              style={{ maxHeight: "500px" }}
+              allowFullScreen
+              allow="autoplay; encrypted-media"
+              sandbox="allow-scripts allow-same-origin allow-presentation"
+              title={activeVideo.title}
+            />
+          ) : (
+            // biome-ignore lint/a11y/useMediaCaption: public domain video source may not have captions
+            <video
+              key={activeVideo.url}
+              controls
+              className="w-full aspect-video"
+              style={{ maxHeight: "500px" }}
+            >
+              <source src={activeVideo.url} type={activeVideo.mime} />
+              Your browser does not support this video format.
+            </video>
+          )}
           <div className="p-4 bg-card">
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-display font-semibold text-base text-foreground flex-1">

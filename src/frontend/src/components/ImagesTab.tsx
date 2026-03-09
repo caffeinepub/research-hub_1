@@ -8,6 +8,7 @@ import type { WikiImage } from "../types/research";
 interface Props {
   images: WikiImage[];
   loading: boolean;
+  fuzzyUsed?: boolean;
 }
 
 const SKELETON_IDS = [
@@ -31,9 +32,12 @@ const SOURCE_COLORS: Record<string, string> = {
   "Met Museum": "bg-amber-500/10 text-amber-400 border-amber-500/20",
   "Library of Congress": "bg-red-500/10 text-red-400 border-red-500/20",
   Europeana: "bg-violet-500/10 text-violet-400 border-violet-500/20",
+  Openverse: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  Smithsonian: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+  "Flickr Commons": "bg-pink-500/10 text-pink-400 border-pink-500/20",
 };
 
-export function ImagesTab({ images, loading }: Props) {
+export function ImagesTab({ images, loading, fuzzyUsed }: Props) {
   const [lightbox, setLightbox] = useState<WikiImage | null>(null);
 
   if (loading) {
@@ -71,6 +75,12 @@ export function ImagesTab({ images, loading }: Props) {
 
   return (
     <>
+      {fuzzyUsed && (
+        <p className="text-xs text-muted-foreground/70 italic mb-3">
+          Showing related results
+        </p>
+      )}
+
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         {images.map((img, idx) => (
           <motion.div
@@ -92,7 +102,6 @@ export function ImagesTab({ images, loading }: Props) {
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200 flex items-center justify-center">
                 <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
               </div>
-              {/* Source badge overlay */}
               <div className="absolute bottom-1.5 left-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                 <Badge
                   variant="outline"

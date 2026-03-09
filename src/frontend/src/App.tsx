@@ -32,8 +32,15 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState("articles");
   const inputRef = useRef<HTMLInputElement>(null);
-  const { status, results, error, lastQuery, search, expandArticle } =
-    useResearch();
+  const {
+    status,
+    results,
+    error,
+    lastQuery,
+    fuzzyUsed,
+    search,
+    expandArticle,
+  } = useResearch();
 
   const handleSearch = (q?: string) => {
     const searchQuery = q ?? query;
@@ -231,13 +238,13 @@ export default function App() {
               {
                 icon: Image,
                 title: "Public Domain Images",
-                desc: "Browse NASA, Met Museum, Library of Congress, Europeana, and Wikimedia Commons",
+                desc: "Browse NASA, Met Museum, Library of Congress, Europeana, Flickr Commons, and Wikimedia",
                 color: "oklch(0.65 0.18 200)",
               },
               {
                 icon: Film,
                 title: "Open Media Videos",
-                desc: "Watch NASA missions, Internet Archive films, and educational footage on-site",
+                desc: "Watch NASA, Internet Archive, British Pathé, C-SPAN, Prelinger, DPLA, and more",
                 color: "oklch(0.78 0.17 55)",
               },
             ].map(({ icon: Icon, title, desc, color }, i) => (
@@ -364,11 +371,19 @@ export default function App() {
               </TabsContent>
 
               <TabsContent value="images">
-                <ImagesTab images={results.images} loading={isLoading} />
+                <ImagesTab
+                  images={results.images}
+                  loading={isLoading}
+                  fuzzyUsed={fuzzyUsed}
+                />
               </TabsContent>
 
               <TabsContent value="videos">
-                <VideosTab videos={results.videos} loading={isLoading} />
+                <VideosTab
+                  videos={results.videos}
+                  loading={isLoading}
+                  fuzzyUsed={fuzzyUsed}
+                />
               </TabsContent>
             </Tabs>
           </motion.div>
@@ -381,8 +396,8 @@ export default function App() {
           <div className="flex items-center gap-2">
             <Globe className="w-4 h-4" />
             <span>
-              Research Hub — Powered by Wikipedia, NASA, Internet Archive &amp;
-              more
+              Research Hub — Wikipedia, NASA, Internet Archive, British Pathé
+              &amp; more
             </span>
           </div>
           <p>

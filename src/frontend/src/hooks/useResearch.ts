@@ -28,6 +28,10 @@ function stripHtml(html: string): string {
     .replace(/&gt;/g, ">");
 }
 
+// ──────────────────────────────────────────────
+// ARTICLE SOURCES
+// ──────────────────────────────────────────────
+
 async function fetchInternetArchiveArticles(
   query: string,
 ): Promise<WikiArticle[]> {
@@ -86,6 +90,40 @@ async function fetchPubMedArticles(query: string): Promise<WikiArticle[]> {
     })
     .filter(Boolean) as WikiArticle[];
 }
+
+async function fetchOpenLibraryArticles(query: string): Promise<WikiArticle[]> {
+  const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=5&fields=key,title,author_name,subject,edition_count`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.docs ?? [];
+  return docs.map((doc: any, idx: number) => ({
+    pageid: 1500000 + idx,
+    title: doc.title ?? "Untitled",
+    snippet: doc.author_name
+      ? `By ${doc.author_name.join(", ")}`
+      : (doc.subject?.[0] ?? ""),
+    source: "Open Library",
+  }));
+}
+
+async function fetchHathiTrustArticles(query: string): Promise<WikiArticle[]> {
+  const searchUrl = `https://catalog.hathitrust.org/Search/json?lookfor=${encodeURIComponent(query)}&type=AllFields&limit=5`;
+  const res = await fetch(searchUrl);
+  const data = await res.json();
+  const records = data?.records ?? {};
+  return Object.values(records)
+    .slice(0, 5)
+    .map((rec: any, idx: number) => ({
+      pageid: 1600000 + idx,
+      title: rec.titles?.[0] ?? "HathiTrust Record",
+      snippet: rec.authors?.join(", ") ?? "",
+      source: "HathiTrust",
+    }));
+}
+
+// ──────────────────────────────────────────────
+// IMAGE SOURCES
+// ──────────────────────────────────────────────
 
 async function fetchNasaImages(query: string): Promise<WikiImage[]> {
   const url = `https://images.nasa.gov/api/v1/search?q=${encodeURIComponent(query)}&media_type=image&page_size=12`;
@@ -177,8 +215,71 @@ async function fetchEuropeanaImages(query: string): Promise<WikiImage[]> {
     }));
 }
 
+async function fetchOpenverseImages(query: string): Promise<WikiImage[]> {
+  const url = `https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&license_type=public-domain&page_size=12`;
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  const data = await res.json();
+  const results = data?.results ?? [];
+  return results.map((item: any, idx: number) => ({
+    pageid: 1100000 + idx,
+    title: item.title ?? "Public Domain Image",
+    url: item.url,
+    thumbUrl: item.thumbnail ?? item.url,
+    description: item.description ?? "",
+    author: item.creator ?? undefined,
+    license: item.license ?? undefined,
+    source: "Openverse",
+  }));
+}
+
+async function fetchSmithsonianImages(query: string): Promise<WikiImage[]> {
+  const url = `https://api.si.edu/openaccess/api/v1.0/search?q=${encodeURIComponent(query)}&api_key=OPENACCESS&rows=8`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const rows = data?.response?.rows ?? [];
+  return rows
+    .filter(
+      (row: any) =>
+        row.content?.descriptiveNonRepeating?.online_media?.media?.[0]
+          ?.thumbnail,
+    )
+    .map((row: any, idx: number) => {
+      const media = row.content.descriptiveNonRepeating.online_media.media[0];
+      return {
+        pageid: 1300000 + idx,
+        title: row.title ?? "Smithsonian Item",
+        url: media.content ?? media.thumbnail,
+        thumbUrl: media.thumbnail,
+        description: "",
+        source: "Smithsonian",
+      };
+    });
+}
+
+/** Flickr Commons via Openverse (source=flickr) — no API key needed */
+async function fetchFlickrImages(query: string): Promise<WikiImage[]> {
+  const url = `https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&source=flickr&license_type=public-domain&page_size=12`;
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  const data = await res.json();
+  const results = data?.results ?? [];
+  return results.map((item: any, idx: number) => ({
+    pageid: 1700000 + idx,
+    title: item.title ?? "Flickr Photo",
+    url: item.url,
+    thumbUrl: item.thumbnail ?? item.url,
+    description: item.description ?? "",
+    author: item.creator ?? undefined,
+    license: item.license ?? undefined,
+    source: "Flickr Commons",
+  }));
+}
+
+// ──────────────────────────────────────────────
+// VIDEO SOURCES
+// ──────────────────────────────────────────────
+
 async function fetchInternetArchiveVideos(query: string): Promise<WikiVideo[]> {
-  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}&fl[]=identifier,title,description&rows=8&output=json&mediatype=movies`;
   const res = await fetch(url);
   const data = await res.json();
   const docs = data?.response?.docs ?? [];
@@ -214,6 +315,150 @@ async function fetchNasaVideos(query: string): Promise<WikiVideo[]> {
     });
 }
 
+async function fetchPrelingerVideos(query: string): Promise<WikiVideo[]> {
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:prelinger&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.response?.docs ?? [];
+  return docs.map((doc: any, idx: number) => ({
+    pageid: 1400000 + idx,
+    title: doc.title ?? doc.identifier ?? "Prelinger Film",
+    url: `https://archive.org/download/${doc.identifier}/${doc.identifier}.mp4`,
+    mime: "video/mp4",
+    thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
+    description: doc.description ?? "",
+    source: "Prelinger Archives",
+  }));
+}
+
+async function fetchBritishPatheVideos(query: string): Promise<WikiVideo[]> {
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:britishpathe&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.response?.docs ?? [];
+  return docs.map((doc: any, idx: number) => ({
+    pageid: 1800000 + idx,
+    title: doc.title ?? doc.identifier ?? "British Pathé Film",
+    url: `https://archive.org/download/${doc.identifier}/${doc.identifier}.mp4`,
+    mime: "video/mp4",
+    thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
+    description: doc.description ?? "",
+    source: "British Pathé",
+  }));
+}
+
+async function fetchCSpanVideos(query: string): Promise<WikiVideo[]> {
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+collection:c-span&fl[]=identifier,title,description&rows=6&output=json&mediatype=movies`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.response?.docs ?? [];
+  return docs.map((doc: any, idx: number) => ({
+    pageid: 1900000 + idx,
+    title: doc.title ?? doc.identifier ?? "C-SPAN Video",
+    url: `https://archive.org/download/${doc.identifier}/${doc.identifier}.mp4`,
+    mime: "video/mp4",
+    thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
+    description: doc.description ?? "",
+    source: "C-SPAN Archive",
+  }));
+}
+
+async function fetchLocFilms(query: string): Promise<WikiVideo[]> {
+  const url = `https://www.loc.gov/film/?q=${encodeURIComponent(query)}&fo=json&c=8`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const results = data?.results ?? [];
+  return results
+    .filter(
+      (r: any) =>
+        r.online_format?.includes("video") ||
+        r.mime_type?.some?.((m: string) => m.startsWith("video")),
+    )
+    .map((r: any, idx: number) => ({
+      pageid: 2000000 + idx,
+      title: r.title ?? "Library of Congress Film",
+      url: r.url ?? r.id ?? "",
+      mime: "video/mp4" as const,
+      thumbUrl: r.image_url?.[0] ?? undefined,
+      description: Array.isArray(r.description)
+        ? r.description[0]
+        : (r.description ?? ""),
+      source: "Library of Congress",
+    }));
+}
+
+async function fetchDplaVideos(query: string): Promise<WikiVideo[]> {
+  const url = `https://api.dp.la/v2/items?q=${encodeURIComponent(query)}&sourceResource.type=moving+image&page_size=6`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.docs ?? [];
+  return docs
+    .filter((doc: any) => doc.object || doc.sourceResource?.title)
+    .map((doc: any, idx: number) => ({
+      pageid: 2100000 + idx,
+      title: doc.sourceResource?.title?.[0] ?? "DPLA Video",
+      url: doc.isShownAt ?? doc.object ?? "",
+      mime: "video/mp4" as const,
+      thumbUrl: doc.object ?? undefined,
+      description: doc.sourceResource?.description?.[0] ?? "",
+      source: "DPLA",
+    }));
+}
+
+async function fetchEuropeanFilmGateway(query: string): Promise<WikiVideo[]> {
+  const url = `https://api.europeana.eu/record/v2/search.json?wskey=api2demo&query=${encodeURIComponent(query)}&qf=TYPE:VIDEO&rows=6`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const items = data?.items ?? [];
+  return items
+    .filter((item: any) => item.edmPreview?.[0] || item.edmIsShownAt?.[0])
+    .map((item: any, idx: number) => ({
+      pageid: 2200000 + idx,
+      title: item.title?.[0] ?? "European Film",
+      url: item.edmIsShownAt?.[0] ?? "",
+      mime: "video/mp4" as const,
+      thumbUrl: item.edmPreview?.[0] ?? undefined,
+      description: item.dcDescription?.[0] ?? "",
+      embedUrl: item.edmIsShownAt?.[0] ?? undefined,
+      source: "European Film Gateway",
+    }));
+}
+
+async function fetchWikimediaVideos(query: string): Promise<WikiVideo[]> {
+  const url = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(query)}+filetype:video&prop=imageinfo&iiprop=url|mime&format=json&origin=*&gsrlimit=8`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const pages = data?.query?.pages ? Object.values(data.query.pages) : [];
+  return (pages as any[])
+    .filter((p: any) => p.imageinfo?.[0]?.mime?.startsWith("video"))
+    .map((p: any, idx: number) => {
+      const info = p.imageinfo[0];
+      return {
+        pageid: 2300000 + idx,
+        title: p.title?.replace(/^File:/, "") ?? "Commons Video",
+        url: info.url,
+        mime: info.mime ?? "video/webm",
+        thumbUrl: undefined,
+        description: "",
+        source: "Wikimedia Commons",
+      };
+    });
+}
+
+// ──────────────────────────────────────────────
+// FUZZY SEARCH HELPERS
+// ──────────────────────────────────────────────
+
+/** Returns a broadened query: multi-word → first word; single word → as-is */
+function broadenQuery(query: string): string {
+  const words = query.trim().split(/\s+/);
+  return words.length > 1 ? words[0] : query;
+}
+
+// ──────────────────────────────────────────────
+// HOOK
+// ──────────────────────────────────────────────
+
 export function useResearch() {
   const [status, setStatus] = useState<SearchStatus>("idle");
   const [results, setResults] = useState<SearchResults>({
@@ -223,12 +468,14 @@ export function useResearch() {
   });
   const [error, setError] = useState<string | null>(null);
   const [lastQuery, setLastQuery] = useState("");
+  const [fuzzyUsed, setFuzzyUsed] = useState(false);
 
   const search = useCallback(async (query: string) => {
     if (!query.trim()) return;
     setStatus("loading");
     setError(null);
     setLastQuery(query);
+    setFuzzyUsed(false);
 
     try {
       // Core sources
@@ -313,7 +560,7 @@ export function useResearch() {
         }
       }
 
-      // Fetch additional sources in parallel
+      // Fetch all additional sources in parallel
       const [
         iaArticlesResult,
         gutenbergResult,
@@ -324,6 +571,18 @@ export function useResearch() {
         europeanaResult,
         iaVideosResult,
         nasaVideosResult,
+        openverseResult,
+        smithsonianResult,
+        prelingerResult,
+        openLibraryResult,
+        hathiTrustResult,
+        flickrResult,
+        britishPatheResult,
+        cspanResult,
+        locFilmsResult,
+        dplaResult,
+        efgResult,
+        wikimediaVideosResult,
       ] = await Promise.allSettled([
         fetchInternetArchiveArticles(query),
         fetchGutenbergArticles(query),
@@ -334,31 +593,122 @@ export function useResearch() {
         fetchEuropeanaImages(query),
         fetchInternetArchiveVideos(query),
         fetchNasaVideos(query),
+        fetchOpenverseImages(query),
+        fetchSmithsonianImages(query),
+        fetchPrelingerVideos(query),
+        fetchOpenLibraryArticles(query),
+        fetchHathiTrustArticles(query),
+        fetchFlickrImages(query),
+        fetchBritishPatheVideos(query),
+        fetchCSpanVideos(query),
+        fetchLocFilms(query),
+        fetchDplaVideos(query),
+        fetchEuropeanFilmGateway(query),
+        fetchWikimediaVideos(query),
       ]);
 
       const extra = <T>(r: PromiseSettledResult<T[]>): T[] =>
         r.status === "fulfilled" ? r.value : [];
 
-      const articles: WikiArticle[] = [
+      let articles: WikiArticle[] = [
         ...wikiArticles,
         ...extra(iaArticlesResult),
         ...extra(gutenbergResult),
         ...extra(pubmedResult),
+        ...extra(openLibraryResult),
+        ...extra(hathiTrustResult),
       ];
 
-      const images: WikiImage[] = [
+      let images: WikiImage[] = [
         ...wikiImages,
         ...extra(nasaImagesResult),
         ...extra(metResult),
         ...extra(locResult),
         ...extra(europeanaResult),
+        ...extra(openverseResult),
+        ...extra(smithsonianResult),
+        ...extra(flickrResult),
       ];
 
-      const videos: WikiVideo[] = [
+      let videos: WikiVideo[] = [
         ...wikiVideos,
         ...extra(iaVideosResult),
         ...extra(nasaVideosResult),
+        ...extra(prelingerResult),
+        ...extra(britishPatheResult),
+        ...extra(cspanResult),
+        ...extra(locFilmsResult),
+        ...extra(dplaResult),
+        ...extra(efgResult),
+        ...extra(wikimediaVideosResult),
       ];
+
+      // ── Fuzzy / similar search fallback ──
+      const needsFuzzyImages = images.length < 3;
+      const needsFuzzyVideos = videos.length < 3;
+
+      if (needsFuzzyImages || needsFuzzyVideos) {
+        const broadQ = broadenQuery(query);
+        if (broadQ !== query) {
+          const fuzzyFetches: Promise<any>[] = [];
+          const fuzzyKeys: string[] = [];
+
+          if (needsFuzzyImages) {
+            fuzzyFetches.push(
+              fetchOpenverseImages(broadQ),
+              fetchFlickrImages(broadQ),
+              fetchNasaImages(broadQ),
+            );
+            fuzzyKeys.push("openverse", "flickr", "nasa-img");
+          }
+          if (needsFuzzyVideos) {
+            fuzzyFetches.push(
+              fetchInternetArchiveVideos(broadQ),
+              fetchBritishPatheVideos(broadQ),
+              fetchPrelingerVideos(broadQ),
+            );
+            fuzzyKeys.push("ia-vid", "pathe", "prelinger");
+          }
+
+          const fuzzyResults = await Promise.allSettled(fuzzyFetches);
+          let fuzzyActivated = false;
+
+          const existingImageIds = new Set(images.map((i) => i.pageid));
+          const existingVideoIds = new Set(videos.map((v) => v.pageid));
+
+          let keyIdx = 0;
+          if (needsFuzzyImages) {
+            for (let i = 0; i < 3; i++) {
+              const r = fuzzyResults[keyIdx++];
+              if (r.status === "fulfilled") {
+                const newImgs = (r.value as WikiImage[]).filter(
+                  (img) => !existingImageIds.has(img.pageid),
+                );
+                if (newImgs.length > 0) {
+                  images = [...images, ...newImgs];
+                  fuzzyActivated = true;
+                }
+              }
+            }
+          }
+          if (needsFuzzyVideos) {
+            for (let i = 0; i < 3; i++) {
+              const r = fuzzyResults[keyIdx++];
+              if (r.status === "fulfilled") {
+                const newVids = (r.value as WikiVideo[]).filter(
+                  (v) => !existingVideoIds.has(v.pageid),
+                );
+                if (newVids.length > 0) {
+                  videos = [...videos, ...newVids];
+                  fuzzyActivated = true;
+                }
+              }
+            }
+          }
+
+          if (fuzzyActivated) setFuzzyUsed(true);
+        }
+      }
 
       setResults({ articles, images, videos });
       setStatus("success");
@@ -381,7 +731,6 @@ export function useResearch() {
       return;
     }
     if (article.source !== "Wikipedia") {
-      // For non-Wikipedia articles, just toggle without fetching
       setResults((prev) => ({
         ...prev,
         articles: prev.articles.map((a) =>
@@ -407,5 +756,13 @@ export function useResearch() {
     }
   }, []);
 
-  return { status, results, error, lastQuery, search, expandArticle };
+  return {
+    status,
+    results,
+    error,
+    lastQuery,
+    fuzzyUsed,
+    search,
+    expandArticle,
+  };
 }
