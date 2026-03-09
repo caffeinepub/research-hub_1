@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BookOpen, ChevronDown, ChevronUp } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useState } from "react";
 import type { WikiArticle } from "../types/research";
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
   onExpand: (article: WikiArticle) => void;
 }
 
+const PAGE_SIZE = 12;
 const SKELETON_IDS = ["sk-a", "sk-b", "sk-c", "sk-d", "sk-e", "sk-f"];
 
 const SOURCE_COLORS: Record<string, string> = {
@@ -27,6 +29,15 @@ const SOURCE_COLORS: Record<string, string> = {
 };
 
 export function ArticlesTab({ articles, loading, onExpand }: Props) {
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset on new search
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [articles]);
+
+  const visibleArticles = articles.slice(0, visibleCount);
+
   if (loading) {
     return (
       <div
@@ -64,86 +75,106 @@ export function ArticlesTab({ articles, loading, onExpand }: Props) {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-      {articles.map((article, idx) => (
-        <motion.div
-          key={article.pageid}
-          data-ocid={`articles.item.${idx + 1}`}
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: idx * 0.05, duration: 0.3 }}
-          className="article-card"
-        >
-          {article.thumbnail && (
-            <div className="relative h-40 overflow-hidden">
-              <img
-                src={article.thumbnail.source}
-                alt={article.title}
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-            </div>
-          )}
-          <div className="p-5">
-            <div className="flex items-start gap-2 flex-wrap mb-1">
-              <h3 className="font-display font-semibold text-lg leading-tight text-foreground flex-1">
-                {article.title}
-              </h3>
-              <Badge
-                variant="outline"
-                className={`text-xs shrink-0 border ${
-                  SOURCE_COLORS[article.source] ??
-                  "bg-muted/50 text-muted-foreground"
-                }`}
-              >
-                {article.source}
-              </Badge>
-            </div>
-            {article.description && (
-              <p className="text-xs text-muted-foreground mb-2 font-mono uppercase tracking-wider">
-                {article.description}
-              </p>
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {visibleArticles.map((article, idx) => (
+          <motion.div
+            key={article.pageid}
+            data-ocid={`articles.item.${idx + 1}`}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: idx * 0.05, duration: 0.3 }}
+            className="article-card"
+          >
+            {article.thumbnail && (
+              <div className="relative h-40 overflow-hidden">
+                <img
+                  src={article.thumbnail.source}
+                  alt={article.title}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+              </div>
             )}
-            <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">
-              {article.snippet}
-            </p>
-
-            <AnimatePresence>
-              {article.expanded && article.fullSummary && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="overflow-hidden"
+            <div className="p-5">
+              <div className="flex items-start gap-2 flex-wrap mb-1">
+                <h3 className="font-display font-semibold text-lg leading-tight text-foreground flex-1">
+                  {article.title}
+                </h3>
+                <Badge
+                  variant="outline"
+                  className={`text-xs shrink-0 border ${
+                    SOURCE_COLORS[article.source] ??
+                    "bg-muted/50 text-muted-foreground"
+                  }`}
                 >
-                  <p className="mt-3 text-sm text-foreground/80 leading-relaxed border-t border-border/60 pt-3">
-                    {article.fullSummary}
-                  </p>
-                </motion.div>
+                  {article.source}
+                </Badge>
+              </div>
+              {article.description && (
+                <p className="text-xs text-muted-foreground mb-2 font-mono uppercase tracking-wider">
+                  {article.description}
+                </p>
               )}
-            </AnimatePresence>
+              <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">
+                {article.snippet}
+              </p>
 
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="mt-3 text-primary hover:text-primary/80 px-0 font-medium"
-              onClick={() => onExpand(article)}
-            >
-              {article.expanded ? (
-                <>
-                  <ChevronUp className="w-4 h-4 mr-1" /> Show Less
-                </>
-              ) : (
-                <>
-                  <ChevronDown className="w-4 h-4 mr-1" /> Read More
-                </>
-              )}
-            </Button>
-          </div>
-        </motion.div>
-      ))}
+              <AnimatePresence>
+                {article.expanded && article.fullSummary && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="overflow-hidden"
+                  >
+                    <p className="mt-3 text-sm text-foreground/80 leading-relaxed border-t border-border/60 pt-3">
+                      {article.fullSummary}
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="mt-3 text-primary hover:text-primary/80 px-0 font-medium"
+                onClick={() => onExpand(article)}
+              >
+                {article.expanded ? (
+                  <>
+                    <ChevronUp className="w-4 h-4 mr-1" /> Show Less
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="w-4 h-4 mr-1" /> Read More
+                  </>
+                )}
+              </Button>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Load More */}
+      {visibleCount < articles.length && (
+        <div className="flex justify-center pt-2">
+          <Button
+            type="button"
+            variant="outline"
+            data-ocid="articles.pagination_next"
+            onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+            className="min-w-[140px]"
+          >
+            Load More
+            <span className="ml-2 text-xs text-muted-foreground">
+              ({articles.length - visibleCount} remaining)
+            </span>
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

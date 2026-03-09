@@ -1,53 +1,26 @@
 # Research Hub
 
 ## Current State
-
-Version 8 is live with 4 tabs (Articles, Images, Videos, Films). Sources include Wikipedia, Internet Archive (multiple collections), NASA, Wikimedia Commons, Met Museum, Library of Congress, Europeana, Openverse, Smithsonian, Flickr Commons, PubMed, NSF, NIH/NLM, Open Library, HathiTrust, British Pathé, C-SPAN, DPLA, European Film Gateway, Vimeo CC, Archive Animation/Education/News/Feature Films/Open Source, and curated YouTube public domain films.
+The app has four tabs: Articles, Images, Videos, Films. Each tab receives a full array of results from the parent and renders all items at once. The ImagesTab has a basic lightbox that shows one image with close button but no prev/next navigation.
 
 ## Requested Changes (Diff)
 
 ### Add
-
-**New video sources (all via Internet Archive collections or public embeds):**
-- PBS NewsHour: Archive.org `collection:pbsnewshour`
-- National Film Board of Canada: Archive.org `collection:nfb`
-- UC Berkeley Webcasts: Archive.org `collection:ucberkeley`
-- Democracy Now: Archive.org `collection:democracy_now`
-- Classic TV / Vintage Television: Archive.org `collection:classic_tv`
-- Classic Cartoons: Archive.org `collection:classic_cartoons`
-- Sci-Fi/Horror Archive: Archive.org `collection:scifi_horror`
-- MIT OpenCourseWare: Archive.org `collection:mitocw`
-- TED/Educational talks: Archive.org `collection:tedtalks` 
-- News & Public Affairs (expanded): Archive.org `collection:newsandpublicaffairs`
-
-**New article sources:**
-- arXiv: `https://export.arxiv.org/api/query?search_query=all:{query}&max_results=6`
-- CrossRef: `https://api.crossref.org/works?query={query}&rows=6`
-- DOAJ: `https://doaj.org/api/search/articles/{query}?pageSize=6`
-- Science.gov: `https://www.science.gov/scigov/desktop/en/search.html` (search via OSTI API)
-
-**New image sources:**
-- Art Institute of Chicago: `https://api.artic.edu/api/v1/artworks/search?q={query}`
-- Cleveland Museum of Art: `https://openaccess-api.clevelandart.org/api/artworks?q={query}`
-- DPLA images: `https://api.dp.la/v2/items?q={query}&sourceResource.type=image`
-- Rijksmuseum: `https://www.rijksmuseum.nl/api/en/collection?q={query}&key=0fiuZFh4`
+- Load More button at the bottom of each tab (Articles, Images, Videos, Films) — starts with 12 items visible, each click loads 12 more
+- Image lightbox left/right arrow navigation to scroll through all images in the current results
+- Keyboard support for lightbox (ArrowLeft, ArrowRight, Escape)
 
 ### Modify
-
-- Add new source badge colors for all new sources in VideosTab and FilmsTab
-- Films tab: add NFB and Classic Cartoons to film results
-- Update footer text to mention new sources
+- ImagesTab: add lightboxIndex state (index into images array), replace single-image lightbox with indexed lightbox supporting prev/next navigation; add Load More button below grid
+- ArticlesTab: slice articles to visibleCount, add Load More button below grid
+- VideosTab: slice regularVideos to visibleCount, add Load More button below the regular videos grid
+- FilmsTab: slice otherFilms to visibleCount, add Load More button below the films grid
 
 ### Remove
-
 - Nothing removed
 
 ## Implementation Plan
-
-1. Add `fetchArxivArticles`, `fetchCrossRefArticles`, `fetchDoajArticles` functions to `useResearch.ts`
-2. Add `fetchArtInstituteImages`, `fetchClevelandMuseumImages`, `fetchDplaImages`, `fetchRijksmuseumImages` functions
-3. Add 10 new video source fetch functions for PBS, NFB, UC Berkeley, Democracy Now, Classic TV, Classic Cartoons, Sci-Fi/Horror, MIT OCW, TED, News & Public Affairs -- all via Archive.org advanced search
-4. Wire all new sources into the `Promise.allSettled` parallel fetch block
-5. Add new results to `articles`, `images`, `videos`, and `films` arrays
-6. Add source badge colors for all new sources in `SOURCE_COLORS` maps in `VideosTab.tsx` and `FilmsTab.tsx`
-7. Update footer text
+1. ImagesTab: replace `lightbox: WikiImage | null` state with `lightboxIndex: number | null`; add prev/next arrow buttons in lightbox overlay; add keyboard event listener for ArrowLeft/ArrowRight/Escape; add visibleCount state (default 12) and Load More button
+2. ArticlesTab: add visibleCount state (default 12), slice articles array, add Load More button
+3. VideosTab: add visibleCount state (default 12), slice regularVideos, add Load More button
+4. FilmsTab: add visibleCount state (default 12), slice otherFilms, add Load More button

@@ -1,8 +1,9 @@
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Clapperboard, Play, Youtube } from "lucide-react";
 import { motion } from "motion/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { WikiVideo } from "../types/research";
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
   fuzzyUsed?: boolean;
 }
 
+const PAGE_SIZE = 12;
 const SKELETON_IDS = ["sk-a", "sk-b", "sk-c", "sk-d", "sk-e", "sk-f"];
 
 const SOURCE_COLORS: Record<string, string> = {
@@ -180,6 +182,12 @@ export function FilmsTab({ films, loading, fuzzyUsed }: Props) {
   const [disabledSources, setDisabledSources] = useState<Set<string>>(
     new Set(),
   );
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset on new search
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [films]);
 
   const allSources = useMemo(
     () => Array.from(new Set(films.map((f) => f.source))).sort(),
@@ -206,6 +214,8 @@ export function FilmsTab({ films, loading, fuzzyUsed }: Props) {
   const otherFilms = filteredFilms.filter(
     (v) => v.source !== "YouTube (Public Domain)",
   );
+
+  const visibleOther = otherFilms.slice(0, visibleCount);
 
   const allFiltered = [...ytPublicDomainFilms, ...otherFilms];
 
@@ -367,7 +377,7 @@ export function FilmsTab({ films, loading, fuzzyUsed }: Props) {
             </Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {otherFilms.map((film, idx) => (
+            {visibleOther.map((film, idx) => (
               <FilmCard
                 key={film.pageid}
                 film={film}
@@ -377,6 +387,23 @@ export function FilmsTab({ films, loading, fuzzyUsed }: Props) {
               />
             ))}
           </div>
+
+          {visibleCount < otherFilms.length && (
+            <div className="flex justify-center pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                data-ocid="films.pagination_next"
+                onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                className="min-w-[140px]"
+              >
+                Load More
+                <span className="ml-2 text-xs text-muted-foreground">
+                  ({otherFilms.length - visibleCount} remaining)
+                </span>
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

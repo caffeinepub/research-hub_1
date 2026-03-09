@@ -1,8 +1,9 @@
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Archive, Play, Video, Youtube } from "lucide-react";
 import { motion } from "motion/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { WikiVideo } from "../types/research";
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
   fuzzyUsed?: boolean;
 }
 
+const PAGE_SIZE = 12;
 const SKELETON_IDS = ["sk-a", "sk-b", "sk-c", "sk-d", "sk-e", "sk-f"];
 
 const SOURCE_COLORS: Record<string, string> = {
@@ -57,7 +59,6 @@ function isArchiveSource(source: string) {
 }
 
 function VideoPlayer({ video }: { video: WikiVideo }) {
-  // For Archive.org embeds, remove sandbox restrictions so the player can function
   if (video.embedUrl) {
     const noSandbox =
       isArchiveSource(video.source) || video.embedUrl.includes("archive.org");
@@ -201,6 +202,12 @@ export function VideosTab({ videos, loading, fuzzyUsed }: Props) {
   const [disabledSources, setDisabledSources] = useState<Set<string>>(
     new Set(),
   );
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset on new search
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [videos]);
 
   const allSources = useMemo(
     () => Array.from(new Set(videos.map((v) => v.source))).sort(),
@@ -233,13 +240,14 @@ export function VideosTab({ videos, loading, fuzzyUsed }: Props) {
       v.source !== "YouTube (Public Domain)",
   );
 
+  const visibleRegular = regularVideos.slice(0, visibleCount);
+
   const allFiltered = [
     ...ytPublicDomainVideos,
     ...ytArchivedVideos,
     ...regularVideos,
   ];
 
-  // If selected video is filtered out, reset selection
   const activeVideo =
     selected && !disabledSources.has(selected.source)
       ? selected
@@ -455,17 +463,36 @@ export function VideosTab({ videos, loading, fuzzyUsed }: Props) {
 
       {/* Main grid — regular videos */}
       {regularVideos.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {regularVideos.map((video, idx) => (
-            <VideoCard
-              key={video.pageid}
-              video={video}
-              index={idx + 1}
-              isActive={activeVideo?.pageid === video.pageid}
-              onClick={() => setSelected(video)}
-              ocidPrefix="videos"
-            />
-          ))}
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {visibleRegular.map((video, idx) => (
+              <VideoCard
+                key={video.pageid}
+                video={video}
+                index={idx + 1}
+                isActive={activeVideo?.pageid === video.pageid}
+                onClick={() => setSelected(video)}
+                ocidPrefix="videos"
+              />
+            ))}
+          </div>
+
+          {visibleCount < regularVideos.length && (
+            <div className="flex justify-center">
+              <Button
+                type="button"
+                variant="outline"
+                data-ocid="videos.pagination_next"
+                onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                className="min-w-[140px]"
+              >
+                Load More
+                <span className="ml-2 text-xs text-muted-foreground">
+                  ({regularVideos.length - visibleCount} remaining)
+                </span>
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

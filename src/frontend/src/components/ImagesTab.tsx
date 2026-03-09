@@ -1,8 +1,16 @@
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Scale, User, X, ZoomIn } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Scale,
+  User,
+  X,
+  ZoomIn,
+} from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { WikiImage } from "../types/research";
 
 interface Props {
@@ -10,6 +18,8 @@ interface Props {
   loading: boolean;
   fuzzyUsed?: boolean;
 }
+
+const PAGE_SIZE = 12;
 
 const SKELETON_IDS = [
   "sk-a",
@@ -42,7 +52,37 @@ const SOURCE_COLORS: Record<string, string> = {
 };
 
 export function ImagesTab({ images, loading, fuzzyUsed }: Props) {
-  const [lightbox, setLightbox] = useState<WikiImage | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  // Reset pagination when images change
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset on new search
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [images]);
+
+  // Keyboard navigation for lightbox
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") {
+        setLightboxIndex((i) =>
+          i === null ? null : (i - 1 + images.length) % images.length,
+        );
+      } else if (e.key === "ArrowRight") {
+        setLightboxIndex((i) => (i === null ? null : (i + 1) % images.length));
+      } else if (e.key === "Escape") {
+        setLightboxIndex(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [lightboxIndex, images.length]);
+
+  const visibleImages = images.slice(0, visibleCount);
+  const lightboxImage = lightboxIndex !== null ? images[lightboxIndex] : null;
 
   if (loading) {
     return (
@@ -86,7 +126,7 @@ export function ImagesTab({ images, loading, fuzzyUsed }: Props) {
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-        {images.map((img, idx) => (
+        {visibleImages.map((img, idx) => (
           <motion.div
             key={img.pageid}
             data-ocid={`images.item.${idx + 1}`}
@@ -94,7 +134,7 @@ export function ImagesTab({ images, loading, fuzzyUsed }: Props) {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: idx * 0.03, duration: 0.25 }}
             className="group cursor-pointer"
-            onClick={() => setLightbox(img)}
+            onClick={() => setLightboxIndex(idx)}
           >
             <div className="relative aspect-square overflow-hidden rounded-xl border border-border/60 group-hover:border-primary/40 transition-all duration-200">
               <img
@@ -125,16 +165,34 @@ export function ImagesTab({ images, loading, fuzzyUsed }: Props) {
         ))}
       </div>
 
+      {/* Load More */}
+      {visibleCount < images.length && (
+        <div className="flex justify-center pt-6">
+          <Button
+            type="button"
+            variant="outline"
+            data-ocid="images.pagination_next"
+            onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+            className="min-w-[140px]"
+          >
+            Load More
+            <span className="ml-2 text-xs text-muted-foreground">
+              ({images.length - visibleCount} remaining)
+            </span>
+          </Button>
+        </div>
+      )}
+
       {/* Lightbox */}
       <AnimatePresence>
-        {lightbox && (
+        {lightboxImage && lightboxIndex !== null && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4"
             style={{ backgroundColor: "oklch(0.08 0.02 265 / 0.92)" }}
-            onClick={() => setLightbox(null)}
+            onClick={() => setLightboxIndex(null)}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
@@ -144,52 +202,93 @@ export function ImagesTab({ images, loading, fuzzyUsed }: Props) {
               className="relative max-w-4xl w-full bg-card rounded-2xl overflow-hidden shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
+              {/* Close */}
               <button
                 type="button"
                 data-ocid="lightbox.close_button"
                 className="absolute top-3 right-3 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
-                onClick={() => setLightbox(null)}
+                onClick={() => setLightboxIndex(null)}
                 aria-label="Close"
               >
                 <X className="w-4 h-4" />
               </button>
-              <img
-                src={lightbox.url}
-                alt={lightbox.title}
-                className="w-full max-h-[70vh] object-contain bg-black/10"
-              />
+
+              {/* Prev arrow */}
+              <button
+                type="button"
+                data-ocid="lightbox.pagination_prev"
+                className="absolute left-3 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
+                onClick={() =>
+                  setLightboxIndex(
+                    (lightboxIndex - 1 + images.length) % images.length,
+                  )
+                }
+                aria-label="Previous image"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+
+              {/* Next arrow */}
+              <button
+                type="button"
+                data-ocid="lightbox.pagination_next"
+                className="absolute right-3 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
+                onClick={() =>
+                  setLightboxIndex((lightboxIndex + 1) % images.length)
+                }
+                aria-label="Next image"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+
+              <AnimatePresence mode="wait">
+                <motion.img
+                  key={lightboxImage.pageid}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.2 }}
+                  src={lightboxImage.url}
+                  alt={lightboxImage.title}
+                  className="w-full max-h-[70vh] object-contain bg-black/10"
+                />
+              </AnimatePresence>
+
               <div className="p-4">
                 <div className="flex items-start gap-2 flex-wrap">
                   <h3 className="font-display font-semibold text-base text-foreground flex-1">
-                    {lightbox.title}
+                    {lightboxImage.title}
                   </h3>
                   <Badge
                     variant="outline"
                     className={`text-xs shrink-0 border ${
-                      SOURCE_COLORS[lightbox.source] ??
+                      SOURCE_COLORS[lightboxImage.source] ??
                       "bg-muted/50 text-muted-foreground"
                     }`}
                   >
-                    {lightbox.source}
+                    {lightboxImage.source}
                   </Badge>
                 </div>
-                {lightbox.description && (
+                {lightboxImage.description && (
                   <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                    {lightbox.description}
+                    {lightboxImage.description}
                   </p>
                 )}
-                <div className="flex gap-3 mt-2 flex-wrap">
-                  {lightbox.author && (
+                <div className="flex items-center gap-3 mt-2 flex-wrap">
+                  {lightboxImage.author && (
                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <User className="w-3 h-3" /> {lightbox.author}
+                      <User className="w-3 h-3" /> {lightboxImage.author}
                     </span>
                   )}
-                  {lightbox.license && (
+                  {lightboxImage.license && (
                     <Badge variant="secondary" className="text-xs">
                       <Scale className="w-3 h-3 mr-1" />
-                      {lightbox.license}
+                      {lightboxImage.license}
                     </Badge>
                   )}
+                  <span className="ml-auto text-xs text-muted-foreground font-mono">
+                    {lightboxIndex + 1} / {images.length}
+                  </span>
                 </div>
               </div>
             </motion.div>
