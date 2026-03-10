@@ -5,11 +5,13 @@ import { BookOpen, ChevronDown, ChevronUp } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import type { WikiArticle } from "../types/research";
+import { stripHtml } from "../utils/stripHtml";
 
 interface Props {
   articles: WikiArticle[];
   loading: boolean;
   onExpand: (article: WikiArticle) => void;
+  onSelect?: (article: WikiArticle) => void;
 }
 
 const PAGE_SIZE = 12;
@@ -31,7 +33,7 @@ const SOURCE_COLORS: Record<string, string> = {
   "Europe PMC": "bg-violet-500/10 text-violet-400 border-violet-500/20",
 };
 
-export function ArticlesTab({ articles, loading, onExpand }: Props) {
+export function ArticlesTab({ articles, loading, onExpand, onSelect }: Props) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset on new search
@@ -87,7 +89,8 @@ export function ArticlesTab({ articles, loading, onExpand }: Props) {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: idx * 0.05, duration: 0.3 }}
-            className="article-card"
+            className={`article-card${onSelect ? " cursor-pointer hover:border-primary/50 transition-colors" : ""}`}
+            onClick={onSelect ? () => onSelect(article) : undefined}
           >
             {article.thumbnail && (
               <div className="relative h-40 overflow-hidden">
@@ -120,7 +123,7 @@ export function ArticlesTab({ articles, loading, onExpand }: Props) {
                 </p>
               )}
               <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">
-                {article.snippet}
+                {stripHtml(article.snippet)}
               </p>
 
               <AnimatePresence>
@@ -135,7 +138,7 @@ export function ArticlesTab({ articles, loading, onExpand }: Props) {
                     <div className="mt-3 border-t border-border/60 pt-3">
                       <div className="max-h-96 overflow-y-auto pr-1 scrollbar-thin">
                         <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-line">
-                          {article.fullSummary}
+                          {stripHtml(article.fullSummary)}
                         </p>
                       </div>
                     </div>
@@ -148,9 +151,20 @@ export function ArticlesTab({ articles, loading, onExpand }: Props) {
                 variant="ghost"
                 size="sm"
                 className="mt-3 text-primary hover:text-primary/80 px-0 font-medium"
-                onClick={() => onExpand(article)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onSelect) {
+                    onSelect(article);
+                  } else {
+                    onExpand(article);
+                  }
+                }}
               >
-                {article.expanded ? (
+                {onSelect ? (
+                  <>
+                    <BookOpen className="w-4 h-4 mr-1" /> Read Full Article
+                  </>
+                ) : article.expanded ? (
                   <>
                     <ChevronUp className="w-4 h-4 mr-1" /> Show Less
                   </>

@@ -17,12 +17,15 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useRef, useState } from "react";
+import { ArticleDetailPage } from "./components/ArticleDetailPage";
 import { ArticlesTab } from "./components/ArticlesTab";
 import { AudioTab } from "./components/AudioTab";
+import { DiscoverPage } from "./components/DiscoverPage";
 import { FilmsTab } from "./components/FilmsTab";
 import { ImagesTab } from "./components/ImagesTab";
 import { VideosTab } from "./components/VideosTab";
 import { useResearch } from "./hooks/useResearch";
+import type { WikiArticle } from "./types/research";
 
 const TOPIC_CHIPS = [
   { label: "Space & Cosmos", query: "space cosmos universe" },
@@ -37,6 +40,11 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState("articles");
   const [bottomNav, setBottomNav] = useState<"search" | "discover">("search");
+  const [view, setView] = useState<"search" | "discover" | "article">("search");
+  const [selectedArticle, setSelectedArticle] = useState<WikiArticle | null>(
+    null,
+  );
+  const [prevView, setPrevView] = useState<"search" | "discover">("search");
   const inputRef = useRef<HTMLInputElement>(null);
   const {
     status,
@@ -53,12 +61,27 @@ export default function App() {
     if (!searchQuery.trim()) return;
     search(searchQuery);
     setActiveTab("articles");
-    setBottomNav("search");
   };
 
   const handleChip = (topicQuery: string, label: string) => {
     setQuery(label);
     handleSearch(topicQuery);
+  };
+
+  const handleSelectArticle = (article: WikiArticle) => {
+    setPrevView(bottomNav);
+    setSelectedArticle(article);
+    setView("article");
+  };
+
+  const handleArticleBack = () => {
+    setView(prevView);
+    setSelectedArticle(null);
+  };
+
+  const handleBottomNav = (nav: "search" | "discover") => {
+    setBottomNav(nav);
+    setView(nav);
   };
 
   const hasResults = status === "success";
@@ -72,6 +95,69 @@ export default function App() {
 
   void inputRef;
 
+  // Article detail view
+  if (view === "article" && selectedArticle) {
+    return (
+      <ArticleDetailPage article={selectedArticle} onBack={handleArticleBack} />
+    );
+  }
+
+  // Discover page view
+  if (view === "discover") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <DiscoverPage
+          results={results}
+          lastQuery={lastQuery}
+          isLoading={isLoading}
+          onSearch={(q) => {
+            search(q);
+          }}
+          onSelectArticle={handleSelectArticle}
+        />
+        {/* Bottom nav */}
+        <nav
+          className="fixed bottom-0 left-0 right-0 z-40 border-t border-border/60"
+          style={{
+            background: "oklch(0.12 0.03 260 / 0.92)",
+            backdropFilter: "blur(16px)",
+          }}
+        >
+          <div className="container mx-auto px-4 max-w-6xl">
+            <div className="flex items-stretch h-16">
+              <button
+                type="button"
+                data-ocid="nav.search_tab"
+                className="flex-1 flex flex-col items-center justify-center gap-1 transition-colors relative"
+                style={{ color: "oklch(0.55 0.05 240)" }}
+                onClick={() => handleBottomNav("search")}
+              >
+                <Search className="w-5 h-5" />
+                <span className="text-xs font-medium">Search</span>
+              </button>
+              <button
+                type="button"
+                data-ocid="nav.discover_tab"
+                className="flex-1 flex flex-col items-center justify-center gap-1 transition-colors relative"
+                style={{ color: "oklch(0.78 0.18 200)" }}
+                onClick={() => handleBottomNav("discover")}
+              >
+                <Compass className="w-5 h-5" />
+                <span className="text-xs font-medium">Discover</span>
+                <motion.div
+                  layoutId="nav-indicator"
+                  className="absolute bottom-0 h-0.5 w-12 rounded-full"
+                  style={{ background: "oklch(0.78 0.18 200)" }}
+                />
+              </button>
+            </div>
+          </div>
+        </nav>
+      </div>
+    );
+  }
+
+  // Main search view
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header / Hero */}
@@ -317,7 +403,7 @@ export default function App() {
         )}
 
         {/* Results */}
-        {(isLoading || hasResults) && bottomNav === "search" && (
+        {(isLoading || hasResults) && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             {hasResults && (
               <p className="text-sm text-muted-foreground mb-4">
@@ -425,6 +511,7 @@ export default function App() {
                   articles={results.articles}
                   loading={isLoading}
                   onExpand={expandArticle}
+                  onSelect={handleSelectArticle}
                 />
               </TabsContent>
 
@@ -456,194 +543,6 @@ export default function App() {
                 />
               </TabsContent>
             </Tabs>
-          </motion.div>
-        )}
-
-        {/* Discover view */}
-        {bottomNav === "discover" && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-6"
-          >
-            {!hasResults ? (
-              <div
-                data-ocid="discover.empty_state"
-                className="flex flex-col items-center justify-center py-20 text-center"
-              >
-                <Compass className="w-12 h-12 text-muted-foreground/40 mb-4" />
-                <p className="text-muted-foreground text-lg font-display">
-                  Search first to discover content
-                </p>
-                <p className="text-muted-foreground/60 text-sm mt-1">
-                  Use the search bar above to find articles, images, audio, and
-                  videos all in one feed
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="mt-5"
-                  onClick={() => setBottomNav("search")}
-                  data-ocid="discover.primary_button"
-                >
-                  <Search className="w-4 h-4 mr-2" /> Go to Search
-                </Button>
-              </div>
-            ) : (
-              <div>
-                <p className="text-sm text-muted-foreground mb-5">
-                  All results for{" "}
-                  <span className="font-semibold text-foreground">
-                    &ldquo;{lastQuery}&rdquo;
-                  </span>{" "}
-                  &mdash;{" "}
-                  {articleCount +
-                    imageCount +
-                    videoCount +
-                    filmCount +
-                    audioCount}{" "}
-                  total
-                </p>
-
-                {/* Articles section */}
-                {results.articles.length > 0 && (
-                  <section className="mb-8">
-                    <div className="flex items-center gap-2 mb-4">
-                      <BookOpen
-                        className="w-4 h-4"
-                        style={{ color: "oklch(0.52 0.18 220)" }}
-                      />
-                      <h2 className="font-display font-semibold text-sm uppercase tracking-wider text-muted-foreground">
-                        Articles ({results.articles.length})
-                      </h2>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {results.articles.slice(0, 6).map((a) => (
-                        <div
-                          key={a.pageid}
-                          className="bg-card border border-border/60 rounded-xl p-4"
-                        >
-                          <div className="flex items-start gap-2">
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-sm text-foreground line-clamp-1">
-                                {a.title}
-                              </p>
-                              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                                {a.snippet}
-                              </p>
-                            </div>
-                            <Badge
-                              variant="outline"
-                              className="text-[10px] shrink-0"
-                            >
-                              {a.source}
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
-
-                {/* Images section */}
-                {results.images.length > 0 && (
-                  <section className="mb-8">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Image
-                        className="w-4 h-4"
-                        style={{ color: "oklch(0.65 0.18 200)" }}
-                      />
-                      <h2 className="font-display font-semibold text-sm uppercase tracking-wider text-muted-foreground">
-                        Images ({results.images.length})
-                      </h2>
-                    </div>
-                    <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
-                      {results.images.slice(0, 12).map((img) => (
-                        <div
-                          key={img.pageid}
-                          className="aspect-square rounded-lg overflow-hidden border border-border/60"
-                        >
-                          <img
-                            src={img.thumbUrl}
-                            alt={img.title}
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
-
-                {/* Audio section */}
-                {results.audio.length > 0 && (
-                  <section className="mb-8">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Music
-                        className="w-4 h-4"
-                        style={{ color: "oklch(0.72 0.18 280)" }}
-                      />
-                      <h2 className="font-display font-semibold text-sm uppercase tracking-wider text-muted-foreground">
-                        Audio ({results.audio.length})
-                      </h2>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {results.audio.slice(0, 6).map((a) => (
-                        <div
-                          key={a.id}
-                          className="bg-card border border-border/60 rounded-xl p-4"
-                        >
-                          <p className="font-semibold text-sm text-foreground line-clamp-1">
-                            {a.title}
-                          </p>
-                          {a.creator && (
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {a.creator}
-                            </p>
-                          )}
-                          <Badge variant="outline" className="text-[10px] mt-2">
-                            {a.source}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
-
-                {/* Videos section */}
-                {results.videos.length > 0 && (
-                  <section className="mb-8">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Film
-                        className="w-4 h-4"
-                        style={{ color: "oklch(0.78 0.17 55)" }}
-                      />
-                      <h2 className="font-display font-semibold text-sm uppercase tracking-wider text-muted-foreground">
-                        Videos ({results.videos.length})
-                      </h2>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {results.videos.slice(0, 6).map((v) => (
-                        <div
-                          key={v.pageid}
-                          className="bg-card border border-border/60 rounded-xl p-4"
-                        >
-                          <p className="font-semibold text-sm text-foreground line-clamp-1">
-                            {v.title}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
-                            {v.description}
-                          </p>
-                          <Badge variant="outline" className="text-[10px] mt-2">
-                            {v.source}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
-              </div>
-            )}
           </motion.div>
         )}
       </main>
@@ -686,14 +585,14 @@ export default function App() {
             <button
               type="button"
               data-ocid="nav.search_tab"
-              className="flex-1 flex flex-col items-center justify-center gap-1 transition-colors"
+              className="flex-1 flex flex-col items-center justify-center gap-1 transition-colors relative"
               style={{
                 color:
                   bottomNav === "search"
                     ? "oklch(0.78 0.18 200)"
                     : "oklch(0.55 0.05 240)",
               }}
-              onClick={() => setBottomNav("search")}
+              onClick={() => handleBottomNav("search")}
             >
               <Search className="w-5 h-5" />
               <span className="text-xs font-medium">Search</span>
@@ -716,7 +615,7 @@ export default function App() {
                     ? "oklch(0.78 0.18 200)"
                     : "oklch(0.55 0.05 240)",
               }}
-              onClick={() => setBottomNav("discover")}
+              onClick={() => handleBottomNav("discover")}
             >
               <Compass className="w-5 h-5" />
               <span className="text-xs font-medium">Discover</span>

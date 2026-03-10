@@ -1,34 +1,36 @@
 # Research Hub
 
 ## Current State
-A multi-tab research platform (Articles, Images, Videos, Films) pulling from 40+ public domain and open-access sources. Version 15 has Load More pagination, image lightbox with keyboard navigation, source filter toggles, inline video/film players. Layout uses a hero header with search bar and topic chips.
+- Single-page app with bottom nav (Search, Discover)
+- Discover is rendered inline on the same page, not a real separate page
+- Articles show raw HTML tags (like `<span>`) in snippets -- snippets are not being stripped of HTML
+- Article expansion shows fullSummary inline (collapsed/expanded toggle) but does not open a dedicated page
+- Discover section shows article/image/audio/video cards but they are not interactive (no tap/click handlers, images are not clickable, articles cannot be read)
+- Audio and videos tabs are present but source coverage issues persist
+- No full article reading page exists
 
 ## Requested Changes (Diff)
 
 ### Add
-- **Audio tab**: New 5th tab for music/audio results. Sources: Internet Archive audio collections (etree/live concerts, audio books, old-time radio, 78rpm records), Free Music Archive (freemusicarchive.org API), Musopen (classical music, freemusicarchive fallback), LibriVox (audiobooks via Internet Archive), ccMixter, Freesound (public API), SoundBible. Show inline HTML5 audio player for each result. Include download button to save audio file.
-- **Image download button**: Add a download button on each image in the grid and in the lightbox so users can save JPGs/PNGs to device.
-- **More image sources**: Pixabay (no-key public API), rawpixel public domain API, Unsplash (use demo/public endpoint), Imgur public galleries via Internet Archive.
-- **More article sources**: OpenAlex (open scholarly works API), Semantic Scholar (public API), Europe PMC, CORE.ac.uk, BASE search.
-- **More Archive.org collections**: Add remaining Archive.org collections: etree, GratefulDead, oldtimeradio, 78rpm, audio_bookspoetry, librivoxaudio, movies (all), software, image, web.
-- **Bottom navigation bar**: Fixed bar at bottom of screen with two tabs: "Search" (current view) and "Discover" (unified multi-source instant results page showing articles + images + videos/films all together in a unified feed).
-- **Full article text**: When user clicks "Read More" on a Wikipedia article, fetch and display the full Wikipedia page extract (not just a snippet). For non-Wikipedia sources, show full available text.
+- **Discover Page**: Make Discover a true separate full-screen page/view (not just an inline section). It should have its own layout with a search bar at the top so users can type and search directly from Discover.
+- **Article Detail Page**: Clicking any article (in Articles tab OR Discover) opens a full-screen article detail view. This view shows: full title, source badge, full article text with images rendered inline (fetched from Wikipedia API using prop/action), scrollable content, back button to return.
+- **HTML Stripping**: Strip all HTML tags from article snippets and fullSummary before displaying. Use a DOMParser or regex to remove `<span>`, `<b>`, `<i>` etc.
+- **Discover Interactivity**: In Discover view, every article card is clickable (opens article detail), every image is clickable (opens lightbox), every audio card has a play button, every video card has a play button.
+- **Discover Search Bar**: Discover page has its own search input at the top so users can search without going back to Search tab.
 
 ### Modify
-- **Fix front page layout**: The hero section text and elements are overlapping. Increase vertical spacing/padding, ensure text stack is clean, fix any z-index/overflow issues.
-- **Articles tab**: Expand "Read More" to show full article extract (much longer text) via Wikipedia /w/api.php with prop=extracts&exintro=false.
-- **Tab bar**: Add Audio tab with Music icon between Images and Videos.
+- **ArticlesTab**: Article cards should be clickable to open the article detail page (not just the inline expand). The inline expand stays as a quick preview but also add a button to open full page.
+- **Discover section in App.tsx**: Replace with a proper routed or state-based full page view with its own search bar and interactive cards.
+- **HTML in snippets**: Strip HTML entities and tags from `article.snippet` and `article.fullSummary` everywhere they are displayed.
+- **Article full content**: When opening a full article, fetch the full Wikipedia page HTML and render it properly (using dangerouslySetInnerHTML with sanitized content, or parse the extract). For non-Wikipedia sources, show the fullSummary text.
 
 ### Remove
-- Nothing removed
+- The non-interactive static article/image cards in the current Discover inline view.
 
 ## Implementation Plan
-1. Fix hero header spacing - add proper padding, fix text overlap, ensure subtitle/chips don't crowd the search bar.
-2. Add AudioTab component with inline HTML5 audio player, source badges, Load More pagination. Sources: Internet Archive audio (etree, librivoxaudio, audio_bookspoetry, oldtimeradio, 78rpm), and static placeholder entries for Free Music Archive/Freesound since those require CORS-friendly endpoints.
-3. Add download button to ImagesTab grid cards and lightbox modal - uses anchor download attribute.
-4. Expand article fetch to use full Wikipedia extracts (exintro=false, longer extract).
-5. Add new article sources in useResearch hook: OpenAlex, Semantic Scholar, Europe PMC APIs.
-6. Add new image sources: Pixabay (free API key not needed for some endpoints), rawpixel public domain RSS/API.
-7. Add bottom nav bar (fixed, mobile-friendly) with Search and Discover tabs. Discover tab shows unified search results - all content types in one scrollable feed.
-8. Add Audio tab to main Tabs component with audio player cards.
-9. Update footer/layout to account for bottom nav bar (add padding-bottom).
+1. Create `src/frontend/src/components/DiscoverPage.tsx` -- full-screen Discover page with its own search bar, and interactive grid sections for Articles, Images, Audio, Videos (clickable cards).
+2. Create `src/frontend/src/components/ArticleDetailPage.tsx` -- full-screen article reader. Accepts a WikiArticle, strips HTML, fetches full Wikipedia page extract (for Wikipedia source), displays images inline, scrollable.
+3. Update `App.tsx` to manage a view state: `search | discover | article-detail`. Bottom nav switches between search and discover. Clicking an article anywhere pushes to `article-detail` view with a back button.
+4. Update `ArticlesTab.tsx` to strip HTML tags from snippets before display, and make the whole card clickable to open article detail.
+5. Update `useResearch.ts` -- add a `fetchFullArticle(pageid)` function that calls Wikipedia's REST API for full page extract with images.
+6. Strip HTML in snippets via utility function `stripHtml(html: string): string`.
