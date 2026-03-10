@@ -36,11 +36,23 @@ export interface WikiVideo {
   embedUrl?: string;
 }
 
+export interface AudioResult {
+  id: string;
+  title: string;
+  description?: string;
+  creator?: string;
+  source: string;
+  embedUrl: string;
+  downloadUrl: string;
+  year?: string;
+}
+
 export interface SearchResults {
   articles: WikiArticle[];
   images: WikiImage[];
   videos: WikiVideo[];
   films: WikiVideo[];
+  audio: AudioResult[];
 }
 
 export type SearchStatus = "idle" | "loading" | "success" | "error";

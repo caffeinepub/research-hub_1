@@ -6,16 +6,19 @@ import {
   AlertCircle,
   BookOpen,
   Clapperboard,
+  Compass,
   Film,
   Globe,
   Image,
   Loader2,
   Microscope,
+  Music,
   Search,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useRef, useState } from "react";
 import { ArticlesTab } from "./components/ArticlesTab";
+import { AudioTab } from "./components/AudioTab";
 import { FilmsTab } from "./components/FilmsTab";
 import { ImagesTab } from "./components/ImagesTab";
 import { VideosTab } from "./components/VideosTab";
@@ -33,6 +36,7 @@ const TOPIC_CHIPS = [
 export default function App() {
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState("articles");
+  const [bottomNav, setBottomNav] = useState<"search" | "discover">("search");
   const inputRef = useRef<HTMLInputElement>(null);
   const {
     status,
@@ -49,6 +53,7 @@ export default function App() {
     if (!searchQuery.trim()) return;
     search(searchQuery);
     setActiveTab("articles");
+    setBottomNav("search");
   };
 
   const handleChip = (topicQuery: string, label: string) => {
@@ -63,8 +68,8 @@ export default function App() {
   const imageCount = results.images.length;
   const videoCount = results.videos.length;
   const filmCount = results.films.length;
+  const audioCount = results.audio.length;
 
-  // inputRef used for potential future focus management
   void inputRef;
 
   return (
@@ -73,7 +78,7 @@ export default function App() {
       <header
         className="relative hero-gradient hero-noise overflow-hidden"
         style={{
-          minHeight: hasResults ? "220px" : "420px",
+          minHeight: hasResults ? "200px" : "420px",
           transition: "min-height 0.5s ease",
         }}
       >
@@ -98,13 +103,13 @@ export default function App() {
           }}
         />
 
-        <div className="relative z-10 container mx-auto px-4 py-10 flex flex-col items-center">
+        <div className="relative z-10 container mx-auto px-4 pt-8 pb-8 flex flex-col items-center gap-4">
           {/* Brand */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="flex items-center gap-3 mb-3"
+            className="flex items-center gap-3"
           >
             <div
               className="p-2 rounded-xl"
@@ -129,10 +134,12 @@ export default function App() {
           <AnimatePresence>
             {!hasResults && (
               <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0, height: 0 }}
-                className="text-base mb-6 text-center"
+                key="subtitle"
+                initial={{ opacity: 0, height: "auto" }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
+                transition={{ duration: 0.3 }}
+                className="text-base text-center overflow-hidden"
                 style={{ color: "oklch(0.72 0.08 230)" }}
               >
                 Explore Wikipedia, NASA, Internet Archive & more — all in one
@@ -198,10 +205,16 @@ export default function App() {
           <AnimatePresence>
             {!hasResults && (
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1, transition: { delay: 0.3 } }}
-                exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                className="flex flex-wrap gap-2 justify-center mt-6"
+                key="chips"
+                initial={{ opacity: 0, height: "auto" }}
+                animate={{
+                  opacity: 1,
+                  height: "auto",
+                  transition: { delay: 0.3 },
+                }}
+                exit={{ opacity: 0, height: 0, overflow: "hidden" }}
+                transition={{ duration: 0.3 }}
+                className="flex flex-wrap gap-2 justify-center overflow-hidden"
               >
                 {TOPIC_CHIPS.map((chip, i) => (
                   <button
@@ -221,7 +234,7 @@ export default function App() {
       </header>
 
       {/* Main content */}
-      <main className="flex-1 container mx-auto px-4 py-8 max-w-6xl">
+      <main className="flex-1 container mx-auto px-4 py-8 max-w-6xl pb-24">
         {/* Initial / idle state */}
         {status === "idle" && (
           <motion.div
@@ -235,13 +248,13 @@ export default function App() {
               {
                 icon: BookOpen,
                 title: "Wikipedia & Articles",
-                desc: "Search Wikipedia, Project Gutenberg, PubMed, NSF, NIH, and Internet Archive inline",
+                desc: "Search Wikipedia, Project Gutenberg, PubMed, NSF, NIH, OpenAlex, and Internet Archive inline",
                 color: "oklch(0.52 0.18 220)",
               },
               {
                 icon: Image,
                 title: "Public Domain Images",
-                desc: "Browse NASA, Met Museum, Library of Congress, Europeana, Flickr Commons, and Wikimedia",
+                desc: "Browse NASA, Met Museum, Library of Congress, Europeana, Flickr Commons, Pixabay, and Wikimedia",
                 color: "oklch(0.65 0.18 200)",
               },
               {
@@ -251,10 +264,10 @@ export default function App() {
                 color: "oklch(0.78 0.17 55)",
               },
               {
-                icon: Clapperboard,
-                title: "Films & Cinema",
-                desc: "Stream public domain films from YouTube, Archive.org Feature Films, Prelinger, and more",
-                color: "oklch(0.72 0.18 15)",
+                icon: Music,
+                title: "Music & Audio",
+                desc: "Stream concerts, audiobooks, old-time radio, 78rpm records, and podcasts from Internet Archive",
+                color: "oklch(0.72 0.18 280)",
               },
             ].map(({ icon: Icon, title, desc, color }, i) => (
               <motion.div
@@ -304,7 +317,7 @@ export default function App() {
         )}
 
         {/* Results */}
-        {(isLoading || hasResults) && (
+        {(isLoading || hasResults) && bottomNav === "search" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             {hasResults && (
               <p className="text-sm text-muted-foreground mb-4">
@@ -347,6 +360,23 @@ export default function App() {
                       className="ml-1 text-xs px-1.5 py-0"
                     >
                       {imageCount}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+
+                <TabsTrigger
+                  data-ocid="tabs.audio_tab"
+                  value="audio"
+                  className="flex items-center gap-2 px-4 py-2"
+                >
+                  <Music className="w-4 h-4" />
+                  Audio
+                  {hasResults && audioCount > 0 && (
+                    <Badge
+                      variant="secondary"
+                      className="ml-1 text-xs px-1.5 py-0"
+                    >
+                      {audioCount}
                     </Badge>
                   )}
                 </TabsTrigger>
@@ -406,6 +436,10 @@ export default function App() {
                 />
               </TabsContent>
 
+              <TabsContent value="audio">
+                <AudioTab audio={results.audio} loading={isLoading} />
+              </TabsContent>
+
               <TabsContent value="videos">
                 <VideosTab
                   videos={results.videos}
@@ -424,21 +458,209 @@ export default function App() {
             </Tabs>
           </motion.div>
         )}
+
+        {/* Discover view */}
+        {bottomNav === "discover" && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
+            {!hasResults ? (
+              <div
+                data-ocid="discover.empty_state"
+                className="flex flex-col items-center justify-center py-20 text-center"
+              >
+                <Compass className="w-12 h-12 text-muted-foreground/40 mb-4" />
+                <p className="text-muted-foreground text-lg font-display">
+                  Search first to discover content
+                </p>
+                <p className="text-muted-foreground/60 text-sm mt-1">
+                  Use the search bar above to find articles, images, audio, and
+                  videos all in one feed
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mt-5"
+                  onClick={() => setBottomNav("search")}
+                  data-ocid="discover.primary_button"
+                >
+                  <Search className="w-4 h-4 mr-2" /> Go to Search
+                </Button>
+              </div>
+            ) : (
+              <div>
+                <p className="text-sm text-muted-foreground mb-5">
+                  All results for{" "}
+                  <span className="font-semibold text-foreground">
+                    &ldquo;{lastQuery}&rdquo;
+                  </span>{" "}
+                  &mdash;{" "}
+                  {articleCount +
+                    imageCount +
+                    videoCount +
+                    filmCount +
+                    audioCount}{" "}
+                  total
+                </p>
+
+                {/* Articles section */}
+                {results.articles.length > 0 && (
+                  <section className="mb-8">
+                    <div className="flex items-center gap-2 mb-4">
+                      <BookOpen
+                        className="w-4 h-4"
+                        style={{ color: "oklch(0.52 0.18 220)" }}
+                      />
+                      <h2 className="font-display font-semibold text-sm uppercase tracking-wider text-muted-foreground">
+                        Articles ({results.articles.length})
+                      </h2>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {results.articles.slice(0, 6).map((a) => (
+                        <div
+                          key={a.pageid}
+                          className="bg-card border border-border/60 rounded-xl p-4"
+                        >
+                          <div className="flex items-start gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-sm text-foreground line-clamp-1">
+                                {a.title}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                {a.snippet}
+                              </p>
+                            </div>
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] shrink-0"
+                            >
+                              {a.source}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {/* Images section */}
+                {results.images.length > 0 && (
+                  <section className="mb-8">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Image
+                        className="w-4 h-4"
+                        style={{ color: "oklch(0.65 0.18 200)" }}
+                      />
+                      <h2 className="font-display font-semibold text-sm uppercase tracking-wider text-muted-foreground">
+                        Images ({results.images.length})
+                      </h2>
+                    </div>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+                      {results.images.slice(0, 12).map((img) => (
+                        <div
+                          key={img.pageid}
+                          className="aspect-square rounded-lg overflow-hidden border border-border/60"
+                        >
+                          <img
+                            src={img.thumbUrl}
+                            alt={img.title}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {/* Audio section */}
+                {results.audio.length > 0 && (
+                  <section className="mb-8">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Music
+                        className="w-4 h-4"
+                        style={{ color: "oklch(0.72 0.18 280)" }}
+                      />
+                      <h2 className="font-display font-semibold text-sm uppercase tracking-wider text-muted-foreground">
+                        Audio ({results.audio.length})
+                      </h2>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {results.audio.slice(0, 6).map((a) => (
+                        <div
+                          key={a.id}
+                          className="bg-card border border-border/60 rounded-xl p-4"
+                        >
+                          <p className="font-semibold text-sm text-foreground line-clamp-1">
+                            {a.title}
+                          </p>
+                          {a.creator && (
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {a.creator}
+                            </p>
+                          )}
+                          <Badge variant="outline" className="text-[10px] mt-2">
+                            {a.source}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {/* Videos section */}
+                {results.videos.length > 0 && (
+                  <section className="mb-8">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Film
+                        className="w-4 h-4"
+                        style={{ color: "oklch(0.78 0.17 55)" }}
+                      />
+                      <h2 className="font-display font-semibold text-sm uppercase tracking-wider text-muted-foreground">
+                        Videos ({results.videos.length})
+                      </h2>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {results.videos.slice(0, 6).map((v) => (
+                        <div
+                          key={v.pageid}
+                          className="bg-card border border-border/60 rounded-xl p-4"
+                        >
+                          <p className="font-semibold text-sm text-foreground line-clamp-1">
+                            {v.title}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                            {v.description}
+                          </p>
+                          <Badge variant="outline" className="text-[10px] mt-2">
+                            {v.source}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+              </div>
+            )}
+          </motion.div>
+        )}
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-border/60 py-6 mt-10">
+      <footer className="border-t border-border/60 py-6 mb-16">
         <div className="container mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
             <Globe className="w-4 h-4" />
             <span>
               Research Hub — Wikipedia, NASA, PBS, TED Talks, MIT
-              OpenCourseWare, NFB, Internet Archive, Rijksmuseum &amp; 40+
+              OpenCourseWare, NFB, Internet Archive, Rijksmuseum &amp; 50+
               sources
             </span>
           </div>
           <p>
-            © {new Date().getFullYear()}. Built with ❤️ using{" "}
+            &copy; {new Date().getFullYear()}. Built with ❤️ using{" "}
             <a
               href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
               target="_blank"
@@ -450,6 +672,65 @@ export default function App() {
           </p>
         </div>
       </footer>
+
+      {/* Bottom Navigation Bar */}
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-40 border-t border-border/60"
+        style={{
+          background: "oklch(0.12 0.03 260 / 0.92)",
+          backdropFilter: "blur(16px)",
+        }}
+      >
+        <div className="container mx-auto px-4 max-w-6xl">
+          <div className="flex items-stretch h-16">
+            <button
+              type="button"
+              data-ocid="nav.search_tab"
+              className="flex-1 flex flex-col items-center justify-center gap-1 transition-colors"
+              style={{
+                color:
+                  bottomNav === "search"
+                    ? "oklch(0.78 0.18 200)"
+                    : "oklch(0.55 0.05 240)",
+              }}
+              onClick={() => setBottomNav("search")}
+            >
+              <Search className="w-5 h-5" />
+              <span className="text-xs font-medium">Search</span>
+              {bottomNav === "search" && (
+                <motion.div
+                  layoutId="nav-indicator"
+                  className="absolute bottom-0 h-0.5 w-12 rounded-full"
+                  style={{ background: "oklch(0.78 0.18 200)" }}
+                />
+              )}
+            </button>
+
+            <button
+              type="button"
+              data-ocid="nav.discover_tab"
+              className="flex-1 flex flex-col items-center justify-center gap-1 transition-colors relative"
+              style={{
+                color:
+                  bottomNav === "discover"
+                    ? "oklch(0.78 0.18 200)"
+                    : "oklch(0.55 0.05 240)",
+              }}
+              onClick={() => setBottomNav("discover")}
+            >
+              <Compass className="w-5 h-5" />
+              <span className="text-xs font-medium">Discover</span>
+              {bottomNav === "discover" && (
+                <motion.div
+                  layoutId="nav-indicator"
+                  className="absolute bottom-0 h-0.5 w-12 rounded-full"
+                  style={{ background: "oklch(0.78 0.18 200)" }}
+                />
+              )}
+            </button>
+          </div>
+        </div>
+      </nav>
     </div>
   );
 }

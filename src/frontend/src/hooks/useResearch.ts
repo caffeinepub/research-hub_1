@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import type {
+  AudioResult,
   SearchResults,
   SearchStatus,
   WikiArticle,
@@ -12,6 +13,9 @@ const WIKI_SEARCH = (q: string) =>
 
 const WIKI_SUMMARY = (title: string) =>
   `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
+
+const WIKI_FULL_EXTRACT = (title: string) =>
+  `https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exlimit=1&titles=${encodeURIComponent(title)}&format=json&origin=*`;
 
 const COMMONS_SEARCH = (q: string) =>
   `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(q)}&prop=imageinfo&iiprop=url|mime|extmetadata&iiurlwidth=400&format=json&origin=*&gsrlimit=40`;
@@ -1492,6 +1496,174 @@ async function fetchArchiveHomeMovies(query: string): Promise<WikiVideo[]> {
 }
 
 // ──────────────────────────────────────────────
+// NEW ARTICLE SOURCES (v16)
+// ──────────────────────────────────────────────
+
+async function fetchOpenAlexArticles(query: string): Promise<WikiArticle[]> {
+  const url = `https://api.openalex.org/works?search=${encodeURIComponent(query)}&per-page=8&select=id,title,abstract_inverted_index,primary_location,open_access`;
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  const data = await res.json();
+  const items = data?.results ?? [];
+  return items.map((item: any, idx: number) => {
+    let abstract = "";
+    if (item.abstract_inverted_index) {
+      const inv: Record<string, number[]> = item.abstract_inverted_index;
+      const words: string[] = [];
+      for (const [word, positions] of Object.entries(inv)) {
+        for (const pos of positions) {
+          words[pos] = word;
+        }
+      }
+      abstract = words.filter(Boolean).join(" ").substring(0, 300);
+    }
+    return {
+      pageid: 7000000 + idx,
+      title: item.title ?? "OpenAlex Work",
+      snippet: abstract || (item.primary_location?.source?.display_name ?? ""),
+      source: "OpenAlex",
+    };
+  });
+}
+
+async function fetchSemanticScholarArticles(
+  query: string,
+): Promise<WikiArticle[]> {
+  const url = `https://api.semanticscholar.org/graph/v1/paper/search?query=${encodeURIComponent(query)}&limit=8&fields=title,abstract,year,authors`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const items = data?.data ?? [];
+  return items.map((item: any, idx: number) => ({
+    pageid: 7100000 + idx,
+    title: item.title ?? "Semantic Scholar Paper",
+    snippet: item.abstract
+      ? item.abstract.substring(0, 300)
+      : (item.authors?.map((a: any) => a.name).join(", ") ?? ""),
+    source: "Semantic Scholar",
+  }));
+}
+
+async function fetchEuropePMCArticles(query: string): Promise<WikiArticle[]> {
+  const url = `https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=${encodeURIComponent(query)}&format=json&pageSize=8`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const items = data?.resultList?.result ?? [];
+  return items.map((item: any, idx: number) => ({
+    pageid: 7200000 + idx,
+    title: item.title ?? "Europe PMC Article",
+    snippet: item.abstractText
+      ? item.abstractText.substring(0, 300)
+      : (item.authorString ?? ""),
+    source: "Europe PMC",
+  }));
+}
+
+// ──────────────────────────────────────────────
+// NEW IMAGE SOURCES (v16)
+// ──────────────────────────────────────────────
+
+async function fetchPixabayImages(query: string): Promise<WikiImage[]> {
+  const url = `https://pixabay.com/api/?key=49066655-f3f79ca01d75ef8c21c56ab70&q=${encodeURIComponent(query)}&image_type=photo&per_page=12&safesearch=true`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const hits = data?.hits ?? [];
+  return hits.map((item: any, idx: number) => ({
+    pageid: 7300000 + idx,
+    title: item.tags ?? "Pixabay Photo",
+    url: item.largeImageURL ?? item.webformatURL,
+    thumbUrl: item.webformatURL,
+    description: `By ${item.user ?? "Unknown"}`,
+    author: item.user ?? undefined,
+    license: "Pixabay License",
+    source: "Pixabay",
+  }));
+}
+
+// ──────────────────────────────────────────────
+// AUDIO SOURCES (v16)
+// ──────────────────────────────────────────────
+
+async function fetchAudioEtree(query: string): Promise<AudioResult[]> {
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+mediatype:audio+AND+collection:etree&output=json&rows=8&fl[]=identifier,title,description,creator,year`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.response?.docs ?? [];
+  return docs.map((doc: any, idx: number) => ({
+    id: `etree-${doc.identifier ?? idx}`,
+    title: doc.title ?? doc.identifier ?? "Live Concert",
+    description: doc.description ?? "",
+    creator: doc.creator ?? undefined,
+    year: doc.year ? String(doc.year) : undefined,
+    source: "Live Concerts (etree)",
+    embedUrl: `https://archive.org/embed/${doc.identifier}`,
+    downloadUrl: `https://archive.org/details/${doc.identifier}`,
+  }));
+}
+
+async function fetchAudioLibriVox(query: string): Promise<AudioResult[]> {
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+mediatype:audio+AND+collection:librivoxaudio&output=json&rows=8&fl[]=identifier,title,description,creator`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.response?.docs ?? [];
+  return docs.map((doc: any, idx: number) => ({
+    id: `librivox-${doc.identifier ?? idx}`,
+    title: doc.title ?? doc.identifier ?? "LibriVox Audiobook",
+    description: doc.description ?? "",
+    creator: doc.creator ?? undefined,
+    source: "LibriVox",
+    embedUrl: `https://archive.org/embed/${doc.identifier}`,
+    downloadUrl: `https://archive.org/details/${doc.identifier}`,
+  }));
+}
+
+async function fetchAudioArchive(query: string): Promise<AudioResult[]> {
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+mediatype:audio+AND+collection:audio_bookspoetry&output=json&rows=6&fl[]=identifier,title,description,creator`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.response?.docs ?? [];
+  return docs.map((doc: any, idx: number) => ({
+    id: `archiveaudio-${doc.identifier ?? idx}`,
+    title: doc.title ?? doc.identifier ?? "Archive Audio",
+    description: doc.description ?? "",
+    creator: doc.creator ?? undefined,
+    source: "Archive Audio",
+    embedUrl: `https://archive.org/embed/${doc.identifier}`,
+    downloadUrl: `https://archive.org/details/${doc.identifier}`,
+  }));
+}
+
+async function fetchAudioOTR(query: string): Promise<AudioResult[]> {
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+mediatype:audio+AND+collection:oldtimeradio&output=json&rows=6&fl[]=identifier,title,description,creator`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.response?.docs ?? [];
+  return docs.map((doc: any, idx: number) => ({
+    id: `otr-${doc.identifier ?? idx}`,
+    title: doc.title ?? doc.identifier ?? "Old Time Radio Show",
+    description: doc.description ?? "",
+    creator: doc.creator ?? undefined,
+    source: "Old Time Radio",
+    embedUrl: `https://archive.org/embed/${doc.identifier}`,
+    downloadUrl: `https://archive.org/details/${doc.identifier}`,
+  }));
+}
+
+async function fetchAudio78rpm(query: string): Promise<AudioResult[]> {
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+mediatype:audio+AND+collection:78rpm&output=json&rows=6&fl[]=identifier,title,description,creator`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const docs = data?.response?.docs ?? [];
+  return docs.map((doc: any, idx: number) => ({
+    id: `78rpm-${doc.identifier ?? idx}`,
+    title: doc.title ?? doc.identifier ?? "78rpm Record",
+    description: doc.description ?? "",
+    creator: doc.creator ?? undefined,
+    source: "78rpm Records",
+    embedUrl: `https://archive.org/embed/${doc.identifier}`,
+    downloadUrl: `https://archive.org/details/${doc.identifier}`,
+  }));
+}
+
+// ──────────────────────────────────────────────
 // FUZZY SEARCH HELPERS
 // ──────────────────────────────────────────────
 
@@ -1521,6 +1693,7 @@ export function useResearch() {
     images: [],
     videos: [],
     films: [],
+    audio: [],
   });
   const [error, setError] = useState<string | null>(null);
   const [lastQuery, setLastQuery] = useState("");
@@ -1688,6 +1861,15 @@ export function useResearch() {
         archiveComputerChroniclesResult,
         archivePublicAffairsResult,
         archiveHomeMoviesResult,
+        openAlexResult,
+        semanticScholarResult,
+        europePMCResult,
+        pixabayImagesResult,
+        audioEtreeResult,
+        audioLibriVoxResult,
+        audioArchiveResult,
+        audioOTRResult,
+        audio78rpmResult,
       ] = await Promise.allSettled([
         fetchInternetArchiveArticles(query),
         fetchGutenbergArticles(query),
@@ -1747,6 +1929,15 @@ export function useResearch() {
         fetchArchiveComputerChronicles(query),
         fetchArchiveKhmer(query),
         fetchArchiveHomeMovies(query),
+        fetchOpenAlexArticles(query),
+        fetchSemanticScholarArticles(query),
+        fetchEuropePMCArticles(query),
+        fetchPixabayImages(query),
+        fetchAudioEtree(query),
+        fetchAudioLibriVox(query),
+        fetchAudioArchive(query),
+        fetchAudioOTR(query),
+        fetchAudio78rpm(query),
       ]);
 
       const extra = <T>(r: PromiseSettledResult<T[]>): T[] =>
@@ -1770,6 +1961,9 @@ export function useResearch() {
         ...extra(archiveUniversalLibraryResult),
         ...extra(archiveOpenLibraryTextsResult),
         ...extra(archiveTorontoTextsResult),
+        ...extra(openAlexResult),
+        ...extra(semanticScholarResult),
+        ...extra(europePMCResult),
       ];
 
       let images: WikiImage[] = [
@@ -1785,6 +1979,7 @@ export function useResearch() {
         ...extra(clevelandMuseumResult),
         ...extra(dplaImagesResult),
         ...extra(rijksmuseumResult),
+        ...extra(pixabayImagesResult),
       ];
 
       let videos: WikiVideo[] = [
@@ -1831,6 +2026,14 @@ export function useResearch() {
         ...extra(nfbResult),
         ...extra(classicCartoonsResult),
         ...extra(sciFiHorrorResult),
+      ];
+
+      const audio: AudioResult[] = [
+        ...extra(audioEtreeResult),
+        ...extra(audioLibriVoxResult),
+        ...extra(audioArchiveResult),
+        ...extra(audioOTRResult),
+        ...extra(audio78rpmResult),
       ];
 
       // ── Fuzzy / similar search fallback ──
@@ -1900,7 +2103,13 @@ export function useResearch() {
         }
       }
 
-      const finalResults: SearchResults = { articles, images, videos, films };
+      const finalResults: SearchResults = {
+        articles,
+        images,
+        videos,
+        films,
+        audio,
+      };
       searchCache.set(cacheKey, { results: finalResults, fuzzyUsed: false });
 
       setResults(finalResults);
@@ -1933,14 +2142,17 @@ export function useResearch() {
       return;
     }
     try {
-      const data = await fetch(WIKI_SUMMARY(article.title)).then((r) =>
+      const data = await fetch(WIKI_FULL_EXTRACT(article.title)).then((r) =>
         r.json(),
       );
+      const pages = data?.query?.pages ?? {};
+      const pageId = Object.keys(pages)[0];
+      const fullText = pages[pageId]?.extract ?? "";
       setResults((prev) => ({
         ...prev,
         articles: prev.articles.map((a) =>
           a.pageid === article.pageid
-            ? { ...a, fullSummary: data.extract ?? "", expanded: true }
+            ? { ...a, fullSummary: fullText, expanded: true }
             : a,
         ),
       }));

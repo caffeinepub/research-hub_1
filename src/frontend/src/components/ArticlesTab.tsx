@@ -26,6 +26,9 @@ const SOURCE_COLORS: Record<string, string> = {
   DOAJ: "bg-green-600/10 text-green-400 border-green-600/20",
   NSF: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
   "NIH / NLM": "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  OpenAlex: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
+  "Semantic Scholar": "bg-teal-500/10 text-teal-400 border-teal-500/20",
+  "Europe PMC": "bg-violet-500/10 text-violet-400 border-violet-500/20",
 };
 
 export function ArticlesTab({ articles, loading, onExpand }: Props) {
@@ -129,9 +132,13 @@ export function ArticlesTab({ articles, loading, onExpand }: Props) {
                     transition={{ duration: 0.3 }}
                     className="overflow-hidden"
                   >
-                    <p className="mt-3 text-sm text-foreground/80 leading-relaxed border-t border-border/60 pt-3">
-                      {article.fullSummary}
-                    </p>
+                    <div className="mt-3 border-t border-border/60 pt-3">
+                      <div className="max-h-96 overflow-y-auto pr-1 scrollbar-thin">
+                        <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-line">
+                          {article.fullSummary}
+                        </p>
+                      </div>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -149,7 +156,7 @@ export function ArticlesTab({ articles, loading, onExpand }: Props) {
                   </>
                 ) : (
                   <>
-                    <ChevronDown className="w-4 h-4 mr-1" /> Read More
+                    <ChevronDown className="w-4 h-4 mr-1" /> Read Full Article
                   </>
                 )}
               </Button>

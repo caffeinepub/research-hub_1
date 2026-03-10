@@ -4,6 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   ChevronLeft,
   ChevronRight,
+  Download,
   Scale,
   User,
   X,
@@ -49,22 +50,20 @@ const SOURCE_COLORS: Record<string, string> = {
   "Cleveland Museum": "bg-teal-700/10 text-teal-400 border-teal-700/20",
   DPLA: "bg-purple-500/10 text-purple-400 border-purple-500/20",
   Rijksmuseum: "bg-orange-600/10 text-orange-400 border-orange-600/20",
+  Pixabay: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
 };
 
 export function ImagesTab({ images, loading, fuzzyUsed }: Props) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  // Reset pagination when images change
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset on new search
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
   }, [images]);
 
-  // Keyboard navigation for lightbox
   useEffect(() => {
     if (lightboxIndex === null) return;
-
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowLeft") {
         setLightboxIndex((i) =>
@@ -76,7 +75,6 @@ export function ImagesTab({ images, loading, fuzzyUsed }: Props) {
         setLightboxIndex(null);
       }
     };
-
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [lightboxIndex, images.length]);
@@ -135,6 +133,10 @@ export function ImagesTab({ images, loading, fuzzyUsed }: Props) {
             transition={{ delay: idx * 0.03, duration: 0.25 }}
             className="group cursor-pointer"
             onClick={() => setLightboxIndex(idx)}
+            // biome-ignore lint/a11y/useSemanticElements: motion.div used for animation
+            onKeyDown={(e) => e.key === "Enter" && setLightboxIndex(idx)}
+            role="button"
+            tabIndex={0}
           >
             <div className="relative aspect-square overflow-hidden rounded-xl border border-border/60 group-hover:border-primary/40 transition-all duration-200">
               <img
@@ -157,6 +159,19 @@ export function ImagesTab({ images, loading, fuzzyUsed }: Props) {
                   {img.source}
                 </Badge>
               </div>
+              {/* Download button */}
+              <a
+                href={img.url}
+                download
+                target="_blank"
+                rel="noopener noreferrer"
+                data-ocid={`images.download_button.${idx + 1}`}
+                className="absolute bottom-1.5 right-1.5 p-1.5 rounded-lg bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-black/80"
+                onClick={(e) => e.stopPropagation()}
+                title="Download image"
+              >
+                <Download className="w-3.5 h-3.5" />
+              </a>
             </div>
             <p className="mt-1.5 text-xs text-muted-foreground line-clamp-1 px-0.5">
               {img.title}
@@ -232,7 +247,7 @@ export function ImagesTab({ images, loading, fuzzyUsed }: Props) {
               <button
                 type="button"
                 data-ocid="lightbox.pagination_next"
-                className="absolute right-3 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
+                className="absolute right-14 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
                 onClick={() =>
                   setLightboxIndex((lightboxIndex + 1) % images.length)
                 }
@@ -286,7 +301,19 @@ export function ImagesTab({ images, loading, fuzzyUsed }: Props) {
                       {lightboxImage.license}
                     </Badge>
                   )}
-                  <span className="ml-auto text-xs text-muted-foreground font-mono">
+                  <a
+                    href={lightboxImage.url}
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-ocid="lightbox.download_button"
+                    className="ml-auto inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-primary/15 text-primary hover:bg-primary/25 transition-colors"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Download
+                  </a>
+                  <span className="text-xs text-muted-foreground font-mono">
                     {lightboxIndex + 1} / {images.length}
                   </span>
                 </div>
