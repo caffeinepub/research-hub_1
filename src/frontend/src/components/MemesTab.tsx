@@ -2,8 +2,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Copy, ExternalLink, Search, Smile } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Copy, Search, Smile } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { SensitiveContentBlur } from "./SensitiveContentBlur";
 
@@ -63,11 +63,12 @@ async function fetchRedditMemes(q: string, after = ""): Promise<MemeItem[]> {
 
 async function fetchGiphy(q: string, offset = 0): Promise<MemeItem[]> {
   try {
-    const r = await fetch(
-      `https://api.giphy.com/v1/gifs/search?api_key=dc6zaTOxFJmzC&q=${encodeURIComponent(q)}&limit=50&offset=${offset}&rating=g`,
-    );
+    const endpoint = q.trim()
+      ? `https://api.giphy.com/v1/gifs/search?api_key=dc6zaTOxFJmzC&q=${encodeURIComponent(q)}&limit=50&offset=${offset}&rating=g`
+      : "https://api.giphy.com/v1/gifs/trending?api_key=dc6zaTOxFJmzC&limit=50&rating=g";
+    const r = await fetch(endpoint);
     const data = await r.json();
-    const results = (data.data || []).map((g: any) => ({
+    return (data.data || []).map((g: any) => ({
       id: `giphy-${g.id}`,
       url: g.images?.original?.url || g.images?.downsized?.url || "",
       previewUrl:
@@ -76,22 +77,6 @@ async function fetchGiphy(q: string, offset = 0): Promise<MemeItem[]> {
       source: "Giphy" as const,
       pageUrl: g.url,
     }));
-    if (results.length === 0 && offset === 0) {
-      const tr = await fetch(
-        "https://api.giphy.com/v1/gifs/trending?api_key=dc6zaTOxFJmzC&limit=30&rating=g",
-      );
-      const td = await tr.json();
-      return (td.data || []).map((g: any) => ({
-        id: `giphy-trend-${g.id}`,
-        url: g.images?.original?.url || g.images?.downsized?.url || "",
-        previewUrl:
-          g.images?.fixed_width_small?.url || g.images?.preview_gif?.url || "",
-        title: g.title || "Trending GIF",
-        source: "Giphy" as const,
-        pageUrl: g.url,
-      }));
-    }
-    return results;
   } catch (err) {
     console.error("Giphy fetch error:", err);
     return [];
@@ -101,9 +86,10 @@ async function fetchGiphy(q: string, offset = 0): Promise<MemeItem[]> {
 async function fetchTenor(q: string, pos = ""): Promise<MemeItem[]> {
   try {
     const posParam = pos ? `&pos=${pos}` : "";
-    const r = await fetch(
-      `https://tenor.googleapis.com/v2/search?key=AIzaSyAyimkuYQYF_FXVALexPzkcsvZpe6AoxjI&q=${encodeURIComponent(q)}&limit=20${posParam}`,
-    );
+    const endpoint = q.trim()
+      ? `https://tenor.googleapis.com/v2/search?key=AIzaSyAyimkuYQYF_FXVALexPzkcsvZpe6AoxjI&q=${encodeURIComponent(q)}&limit=20${posParam}`
+      : "https://tenor.googleapis.com/v2/featured?key=AIzaSyAyimkuYQYF_FXVALexPzkcsvZpe6AoxjI&limit=20";
+    const r = await fetch(endpoint);
     const data = await r.json();
     return (data.results || []).map((g: any) => ({
       id: `tenor-${g.id}`,
@@ -139,8 +125,11 @@ async function fetchImgflip(): Promise<MemeItem[]> {
 
 async function fetchArchiveMemes(q: string, page = 1): Promise<MemeItem[]> {
   try {
+    const searchQ = q.trim()
+      ? `${q} AND (collection:GIFs OR collection:memes OR subject:memes OR subject:gif) AND mediatype:image`
+      : "(collection:GIFs OR collection:memes OR subject:memes) AND mediatype:image";
     const params = new URLSearchParams({
-      q: `${q} AND (collection:GIFs OR collection:memes OR subject:memes OR subject:gif) AND mediatype:image`,
+      q: searchQ,
       output: "json",
       rows: "30",
       page: String(page),
@@ -165,25 +154,6 @@ async function fetchArchiveMemes(q: string, page = 1): Promise<MemeItem[]> {
   }
 }
 
-async function fetchOpenverseImages(q: string): Promise<MemeItem[]> {
-  try {
-    const r = await fetch(
-      `https://api.openverse.org/v1/images/?q=${encodeURIComponent(q)}&license_type=commercial,modification&page_size=20`,
-    );
-    const data = await r.json();
-    return (data.results || []).map((img: any) => ({
-      id: `openverse-${img.id}`,
-      url: img.url,
-      previewUrl: img.thumbnail || img.url,
-      title: img.title || "Image",
-      source: "Archive" as const,
-      pageUrl: img.foreign_landing_url,
-    }));
-  } catch {
-    return [];
-  }
-}
-
 function interleave(arrays: MemeItem[][]): MemeItem[] {
   const merged: MemeItem[] = [];
   const max = Math.max(...arrays.map((a) => a.length));
@@ -200,7 +170,7 @@ interface MemesTabProps {
 }
 
 export function MemesTab({ onSendToChat }: MemesTabProps) {
-  const [query, setQuery] = useState("funny");
+  const [query, setQuery] = useState("");
   const [allItems, setAllItems] = useState<MemeItem[]>([]);
   const [visibleCount, setVisibleCount] = useState(30);
   const [loading, setLoading] = useState(false);
@@ -210,41 +180,36 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
   const [giphyOffset, setGiphyOffset] = useState(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const currentQueryRef = useRef("");
-  // track when loading finishes to re-observe sentinel
   const loadingRef = useRef(false);
 
-  const doSearch = useCallback(async (q: string) => {
-    if (!q.trim()) return;
+  async function doSearch(q: string) {
+    const trimmed = q.trim();
     setAllItems([]);
     setVisibleCount(30);
     setLoading(true);
     setSearched(true);
     setPage(1);
     setGiphyOffset(0);
-    currentQueryRef.current = q;
+    currentQueryRef.current = trimmed;
     loadingRef.current = true;
     const settled = await Promise.allSettled([
-      fetchGiphy(q, 0),
-      fetchTenor(q, ""),
+      fetchGiphy(trimmed, 0),
+      fetchTenor(trimmed, ""),
       fetchImgflip(),
-      fetchArchiveMemes(q, 1),
-      fetchRedditMemes(q, ""),
+      fetchArchiveMemes(trimmed, 1),
+      fetchRedditMemes(trimmed, ""),
     ]);
     const [giphy, tenor, imgflip, archive, reddit] = settled.map((r) =>
       r.status === "fulfilled" ? r.value : [],
     );
-    let items = interleave([giphy, tenor, imgflip, archive, reddit]);
-    if (items.length === 0) {
-      const openverse = await fetchOpenverseImages(q);
-      items = openverse;
-    }
+    const items = interleave([giphy, tenor, imgflip, archive, reddit]);
     setAllItems(items);
     setLoading(false);
     loadingRef.current = false;
-  }, []);
+  }
 
-  const loadMore = useCallback(async () => {
-    if (loadingMore || loadingRef.current || !currentQueryRef.current) return;
+  async function loadMore() {
+    if (loadingMore || loadingRef.current) return;
     setLoadingMore(true);
     const nextPage = page + 1;
     const nextOffset = giphyOffset + 50;
@@ -268,13 +233,16 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
       setGiphyOffset(nextOffset);
     }
     setLoadingMore(false);
-  }, [loadingMore, page, giphyOffset]);
+  }
 
+  // Load trending on mount
+  // biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount
   useEffect(() => {
-    doSearch("funny");
-  }, [doSearch]);
+    doSearch("");
+  }, []);
 
-  // Infinite scroll via IntersectionObserver — always attached
+  // Infinite scroll
+  // biome-ignore lint/correctness/useExhaustiveDependencies: loadMore is stable
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
@@ -292,13 +260,16 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [visibleCount, allItems.length, loadMore, loading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleCount, allItems.length, loading]);
 
   const copyLink = (url: string) => {
     navigator.clipboard
       .writeText(url)
       .then(() => toast.success("Link copied!"));
   };
+
+  const visibleItems = allItems.slice(0, visibleCount);
 
   return (
     <div className="space-y-4">
@@ -324,6 +295,7 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
             style={{
               background: "oklch(0.18 0.04 260)",
               color: "oklch(0.95 0.02 240)",
+              borderColor: "oklch(0.28 0.05 260)",
             }}
           />
         </div>
@@ -333,6 +305,7 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
           disabled={loading}
           size="sm"
           className="h-10 px-4"
+          style={{ background: "oklch(0.52 0.18 220)", color: "white" }}
         >
           {loading ? (
             <span className="animate-spin inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full" />
@@ -355,6 +328,8 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
           "minion",
           "doge",
           "spongebob",
+          "trending",
+          "anime",
         ].map((chip) => (
           <button
             key={chip}
@@ -363,7 +338,7 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
               setQuery(chip);
               doSearch(chip);
             }}
-            className="text-xs px-3 py-1 rounded-full border transition-colors"
+            className="text-xs px-3 py-1 rounded-full border transition-colors hover:opacity-80"
             style={{
               borderColor: "oklch(0.4 0.06 260)",
               color: "oklch(0.72 0.08 230)",
@@ -378,7 +353,9 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
       {/* Source legend */}
       <div className="flex flex-wrap gap-2 items-center">
         <Smile className="w-4 h-4" style={{ color: "oklch(0.65 0.14 55)" }} />
-        <span className="text-xs text-muted-foreground">Sources:</span>
+        <span className="text-xs" style={{ color: "oklch(0.6 0.04 240)" }}>
+          Sources:
+        </span>
         {Object.entries(SOURCE_COLORS).map(([src, color]) => (
           <Badge
             key={src}
@@ -397,208 +374,111 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
           data-ocid="memes.loading_state"
           className="columns-2 sm:columns-3 md:columns-4 gap-3 space-y-3"
         >
-          {Array.from({ length: 16 }, (_, i) => `skel-${i}`).map((k, i) => (
-            <Skeleton
-              key={k}
-              className="w-full rounded-xl mb-3"
-              style={{
-                height: `${120 + (i % 3) * 40}px`,
-                breakInside: "avoid",
-              }}
-            />
-          ))}
+          {[120, 160, 140, 200, 120, 160, 140, 200, 120, 160, 140, 200].map(
+            (h, i) => (
+              <Skeleton
+                key={`skeleton-item-${i}-${h}`}
+                className="w-full rounded-xl"
+                style={{ height: `${h}px` }}
+              />
+            ),
+          )}
         </div>
       )}
 
-      {/* Pre-search empty state */}
-      {!loading && !searched && (
-        <div
-          data-ocid="memes.empty_state"
-          className="flex flex-col items-center justify-center py-16 text-center"
-        >
-          <div className="text-5xl mb-4">😂</div>
-          <p
-            className="font-display text-xl font-semibold mb-2"
-            style={{ color: "oklch(0.85 0.04 240)" }}
-          >
-            Search for GIFs, Memes &amp; Stickers
-          </p>
-          <p className="text-sm text-muted-foreground mb-6">
-            Giphy, Tenor, Imgflip, Reddit &amp; Archive.org
-          </p>
-        </div>
-      )}
-
-      {/* Empty state after search */}
+      {/* Empty state */}
       {!loading && searched && allItems.length === 0 && (
         <div
           data-ocid="memes.empty_state"
-          className="flex flex-col items-center justify-center py-16 text-center"
+          className="text-center py-16"
+          style={{ color: "oklch(0.55 0.04 240)" }}
         >
-          <Smile
-            className="w-12 h-12 mb-3"
-            style={{ color: "oklch(0.45 0.08 260)" }}
-          />
-          <p className="text-muted-foreground">
-            No memes found. Try a different search!
-          </p>
+          <Smile className="w-12 h-12 mx-auto mb-3 opacity-30" />
+          <p className="text-sm font-medium">No results found</p>
+          <p className="text-xs mt-1 opacity-60">Try a different search term</p>
         </div>
       )}
 
       {/* Masonry grid */}
-      {!loading && allItems.length > 0 && (
-        <div className="columns-2 sm:columns-3 md:columns-4 gap-3">
-          {allItems.slice(0, visibleCount).map((item, idx) => (
-            <MemeCard
+      {!loading && visibleItems.length > 0 && (
+        <div className="columns-2 sm:columns-3 md:columns-4 gap-3 space-y-3">
+          {visibleItems.map((item, idx) => (
+            <div
               key={item.id}
-              item={item}
-              index={idx + 1}
-              onCopy={() => copyLink(item.url)}
-              onSendToChat={onSendToChat ? () => onSendToChat(item) : undefined}
-            />
+              data-ocid={`memes.item.${idx + 1}`}
+              className="break-inside-avoid group relative rounded-xl overflow-hidden cursor-pointer"
+              style={{ background: "oklch(0.16 0.04 260)" }}
+            >
+              <SensitiveContentBlur label={item.title}>
+                <img
+                  src={item.previewUrl || item.url}
+                  alt={item.title}
+                  className="w-full object-cover"
+                  loading="lazy"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              </SensitiveContentBlur>
+
+              {/* Overlay */}
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex flex-col justify-end opacity-0 group-hover:opacity-100">
+                <div className="p-2">
+                  <p className="text-xs font-medium truncate text-white mb-1">
+                    {item.title}
+                  </p>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => copyLink(item.url)}
+                      className="flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-white/20 text-white hover:bg-white/30 transition-colors"
+                    >
+                      <Copy className="w-3 h-3" />
+                      Copy
+                    </button>
+                    {onSendToChat && (
+                      <button
+                        type="button"
+                        onClick={() => onSendToChat(item)}
+                        className="flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-white/20 text-white hover:bg-white/30 transition-colors"
+                      >
+                        Send
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Source badge */}
+              <div className="absolute top-1.5 left-1.5">
+                <Badge
+                  className="text-[10px] px-1.5 py-0 h-4 font-medium"
+                  style={{
+                    background: `${SOURCE_COLORS[item.source]}33`,
+                    color: SOURCE_COLORS[item.source],
+                    border: `1px solid ${SOURCE_COLORS[item.source]}55`,
+                  }}
+                >
+                  {item.source}
+                </Badge>
+              </div>
+            </div>
           ))}
         </div>
       )}
 
-      {/* Loading more indicator */}
+      {/* Load more indicator */}
       {loadingMore && (
-        <div
-          className="flex justify-center py-4"
-          data-ocid="memes.loading_state"
-        >
+        <div className="flex justify-center py-4">
           <span
             className="animate-spin inline-block w-6 h-6 border-2 border-current border-t-transparent rounded-full"
-            style={{ color: "oklch(0.65 0.14 240)" }}
+            style={{ color: "oklch(0.52 0.18 220)" }}
           />
         </div>
       )}
 
-      {/* Infinite scroll sentinel — always rendered so observer fires */}
-      <div ref={sentinelRef} className="h-4" aria-hidden="true" />
-    </div>
-  );
-}
-
-function MemeCard({
-  item,
-  index,
-  onCopy,
-  onSendToChat,
-}: {
-  item: MemeItem;
-  index: number;
-  onCopy: () => void;
-  onSendToChat?: () => void;
-}) {
-  const [hovered, setHovered] = useState(false);
-  const [imgError, setImgError] = useState(false);
-  const color = SOURCE_COLORS[item.source];
-
-  const displayUrl = item.previewUrl || item.url;
-
-  return (
-    <div
-      data-ocid={`memes.item.${index}`}
-      className="relative group mb-3 rounded-xl overflow-hidden cursor-pointer"
-      style={{
-        breakInside: "avoid",
-        border: "1px solid oklch(0.3 0.04 260)",
-        background: "oklch(0.16 0.04 260)",
-      }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      <SensitiveContentBlur label={item.title}>
-        {imgError ? (
-          <div
-            className="w-full flex items-center justify-center text-xs text-muted-foreground"
-            style={{ height: "120px" }}
-          >
-            <Smile className="w-8 h-8 opacity-30" />
-          </div>
-        ) : (
-          <img
-            src={displayUrl}
-            alt={item.title}
-            className="w-full block"
-            loading="lazy"
-            onError={() => setImgError(true)}
-            style={{ display: "block" }}
-          />
-        )}
-      </SensitiveContentBlur>
-
-      {/* Source badge */}
-      <div className="absolute top-2 left-2">
-        <span
-          className="text-xs font-semibold px-2 py-0.5 rounded-full"
-          style={{
-            background: color.replace(")", " / 0.15)"),
-            border: `1px solid ${color.replace(")", " / 0.4)")}`,
-            color,
-          }}
-        >
-          {item.source}
-        </span>
-      </div>
-
-      {/* Hover overlay */}
-      {hovered && (
-        <div
-          className="absolute inset-0 flex flex-col items-center justify-end pb-3 gap-2"
-          style={{ background: "oklch(0.08 0.03 260 / 0.75)" }}
-        >
-          <p
-            className="text-xs text-center px-2 line-clamp-2"
-            style={{ color: "oklch(0.9 0.02 240)" }}
-          >
-            {item.title}
-          </p>
-          <div className="flex gap-2">
-            <Button
-              data-ocid={`memes.item.${index}.button`}
-              size="sm"
-              variant="secondary"
-              className="h-7 px-3 text-xs"
-              onClick={(e) => {
-                e.stopPropagation();
-                onCopy();
-              }}
-            >
-              <Copy className="w-3 h-3 mr-1" />
-              Copy
-            </Button>
-            {onSendToChat && (
-              <Button
-                size="sm"
-                className="h-7 px-3 text-xs"
-                style={{ background: "oklch(0.52 0.18 220)" }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSendToChat();
-                }}
-              >
-                Send
-              </Button>
-            )}
-            {item.pageUrl && (
-              <a
-                href={item.pageUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center h-7 px-2 rounded-md text-xs"
-                style={{
-                  background: "oklch(0.22 0.05 260)",
-                  color: "oklch(0.72 0.08 230)",
-                }}
-              >
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Sentinel for infinite scroll */}
+      <div ref={sentinelRef} className="h-4" />
     </div>
   );
 }

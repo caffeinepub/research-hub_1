@@ -27,7 +27,6 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowBigUp,
   ArrowLeft,
-  ChevronUp,
   Clock,
   Edit3,
   Flame,
@@ -39,9 +38,10 @@ import {
   Search,
   TrendingUp,
   User,
+  Users,
   X,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { SensitiveContentBlur } from "./SensitiveContentBlur";
 
@@ -107,38 +107,6 @@ const DEFAULT_CHANNELS = [
 ];
 
 const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "👏", "🔥"];
-
-const STICKER_CATEGORIES: Record<string, string[]> = {
-  Reactions: [
-    "😂",
-    "😮",
-    "😢",
-    "😍",
-    "🤣",
-    "😊",
-    "😎",
-    "🥳",
-    "😤",
-    "🤩",
-    "🙄",
-    "😴",
-  ],
-  Fun: ["🎉", "🎊", "🎈", "🌟", "💯", "🔥", "✨", "🎯", "🏆", "👑", "💥", "🚀"],
-  Classic: [
-    "👋",
-    "🤝",
-    "👏",
-    "💪",
-    "🙌",
-    "🤞",
-    "✌️",
-    "🤙",
-    "👌",
-    "💫",
-    "🌈",
-    "⭐",
-  ],
-};
 
 // ─── Storage helpers ─────────────────────────────────────────────────────────
 
@@ -223,15 +191,6 @@ const SEED_POSTS: ForumPost[] = [
         upvotedBy: [],
         reactions: {},
       },
-      {
-        id: 102,
-        body: "We should be careful about over-interpreting early data. Remember the 'alien megastructure' star? Still fascinating though.",
-        author: "SkepticalScientist",
-        upvotes: 189,
-        createdAt: Date.now() - 7200000,
-        upvotedBy: [],
-        reactions: {},
-      },
     ],
     createdAt: Date.now() - 86400000,
     reactions: {},
@@ -239,7 +198,7 @@ const SEED_POSTS: ForumPost[] = [
   {
     id: 2,
     title: "Open-source AI model beats GPT-4 on coding benchmarks",
-    body: "A new open-source model released on HuggingFace has surpassed GPT-4 on HumanEval coding benchmarks while running entirely locally on consumer hardware. The model uses a novel sparse mixture-of-experts architecture that dramatically reduces inference costs.",
+    body: "A new open-source model released on HuggingFace has surpassed GPT-4 on HumanEval coding benchmarks while running entirely locally on consumer hardware.",
     category: "Technology",
     channel: "technology",
     author: "MLEngineer42",
@@ -252,7 +211,7 @@ const SEED_POSTS: ForumPost[] = [
   {
     id: 3,
     title: "Archive.org digitizes 500,000 rare books from 1400-1800",
-    body: "The Internet Archive has completed a massive digitization project bringing half a million rare books from the early modern period into the public domain. The collection includes first editions, illuminated manuscripts, and previously inaccessible private library collections.",
+    body: "The Internet Archive has completed a massive digitization project bringing half a million rare books from the early modern period into the public domain.",
     category: "Research",
     channel: "general",
     author: "LibrarianPro",
@@ -265,38 +224,14 @@ const SEED_POSTS: ForumPost[] = [
   {
     id: 4,
     title: "Best public domain art resources for researchers",
-    body: "Compiled a list of the best free art resources: Europeana (15M+ works), Met Museum Open Access (375K+ objects), Rijksmuseum API (700K+ works), Art Institute Chicago (50K+ CC0 images). All are free to use for research and education.",
+    body: "Compiled a list: Europeana (15M+ works), Met Museum Open Access (375K+), Rijksmuseum API (700K+), Art Institute Chicago (50K+ CC0 images).",
     category: "Art",
     channel: "art",
     author: "DigitalCurator",
     upvotes: 421,
     upvotedBy: [],
-    replies: [
-      {
-        id: 401,
-        body: "Europeana has fantastic Art Nouveau collections, especially from Austrian and Czech museums. Also check the Met's digital library.",
-        author: "EuropaMuseumFan",
-        upvotes: 78,
-        createdAt: Date.now() - 43200000,
-        upvotedBy: [],
-        reactions: {},
-      },
-    ],
-    createdAt: Date.now() - 432000000,
-    reactions: {},
-  },
-  {
-    id: 5,
-    title:
-      "Researchers decode 3,000-year-old Ugaritic tablet with AI assistance",
-    body: "A team at MIT has used large language models trained on ancient Near Eastern languages to successfully decode a previously untranslatable Ugaritic administrative tablet from 1200 BCE. The tablet appears to be a merchant's ledger listing trade goods between Canaan and Egypt.",
-    category: "History",
-    channel: "history",
-    author: "AncientWorldsProf",
-    upvotes: 967,
-    upvotedBy: [],
     replies: [],
-    createdAt: Date.now() - 518400000,
+    createdAt: Date.now() - 432000000,
     reactions: {},
   },
 ];
@@ -344,7 +279,7 @@ function getAvatarColor(name: string) {
   return colors[Math.abs(hash) % colors.length];
 }
 
-// ─── GIF Picker (inline) ──────────────────────────────────────────────────────
+// ─── GIF Picker ───────────────────────────────────────────────────────────────
 
 interface GifResult {
   id: string;
@@ -360,20 +295,20 @@ function GifPickerPanel({
   onSelect: (url: string) => void;
   onClose: () => void;
 }) {
-  const [query, setQuery] = useState("");
+  const [q, setQ] = useState("");
   const [results, setResults] = useState<GifResult[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const search = async (q: string) => {
-    if (!q.trim()) return;
+  const search = async (query: string) => {
     setLoading(true);
     try {
-      const res = await fetch(
-        `https://api.giphy.com/v1/gifs/search?api_key=dc6zaTOxFJmzC&q=${encodeURIComponent(q)}&limit=12`,
-      );
+      const endpoint = query.trim()
+        ? `https://api.giphy.com/v1/gifs/search?api_key=dc6zaTOxFJmzC&q=${encodeURIComponent(query)}&limit=12&rating=g`
+        : "https://api.giphy.com/v1/gifs/trending?api_key=dc6zaTOxFJmzC&limit=12&rating=g";
+      const res = await fetch(endpoint);
       const data = await res.json();
       setResults(
-        data.data.map((g: any) => ({
+        (data.data || []).map((g: any) => ({
           id: g.id,
           title: g.title,
           url: g.images.original.url,
@@ -387,6 +322,12 @@ function GifPickerPanel({
     }
   };
 
+  // Load trending on mount
+  // biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount
+  useEffect(() => {
+    search("");
+  }, []);
+
   return (
     <div
       className="rounded-xl overflow-hidden shadow-2xl"
@@ -397,8 +338,8 @@ function GifPickerPanel({
     >
       <div className="p-2 flex items-center gap-1.5">
         <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
           placeholder="Search GIFs..."
           className="h-7 text-xs flex-1"
           style={{
@@ -407,7 +348,7 @@ function GifPickerPanel({
             color: "white",
           }}
           onKeyDown={(e) => {
-            if (e.key === "Enter") search(query);
+            if (e.key === "Enter") search(q);
           }}
           autoFocus
         />
@@ -415,7 +356,7 @@ function GifPickerPanel({
           size="sm"
           className="h-7 px-2 text-xs"
           style={{ background: "oklch(0.52 0.18 220)" }}
-          onClick={() => search(query)}
+          onClick={() => search(q)}
         >
           Go
         </Button>
@@ -441,7 +382,7 @@ function GifPickerPanel({
           className="p-3 text-center text-xs"
           style={{ color: "oklch(0.45 0.04 240)" }}
         >
-          Type and press Go to search GIFs
+          No results found
         </div>
       )}
       <div className="grid grid-cols-3 gap-1 p-2 max-h-44 overflow-y-auto">
@@ -467,16 +408,56 @@ function GifPickerPanel({
   );
 }
 
-// ─── Sticker Picker ───────────────────────────────────────────────────────────
+// ─── Sticker Picker (Giphy-backed) ────────────────────────────────────────────
+
+interface StickerResult {
+  id: string;
+  preview: string;
+  original: string;
+  title: string;
+}
 
 function StickerPicker({
   onSelect,
   onClose,
 }: {
-  onSelect: (sticker: string) => void;
+  onSelect: (url: string) => void;
   onClose: () => void;
 }) {
-  const [activeTab, setActiveTab] = useState("Reactions");
+  const [stickerQ, setStickerQ] = useState("");
+  const [stickers, setStickers] = useState<StickerResult[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchStickers = async (query: string) => {
+    setLoading(true);
+    try {
+      const endpoint = query.trim()
+        ? `https://api.giphy.com/v1/stickers/search?api_key=dc6zaTOxFJmzC&q=${encodeURIComponent(query)}&limit=24&rating=g`
+        : "https://api.giphy.com/v1/stickers/trending?api_key=dc6zaTOxFJmzC&limit=24&rating=g";
+      const res = await fetch(endpoint);
+      const data = await res.json();
+      setStickers(
+        (data.data || []).map((g: any) => ({
+          id: g.id,
+          preview:
+            g.images?.fixed_height_small?.url ||
+            g.images?.preview_gif?.url ||
+            "",
+          original: g.images?.original?.url || "",
+          title: g.title || "Sticker",
+        })),
+      );
+    } catch {
+      toast.error("Failed to load stickers");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount
+  useEffect(() => {
+    fetchStickers("");
+  }, []);
 
   return (
     <div
@@ -484,10 +465,9 @@ function StickerPicker({
       style={{
         background: "oklch(0.13 0.03 260)",
         border: "1px solid oklch(0.26 0.05 260)",
-        width: "240px",
+        width: "260px",
       }}
     >
-      {/* Header */}
       <div
         className="flex items-center justify-between px-3 py-2 border-b"
         style={{ borderColor: "oklch(0.22 0.04 260)" }}
@@ -507,139 +487,212 @@ function StickerPicker({
         </button>
       </div>
 
-      {/* Category tabs */}
-      <div
-        className="flex border-b"
-        style={{ borderColor: "oklch(0.20 0.04 260)" }}
-      >
-        {Object.keys(STICKER_CATEGORIES).map((cat) => (
-          <button
-            key={cat}
-            type="button"
-            onClick={() => setActiveTab(cat)}
-            className="flex-1 text-xs py-1.5 transition-colors"
-            style={{
-              background:
-                activeTab === cat
-                  ? "oklch(0.52 0.18 220 / 0.15)"
-                  : "transparent",
-              color:
-                activeTab === cat
-                  ? "oklch(0.72 0.14 220)"
-                  : "oklch(0.50 0.04 240)",
-              borderBottom:
-                activeTab === cat
-                  ? "2px solid oklch(0.60 0.18 220)"
-                  : "2px solid transparent",
-            }}
-          >
-            {cat}
-          </button>
-        ))}
+      {/* Search */}
+      <div className="p-2 flex gap-1.5">
+        <Input
+          value={stickerQ}
+          onChange={(e) => setStickerQ(e.target.value)}
+          placeholder="Search stickers..."
+          className="h-7 text-xs flex-1"
+          style={{
+            background: "oklch(0.16 0.04 260)",
+            borderColor: "oklch(0.28 0.05 260)",
+            color: "white",
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") fetchStickers(stickerQ);
+          }}
+        />
+        <Button
+          size="sm"
+          className="h-7 px-2 text-xs"
+          style={{ background: "oklch(0.52 0.18 220)" }}
+          onClick={() => fetchStickers(stickerQ)}
+        >
+          Go
+        </Button>
       </div>
+
+      {loading && (
+        <div
+          className="p-3 text-center text-xs"
+          style={{ color: "oklch(0.55 0.04 240)" }}
+        >
+          Loading stickers…
+        </div>
+      )}
 
       {/* Sticker grid */}
-      <div className="grid grid-cols-6 gap-0.5 p-2">
-        {(STICKER_CATEGORIES[activeTab] ?? []).map((emoji) => (
+      <div className="grid grid-cols-4 gap-1 p-2 max-h-52 overflow-y-auto">
+        {stickers.map((s) => (
           <button
-            key={emoji}
+            key={s.id}
             type="button"
             onClick={() => {
-              onSelect(emoji);
+              onSelect(s.original);
               onClose();
             }}
-            className="flex items-center justify-center h-9 w-9 text-xl rounded-lg transition-all hover:scale-125 hover:bg-white/10"
+            className="rounded-lg overflow-hidden hover:scale-110 hover:bg-white/10 transition-all p-0.5"
+            title={s.title}
           >
-            {emoji}
+            <img
+              src={s.preview}
+              alt={s.title}
+              className="w-full h-12 object-contain"
+            />
           </button>
         ))}
+        {!loading && stickers.length === 0 && (
+          <div
+            className="col-span-4 text-center py-4 text-xs"
+            style={{ color: "oklch(0.45 0.04 240)" }}
+          >
+            No stickers found
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// ─── Reaction Bar ─────────────────────────────────────────────────────────────
+// ─── Profile Modal ────────────────────────────────────────────────────────────
 
-function ReactionBar({
-  reactions = {},
-  currentUsername,
-  onReact,
+function ProfileModal({
+  username,
+  currentUser,
+  posts,
+  open,
+  onClose,
 }: {
-  reactions?: Record<string, string[]>;
-  currentUsername?: string;
-  onReact: (emoji: string) => void;
+  username: string;
+  currentUser: CurrentUser;
+  posts: ForumPost[];
+  open: boolean;
+  onClose: () => void;
 }) {
-  const activeEmojis = Object.entries(reactions).filter(
-    ([, users]) => users.length > 0,
+  const friendsKey = `friends_${currentUser.username}`;
+
+  function loadFriends(): string[] {
+    try {
+      return JSON.parse(localStorage.getItem(friendsKey) || "[]");
+    } catch {
+      return [];
+    }
+  }
+
+  const [friends, setFriends] = useState<string[]>(loadFriends);
+  const isFriend = friends.includes(username);
+  const postCount = posts.filter((p) => p.author === username).length;
+  const replyCount = posts.reduce(
+    (acc, p) => acc + p.replies.filter((r) => r.author === username).length,
+    0,
   );
 
-  return (
-    <div className="flex flex-wrap items-center gap-1 mt-1.5">
-      {activeEmojis.map(([emoji, users]) => {
-        const mine = currentUsername ? users.includes(currentUsername) : false;
-        return (
-          <button
-            key={emoji}
-            type="button"
-            onClick={() => onReact(emoji)}
-            className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs transition-all"
-            style={{
-              background: mine
-                ? "oklch(0.52 0.18 220 / 0.2)"
-                : "oklch(0.18 0.04 260)",
-              border: `1px solid ${mine ? "oklch(0.52 0.18 220 / 0.5)" : "oklch(0.28 0.05 260)"}`,
-              color: mine ? "oklch(0.82 0.12 220)" : "oklch(0.72 0.03 240)",
-            }}
-          >
-            <span>{emoji}</span>
-            <span className="font-medium">{users.length}</span>
-          </button>
-        );
-      })}
+  function toggleFriend() {
+    const updated = isFriend
+      ? friends.filter((f) => f !== username)
+      : [...friends, username];
+    setFriends(updated);
+    localStorage.setItem(friendsKey, JSON.stringify(updated));
+    toast.success(
+      isFriend ? `Unfriended ${username}` : `Added ${username} as friend!`,
+    );
+  }
 
-      <Popover>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            data-ocid="community.reaction.button"
-            className="flex items-center justify-center w-6 h-6 rounded-full text-xs transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-            style={{
-              background: "oklch(0.18 0.04 260)",
-              border: "1px solid oklch(0.28 0.05 260)",
-              color: "oklch(0.55 0.05 240)",
-            }}
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent
+        data-ocid="community.profile.dialog"
+        style={{
+          background: "oklch(0.13 0.03 260)",
+          borderColor: "oklch(0.22 0.04 260)",
+        }}
+      >
+        <DialogHeader>
+          <DialogTitle style={{ color: "oklch(0.92 0.02 240)" }}>
+            Profile
+          </DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col items-center gap-4 py-2">
+          <div
+            className="w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold text-white"
+            style={{ background: getAvatarColor(username) }}
           >
-            +
-          </button>
-        </PopoverTrigger>
-        <PopoverContent
-          data-ocid="community.reaction.popover"
-          className="w-auto p-2"
-          style={{
-            background: "oklch(0.15 0.04 260)",
-            border: "1px solid oklch(0.26 0.05 260)",
-          }}
-        >
-          <div className="flex gap-1">
-            {REACTION_EMOJIS.map((emoji) => (
-              <button
-                key={emoji}
-                type="button"
-                onClick={() => onReact(emoji)}
-                className="text-lg hover:scale-125 transition-transform p-1 rounded"
-                style={{ lineHeight: 1 }}
-              >
-                {emoji}
-              </button>
-            ))}
+            {getInitials(username)}
           </div>
-        </PopoverContent>
-      </Popover>
-    </div>
+          <div className="text-center">
+            <p
+              className="text-lg font-semibold"
+              style={{ color: "oklch(0.92 0.02 240)" }}
+            >
+              {username}
+            </p>
+            <Badge
+              className="mt-1 text-xs"
+              style={{
+                background: "oklch(0.52 0.18 220 / 0.2)",
+                color: "oklch(0.72 0.14 220)",
+              }}
+            >
+              Member
+            </Badge>
+          </div>
+          <div className="flex gap-6 text-center">
+            <div>
+              <p
+                className="text-xl font-bold"
+                style={{ color: "oklch(0.92 0.02 240)" }}
+              >
+                {postCount}
+              </p>
+              <p className="text-xs" style={{ color: "oklch(0.55 0.04 240)" }}>
+                Posts
+              </p>
+            </div>
+            <div>
+              <p
+                className="text-xl font-bold"
+                style={{ color: "oklch(0.92 0.02 240)" }}
+              >
+                {replyCount}
+              </p>
+              <p className="text-xs" style={{ color: "oklch(0.55 0.04 240)" }}>
+                Replies
+              </p>
+            </div>
+          </div>
+          {username !== currentUser.username && (
+            <Button
+              data-ocid="community.profile.button"
+              onClick={toggleFriend}
+              className="w-full"
+              style={{
+                background: isFriend
+                  ? "oklch(0.25 0.05 260)"
+                  : "oklch(0.52 0.18 220)",
+                color: "white",
+              }}
+            >
+              {isFriend ? "Friends ✓" : "Add Friend"}
+            </Button>
+          )}
+        </div>
+        <DialogFooter>
+          <Button
+            data-ocid="community.profile.close_button"
+            variant="ghost"
+            onClick={onClose}
+            style={{ color: "oklch(0.60 0.04 240)" }}
+          >
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-// ─── Post Card ────────────────────────────────────────────────────────────────
+// ─── PostCard ─────────────────────────────────────────────────────────────────
 
 function PostCard({
   post,
@@ -647,131 +700,197 @@ function PostCard({
   onOpen,
   onUpvote,
   onReact,
+  onViewProfile,
 }: {
   post: ForumPost;
-  currentUser: CurrentUser | null;
+  currentUser: CurrentUser;
   onOpen: () => void;
   onUpvote: () => void;
   onReact: (emoji: string) => void;
+  onViewProfile: (username: string) => void;
 }) {
-  const hasUpvoted = currentUser
-    ? post.upvotedBy.includes(currentUser.username)
-    : false;
+  const hasUpvoted = post.upvotedBy.includes(currentUser.username);
+  const catColor = CATEGORY_COLORS[post.category] || "oklch(0.55 0.08 250)";
 
   return (
     <div
-      className="group rounded-lg border cursor-pointer transition-all hover:border-opacity-60"
+      className="rounded-xl p-4 transition-all hover:translate-y-[-1px]"
       style={{
-        background: "oklch(0.13 0.03 260)",
-        borderColor: "oklch(0.22 0.04 260)",
+        background: "oklch(0.14 0.03 260)",
+        border: "1px solid oklch(0.22 0.04 260)",
+        boxShadow: "0 2px 8px oklch(0 0 0 / 0.3)",
       }}
     >
-      <div className="flex">
-        <div
-          className="flex flex-col items-center gap-1 p-3 rounded-l-lg"
-          style={{ background: "oklch(0.10 0.03 260)" }}
+      {/* Author row */}
+      <div className="flex items-center gap-2 mb-2">
+        <button
+          type="button"
+          onClick={() => onViewProfile(post.author)}
+          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+          data-ocid="community.post.link"
         >
-          <button
-            type="button"
-            data-ocid="community.post.toggle"
-            onClick={(e) => {
-              e.stopPropagation();
-              onUpvote();
-            }}
-            className="transition-colors rounded p-0.5"
-            style={{
-              color: hasUpvoted
-                ? "oklch(0.72 0.18 40)"
-                : "oklch(0.45 0.04 240)",
-            }}
+          <div
+            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
+            style={{ background: getAvatarColor(post.author) }}
           >
-            <ChevronUp className="w-5 h-5" />
-          </button>
+            {getInitials(post.author)}
+          </div>
           <span
-            className="text-xs font-bold"
-            style={{
-              color: hasUpvoted
-                ? "oklch(0.72 0.18 40)"
-                : "oklch(0.65 0.04 240)",
-            }}
+            className="text-xs font-medium"
+            style={{ color: "oklch(0.70 0.08 220)" }}
           >
-            {post.upvotes}
+            {post.author}
           </span>
-        </div>
+        </button>
+        {post.channel && (
+          <span className="text-xs" style={{ color: "oklch(0.45 0.04 240)" }}>
+            in{" "}
+            <span style={{ color: "oklch(0.60 0.10 220)" }}>
+              #{post.channel}
+            </span>
+          </span>
+        )}
+        <span
+          className="text-xs ml-auto"
+          style={{ color: "oklch(0.42 0.04 240)" }}
+        >
+          {formatTime(post.createdAt)}
+        </span>
+      </div>
 
-        <div className="flex-1 p-3">
-          <button type="button" className="w-full text-left" onClick={onOpen}>
-            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-              <Badge
-                className="text-xs px-1.5 py-0 border-0"
+      {/* Category */}
+      <div className="flex items-center gap-2 mb-2">
+        <Badge
+          className="text-xs px-1.5 py-0"
+          style={{
+            background: `${catColor}22`,
+            color: catColor,
+            border: `1px solid ${catColor}44`,
+          }}
+        >
+          {post.category}
+        </Badge>
+        {post.locked && (
+          <Lock className="w-3 h-3" style={{ color: "oklch(0.55 0.14 50)" }} />
+        )}
+      </div>
+
+      {/* Title */}
+      <button
+        type="button"
+        onClick={onOpen}
+        className="w-full text-left"
+        data-ocid="community.post.card"
+      >
+        <h3
+          className="text-sm font-semibold mb-1 hover:opacity-80 transition-opacity leading-snug"
+          style={{ color: "oklch(0.92 0.02 240)" }}
+        >
+          {post.title}
+        </h3>
+        <p
+          className="text-xs line-clamp-2"
+          style={{ color: "oklch(0.60 0.04 240)" }}
+        >
+          {post.body}
+        </p>
+      </button>
+
+      {/* Image */}
+      {post.imageUrl && (
+        <div className="mt-2 rounded-lg overflow-hidden">
+          <SensitiveContentBlur label={post.title}>
+            <img
+              src={post.imageUrl}
+              alt={post.title}
+              className="w-full max-h-48 object-cover"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+            />
+          </SensitiveContentBlur>
+        </div>
+      )}
+
+      {/* Footer actions */}
+      <div className="flex items-center gap-3 mt-3">
+        {/* Upvote */}
+        <button
+          type="button"
+          onClick={onUpvote}
+          className="flex items-center gap-1 text-xs px-2 py-1 rounded-full transition-all hover:scale-105"
+          style={{
+            background: hasUpvoted
+              ? "oklch(0.55 0.18 25 / 0.15)"
+              : "oklch(0.18 0.04 260)",
+            color: hasUpvoted ? "oklch(0.70 0.18 25)" : "oklch(0.55 0.04 240)",
+          }}
+        >
+          <ArrowBigUp className="w-3.5 h-3.5" />
+          <span>{post.upvotes}</span>
+        </button>
+
+        {/* Replies */}
+        <button
+          type="button"
+          onClick={onOpen}
+          className="flex items-center gap-1 text-xs px-2 py-1 rounded-full transition-colors hover:opacity-80"
+          style={{
+            background: "oklch(0.18 0.04 260)",
+            color: "oklch(0.55 0.04 240)",
+          }}
+        >
+          <MessageCircle className="w-3.5 h-3.5" />
+          <span>{post.replies.length}</span>
+        </button>
+
+        {/* Reaction picker */}
+        <div className="flex items-center gap-0.5 ml-auto group">
+          {REACTION_EMOJIS.map((emoji) => {
+            const count = post.reactions?.[emoji]?.length || 0;
+            if (count === 0) return null;
+            return (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => onReact(emoji)}
+                className="text-xs px-1.5 py-0.5 rounded-full transition-all hover:scale-110"
                 style={{
-                  background: `${CATEGORY_COLORS[post.category] ?? "oklch(0.55 0.12 240)"}/0.15`,
-                  color:
-                    CATEGORY_COLORS[post.category] ?? "oklch(0.72 0.12 240)",
+                  background: "oklch(0.20 0.04 260)",
+                  color: "oklch(0.80 0.04 240)",
                 }}
               >
-                {post.category}
-              </Badge>
-              {post.locked && (
-                <Badge
-                  className="text-xs px-1.5 py-0 border-0"
-                  style={{
-                    background: "oklch(0.55 0.18 40)/0.15",
-                    color: "oklch(0.72 0.18 40)",
-                  }}
-                >
-                  <Lock className="w-2.5 h-2.5 mr-1" /> Locked
-                </Badge>
-              )}
-            </div>
-            <SensitiveContentBlur label={post.title}>
-              <h3
-                className="text-sm font-semibold mb-1 leading-snug"
-                style={{ color: "oklch(0.92 0.02 240)" }}
-              >
-                {post.title}
-              </h3>
-              <p
-                className="text-xs line-clamp-2 mb-2"
-                style={{ color: "oklch(0.58 0.04 240)" }}
-              >
-                {post.body}
-              </p>
-            </SensitiveContentBlur>
-            <div
-              className="flex items-center gap-3 text-xs"
-              style={{ color: "oklch(0.45 0.04 240)" }}
-            >
-              <span className="flex items-center gap-1">
-                <Avatar className="w-4 h-4">
-                  <AvatarFallback
-                    className="text-[8px]"
-                    style={{
-                      background: getAvatarColor(post.author),
-                      color: "white",
-                    }}
-                  >
-                    {getInitials(post.author)}
-                  </AvatarFallback>
-                </Avatar>
-                {post.author}
-              </span>
-              <span className="flex items-center gap-1">
-                <MessageCircle className="w-3 h-3" />
-                {post.replies.length} comments
-              </span>
-              <span className="flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                {formatTime(post.createdAt)}
-              </span>
-            </div>
+                {emoji} {count}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => onReact(REACTION_EMOJIS[0])}
+            className="text-xs px-1.5 py-0.5 rounded-full opacity-50 group-hover:opacity-100 transition-opacity"
+            style={{
+              background: "oklch(0.20 0.04 260)",
+              color: "oklch(0.65 0.04 240)",
+            }}
+          >
+            +😊
           </button>
-          <ReactionBar
-            reactions={post.reactions}
-            currentUsername={currentUser?.username}
-            onReact={onReact}
-          />
         </div>
+      </div>
+
+      {/* Reaction emoji bar */}
+      <div className="flex flex-wrap gap-1 mt-2">
+        {REACTION_EMOJIS.map((emoji) => (
+          <button
+            key={emoji}
+            type="button"
+            onClick={() => onReact(emoji)}
+            className="text-base rounded-full p-1 transition-all hover:scale-125 hover:bg-white/10"
+            title={emoji}
+          >
+            {emoji}
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -783,769 +902,396 @@ function ThreadView({
   post,
   currentUser,
   onBack,
-  onPostUpdate,
+  onUpvotePost,
+  onUpvoteReply,
+  onReactPost,
+  onReactReply,
+  onAddReply,
+  onViewProfile,
 }: {
   post: ForumPost;
-  currentUser: CurrentUser | null;
+  currentUser: CurrentUser;
   onBack: () => void;
-  onPostUpdate: (updated: ForumPost) => void;
+  onUpvotePost: () => void;
+  onUpvoteReply: (replyId: number) => void;
+  onReactPost: (emoji: string) => void;
+  onReactReply: (replyId: number, emoji: string) => void;
+  onAddReply: (body: string, imageUrl?: string, replyTo?: ReplyRef) => void;
+  onViewProfile: (username: string) => void;
 }) {
   const [replyText, setReplyText] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [replyTo, setReplyTo] = useState<ReplyRef | null>(null);
-  const [showGifPicker, setShowGifPicker] = useState(false);
-  const [showStickerPicker, setShowStickerPicker] = useState(false);
-  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [replyImage, setReplyImage] = useState("");
+  const [replyTo, setReplyTo] = useState<ReplyRef | undefined>(undefined);
+  const [showGif, setShowGif] = useState(false);
+  const [showStickers, setShowStickers] = useState(false);
+  const status = getUserStatus(currentUser.username);
 
-  const status = currentUser ? getUserStatus(currentUser.username) : null;
-
-  const handleUpvotePost = () => {
-    if (!currentUser) {
-      toast.error("Login to upvote");
+  const submitReply = () => {
+    if (!replyText.trim() && !replyImage) return;
+    if (status.muted) {
+      toast.error("You are muted and cannot reply");
       return;
     }
-    const already = post.upvotedBy.includes(currentUser.username);
-    onPostUpdate({
-      ...post,
-      upvotes: already ? post.upvotes - 1 : post.upvotes + 1,
-      upvotedBy: already
-        ? post.upvotedBy.filter((u) => u !== currentUser.username)
-        : [...post.upvotedBy, currentUser.username],
-    });
-  };
-
-  const handleUpvoteReply = (replyId: number) => {
-    if (!currentUser) {
-      toast.error("Login to upvote");
-      return;
-    }
-    onPostUpdate({
-      ...post,
-      replies: post.replies.map((r) => {
-        if (r.id !== replyId) return r;
-        const already = r.upvotedBy.includes(currentUser.username);
-        return {
-          ...r,
-          upvotes: already ? r.upvotes - 1 : r.upvotes + 1,
-          upvotedBy: already
-            ? r.upvotedBy.filter((u) => u !== currentUser.username)
-            : [...r.upvotedBy, currentUser.username],
-        };
-      }),
-    });
-  };
-
-  const handleReactPost = (emoji: string) => {
-    if (!currentUser) {
-      toast.error("Login to react");
-      return;
-    }
-    const existing = post.reactions?.[emoji] ?? [];
-    const mine = existing.includes(currentUser.username);
-    onPostUpdate({
-      ...post,
-      reactions: {
-        ...(post.reactions ?? {}),
-        [emoji]: mine
-          ? existing.filter((u) => u !== currentUser.username)
-          : [...existing, currentUser.username],
-      },
-    });
-  };
-
-  const handleReactReply = (replyId: number, emoji: string) => {
-    if (!currentUser) {
-      toast.error("Login to react");
-      return;
-    }
-    onPostUpdate({
-      ...post,
-      replies: post.replies.map((r) => {
-        if (r.id !== replyId) return r;
-        const existing = r.reactions?.[emoji] ?? [];
-        const mine = existing.includes(currentUser.username);
-        return {
-          ...r,
-          reactions: {
-            ...(r.reactions ?? {}),
-            [emoji]: mine
-              ? existing.filter((u) => u !== currentUser.username)
-              : [...existing, currentUser.username],
-          },
-        };
-      }),
-    });
-  };
-
-  const submitReply = (text: string, imageUrl?: string) => {
-    if ((!text.trim() && !imageUrl) || !currentUser) return;
-    setSubmitting(true);
-    const newReply: ForumReply = {
-      id: Date.now(),
-      body: text.trim(),
-      author: currentUser.username,
-      upvotes: 0,
-      createdAt: Date.now(),
-      upvotedBy: [],
-      reactions: {},
-      imageUrl,
-      replyTo: replyTo ?? undefined,
-    };
-    onPostUpdate({ ...post, replies: [...post.replies, newReply] });
+    onAddReply(replyText, replyImage || undefined, replyTo);
     setReplyText("");
-    setReplyTo(null);
-    setSubmitting(false);
-    toast.success("Reply posted!");
+    setReplyImage("");
+    setReplyTo(undefined);
   };
-
-  const handleSubmitReply = () => submitReply(replyText);
-
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string;
-      submitReply("", dataUrl);
-    };
-    reader.readAsDataURL(file);
-    e.target.value = "";
-  };
-
-  const postUpvoted = currentUser
-    ? post.upvotedBy.includes(currentUser.username)
-    : false;
 
   return (
     <div className="flex flex-col h-full">
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handlePhotoUpload}
-      />
-
-      {/* Lightbox */}
-      {lightboxSrc && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ background: "rgba(0,0,0,0.85)" }}
-          onClick={() => setLightboxSrc(null)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape" || e.key === "Enter") setLightboxSrc(null);
-          }}
-        >
-          <img
-            src={lightboxSrc}
-            alt="full"
-            className="max-w-[90vw] max-h-[85vh] rounded-xl object-contain"
-          />
-          <button
-            type="button"
-            className="absolute top-4 right-4 text-white"
-            onClick={() => setLightboxSrc(null)}
-          >
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-      )}
-
-      {/* Back */}
+      {/* Header */}
       <div
-        className="p-3 border-b"
+        className="flex items-center gap-3 p-4 border-b flex-shrink-0"
         style={{ borderColor: "oklch(0.20 0.04 260)" }}
       >
-        <Button
-          variant="ghost"
-          size="sm"
+        <button
+          type="button"
           onClick={onBack}
-          data-ocid="community.back.button"
-          className="gap-1.5 text-sm"
-          style={{ color: "oklch(0.65 0.10 220)" }}
+          className="p-1.5 rounded-lg hover:opacity-70 transition-opacity"
+          style={{ color: "oklch(0.65 0.08 220)" }}
+          data-ocid="community.thread.button"
         >
-          <ArrowLeft className="w-4 h-4" /> Back to Community
-        </Button>
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+        <h2
+          className="text-sm font-semibold flex-1 line-clamp-1"
+          style={{ color: "oklch(0.90 0.02 240)" }}
+        >
+          {post.title}
+        </h2>
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="p-4 max-w-3xl mx-auto space-y-4">
-          {/* Post */}
+        <div className="p-4 space-y-4">
+          {/* Post body */}
           <div
-            className="group rounded-xl border p-4"
+            className="rounded-xl p-4"
             style={{
-              background: "oklch(0.13 0.03 260)",
-              borderColor: "oklch(0.22 0.04 260)",
+              background: "oklch(0.14 0.03 260)",
+              border: "1px solid oklch(0.22 0.04 260)",
             }}
           >
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <Badge
-                className="text-xs px-2 py-0.5 border-0"
-                style={{
-                  background: `${CATEGORY_COLORS[post.category] ?? "oklch(0.55 0.12 240)"}/0.15`,
-                  color:
-                    CATEGORY_COLORS[post.category] ?? "oklch(0.72 0.12 240)",
-                }}
-              >
-                {post.category}
-              </Badge>
-              {post.locked && (
-                <Badge
-                  className="text-xs px-2 py-0.5 border-0"
-                  style={{
-                    background: "oklch(0.55 0.18 40)/0.15",
-                    color: "oklch(0.72 0.18 40)",
-                  }}
-                >
-                  <Lock className="w-3 h-3 mr-1" /> Locked – no new replies
-                </Badge>
-              )}
-            </div>
-            <h2
-              className="text-lg font-bold mb-2"
-              style={{ color: "oklch(0.92 0.02 240)" }}
+            <button
+              type="button"
+              onClick={() => onViewProfile(post.author)}
+              className="flex items-center gap-2 mb-3 hover:opacity-80 transition-opacity"
             >
-              {post.title}
-            </h2>
+              <div
+                className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white"
+                style={{ background: getAvatarColor(post.author) }}
+              >
+                {getInitials(post.author)}
+              </div>
+              <div>
+                <p
+                  className="text-sm font-semibold"
+                  style={{ color: "oklch(0.80 0.08 220)" }}
+                >
+                  {post.author}
+                </p>
+                <p
+                  className="text-xs"
+                  style={{ color: "oklch(0.45 0.04 240)" }}
+                >
+                  {formatTime(post.createdAt)}
+                </p>
+              </div>
+            </button>
             <p
-              className="text-sm leading-relaxed mb-3"
-              style={{ color: "oklch(0.72 0.03 240)" }}
+              className="text-sm leading-relaxed"
+              style={{ color: "oklch(0.82 0.02 240)" }}
             >
               {post.body}
             </p>
             {post.imageUrl && (
-              <button
-                type="button"
-                onClick={() => setLightboxSrc(post.imageUrl!)}
-                className="mb-3"
-              >
+              <div className="mt-3 rounded-lg overflow-hidden">
                 <img
                   src={post.imageUrl}
-                  alt="post"
-                  className="rounded-lg max-h-96 object-cover hover:opacity-90 transition-opacity"
+                  alt=""
+                  className="w-full max-h-64 object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
                 />
-              </button>
+              </div>
             )}
-            <div
-              className="flex items-center gap-4"
-              style={{ color: "oklch(0.45 0.04 240)" }}
-            >
+            <div className="flex items-center gap-2 mt-3">
               <button
                 type="button"
-                onClick={handleUpvotePost}
-                className="flex items-center gap-1.5 text-sm transition-colors hover:opacity-80"
+                onClick={onUpvotePost}
+                className="flex items-center gap-1 text-xs px-2 py-1 rounded-full"
                 style={{
-                  color: postUpvoted
-                    ? "oklch(0.72 0.18 40)"
-                    : "oklch(0.50 0.05 240)",
+                  background: post.upvotedBy.includes(currentUser.username)
+                    ? "oklch(0.55 0.18 25 / 0.15)"
+                    : "oklch(0.18 0.04 260)",
+                  color: post.upvotedBy.includes(currentUser.username)
+                    ? "oklch(0.70 0.18 25)"
+                    : "oklch(0.55 0.04 240)",
                 }}
-                data-ocid="community.post.toggle"
               >
-                <ArrowBigUp className="w-5 h-5" />
-                <span className="font-bold">{post.upvotes}</span> upvotes
+                <ArrowBigUp className="w-3.5 h-3.5" />
+                {post.upvotes}
               </button>
-              <span className="flex items-center gap-1 text-sm">
-                <MessageCircle className="w-4 h-4" />
-                {post.replies.length} comments
-              </span>
-              <span className="flex items-center gap-1 text-sm">
-                <Avatar className="w-4 h-4">
-                  <AvatarFallback
-                    className="text-[8px]"
-                    style={{
-                      background: getAvatarColor(post.author),
-                      color: "white",
-                    }}
-                  >
-                    {getInitials(post.author)}
-                  </AvatarFallback>
-                </Avatar>
-                {post.author} · {formatTime(post.createdAt)}
-              </span>
+              {REACTION_EMOJIS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => onReactPost(emoji)}
+                  className="text-base rounded-full p-0.5 hover:scale-125 hover:bg-white/10 transition-all"
+                >
+                  {emoji}
+                </button>
+              ))}
             </div>
-            <ReactionBar
-              reactions={post.reactions}
-              currentUsername={currentUser?.username}
-              onReact={handleReactPost}
-            />
           </div>
-
-          {/* Reply input */}
-          {!post.locked && (
-            <div
-              className="rounded-xl border p-4"
-              style={{
-                background: "oklch(0.11 0.03 260)",
-                borderColor: "oklch(0.22 0.04 260)",
-              }}
-            >
-              {!currentUser ? (
-                <p
-                  className="text-sm text-center py-2"
-                  style={{ color: "oklch(0.55 0.04 240)" }}
-                >
-                  <User className="w-4 h-4 inline mr-1" />
-                  Login to post a reply
-                </p>
-              ) : status?.banned ? (
-                <p
-                  className="text-sm text-center py-2"
-                  style={{ color: "oklch(0.65 0.18 30)" }}
-                >
-                  🚫 You are banned from posting
-                  {status.until
-                    ? ` until ${new Date(status.until).toLocaleString()}`
-                    : " permanently"}
-                  .
-                </p>
-              ) : status?.muted ? (
-                <p
-                  className="text-sm text-center py-2"
-                  style={{ color: "oklch(0.65 0.18 50)" }}
-                >
-                  🔇 You are muted until{" "}
-                  {new Date(status.until!).toLocaleString()}.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  <Label
-                    className="text-xs"
-                    style={{ color: "oklch(0.60 0.04 240)" }}
-                  >
-                    Reply as {currentUser.username}
-                  </Label>
-
-                  {/* Reply-to context */}
-                  {replyTo && (
-                    <div
-                      className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs"
-                      style={{
-                        background: "oklch(0.16 0.04 260)",
-                        borderLeft: "3px solid oklch(0.60 0.18 220)",
-                      }}
-                    >
-                      <div style={{ color: "oklch(0.68 0.06 240)" }}>
-                        <span
-                          className="font-semibold"
-                          style={{ color: "oklch(0.75 0.14 220)" }}
-                        >
-                          ↩ @{replyTo.author}
-                        </span>{" "}
-                        <span>{replyTo.text.slice(0, 80)}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setReplyTo(null)}
-                        style={{ color: "oklch(0.50 0.04 240)" }}
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  )}
-
-                  <Textarea
-                    data-ocid="community.reply.textarea"
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    placeholder="Write your reply..."
-                    className="text-sm min-h-[80px] resize-none"
-                    style={{
-                      background: "oklch(0.16 0.03 260)",
-                      borderColor: "oklch(0.26 0.05 260)",
-                      color: "oklch(0.92 0.01 240)",
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && e.ctrlKey) handleSubmitReply();
-                    }}
-                  />
-
-                  {/* GIF picker panel */}
-                  {showGifPicker && (
-                    <GifPickerPanel
-                      onSelect={(url) => submitReply("", url)}
-                      onClose={() => setShowGifPicker(false)}
-                    />
-                  )}
-
-                  {/* Sticker picker panel */}
-                  {showStickerPicker && (
-                    <StickerPicker
-                      onSelect={(sticker) => submitReply(sticker)}
-                      onClose={() => setShowStickerPicker(false)}
-                    />
-                  )}
-
-                  {/* Action row */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      {/* Photo upload */}
-                      <button
-                        type="button"
-                        data-ocid="community.reply.upload_button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors hover:opacity-80"
-                        style={{
-                          background: "oklch(0.18 0.04 260)",
-                          color: "oklch(0.60 0.08 240)",
-                        }}
-                        title="Upload photo"
-                      >
-                        <Image className="w-4 h-4" />
-                      </button>
-
-                      {/* GIF button */}
-                      <button
-                        type="button"
-                        data-ocid="community.reply.gif.button"
-                        onClick={() => {
-                          setShowGifPicker((v) => !v);
-                          setShowStickerPicker(false);
-                        }}
-                        className="h-8 px-2 rounded-lg flex items-center justify-center text-xs font-bold transition-colors hover:opacity-80"
-                        style={{
-                          background: showGifPicker
-                            ? "oklch(0.52 0.18 280 / 0.25)"
-                            : "oklch(0.18 0.04 260)",
-                          color: "oklch(0.70 0.14 280)",
-                        }}
-                        title="Search GIFs"
-                      >
-                        GIF
-                      </button>
-
-                      {/* Sticker button */}
-                      <button
-                        type="button"
-                        data-ocid="community.reply.sticker.button"
-                        onClick={() => {
-                          setShowStickerPicker((v) => !v);
-                          setShowGifPicker(false);
-                        }}
-                        className="h-8 px-2 rounded-lg flex items-center justify-center text-sm transition-colors hover:opacity-80"
-                        style={{
-                          background: showStickerPicker
-                            ? "oklch(0.55 0.18 50 / 0.25)"
-                            : "oklch(0.18 0.04 260)",
-                          color: "oklch(0.75 0.14 50)",
-                        }}
-                        title="Stickers"
-                      >
-                        😊
-                      </button>
-                    </div>
-
-                    <Button
-                      data-ocid="community.reply.submit_button"
-                      size="sm"
-                      onClick={handleSubmitReply}
-                      disabled={!replyText.trim() || submitting}
-                      style={{
-                        background: "oklch(0.60 0.18 220)",
-                        color: "white",
-                      }}
-                    >
-                      Post Reply
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Replies */}
-          <div className="space-y-3">
-            {post.replies.length === 0 ? (
-              <div
-                data-ocid="community.replies.empty_state"
-                className="text-center py-8"
-                style={{ color: "oklch(0.45 0.04 240)" }}
+          {post.replies.length > 0 && (
+            <div className="space-y-3">
+              <p
+                className="text-xs font-semibold"
+                style={{ color: "oklch(0.55 0.04 240)" }}
               >
-                <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                <p className="text-sm">
-                  No replies yet. Be the first to comment!
-                </p>
-              </div>
-            ) : (
-              post.replies.map((reply, idx) => {
-                const replyUpvoted = currentUser
-                  ? reply.upvotedBy.includes(currentUser.username)
-                  : false;
-                return (
-                  <div
-                    key={reply.id}
-                    data-ocid={`community.reply.item.${idx + 1}`}
-                    className="group rounded-lg border p-3"
-                    style={{
-                      background: "oklch(0.13 0.03 260)",
-                      borderColor: "oklch(0.20 0.04 260)",
-                    }}
+                {post.replies.length}{" "}
+                {post.replies.length === 1 ? "reply" : "replies"}
+              </p>
+              {post.replies.map((reply, idx) => (
+                <div
+                  key={reply.id}
+                  data-ocid={`community.reply.item.${idx + 1}`}
+                  className="rounded-xl p-3"
+                  style={{
+                    background: "oklch(0.12 0.03 260)",
+                    border: "1px solid oklch(0.20 0.04 260)",
+                    marginLeft: reply.replyTo ? "16px" : "0",
+                  }}
+                >
+                  {reply.replyTo && (
+                    <div
+                      className="text-xs px-2 py-1 rounded mb-2 italic"
+                      style={{
+                        background: "oklch(0.18 0.04 260)",
+                        color: "oklch(0.55 0.04 240)",
+                        borderLeft: "2px solid oklch(0.52 0.18 220)",
+                      }}
+                    >
+                      <span style={{ color: "oklch(0.65 0.10 220)" }}>
+                        {reply.replyTo.author}:
+                      </span>{" "}
+                      {reply.replyTo.text.slice(0, 80)}
+                      {reply.replyTo.text.length > 80 ? "..." : ""}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onViewProfile(reply.author)}
+                    className="flex items-center gap-2 mb-2 hover:opacity-80 transition-opacity"
+                    data-ocid={`community.reply.link.${idx + 1}`}
                   >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-2">
-                        <Avatar className="w-6 h-6">
-                          <AvatarFallback
-                            className="text-[9px]"
-                            style={{
-                              background: getAvatarColor(reply.author),
-                              color: "white",
-                            }}
-                          >
-                            {getInitials(reply.author)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span
-                          className="text-xs font-semibold"
-                          style={{ color: "oklch(0.78 0.04 240)" }}
-                        >
-                          {reply.author}
-                        </span>
-                        <span
-                          className="text-xs"
-                          style={{ color: "oklch(0.42 0.04 240)" }}
-                        >
-                          {formatTime(reply.createdAt)}
-                        </span>
-                      </div>
-                      {/* Reply-to-reply button */}
-                      {currentUser && !post.locked && (
-                        <button
-                          type="button"
-                          className="text-xs px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-all"
-                          style={{
-                            background: "oklch(0.18 0.04 260)",
-                            color: "oklch(0.60 0.06 240)",
-                            border: "1px solid oklch(0.26 0.05 260)",
-                          }}
-                          onClick={() => {
-                            setReplyTo({
-                              author: reply.author,
-                              text: reply.body,
-                            });
-                            setShowGifPicker(false);
-                            setShowStickerPicker(false);
-                          }}
-                        >
-                          ↩ Reply
-                        </button>
-                      )}
+                    <div
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                      style={{ background: getAvatarColor(reply.author) }}
+                    >
+                      {getInitials(reply.author)}
                     </div>
-
-                    {/* Reply-to reference */}
-                    {reply.replyTo && (
-                      <div
-                        className="mb-2 px-2 py-1 rounded text-xs"
-                        style={{
-                          background: "oklch(0.10 0.03 260)",
-                          borderLeft: "3px solid oklch(0.52 0.14 220)",
-                          color: "oklch(0.60 0.04 240)",
+                    <span
+                      className="text-xs font-medium"
+                      style={{ color: "oklch(0.70 0.08 220)" }}
+                    >
+                      {reply.author}
+                    </span>
+                    <span
+                      className="text-xs"
+                      style={{ color: "oklch(0.40 0.04 240)" }}
+                    >
+                      {formatTime(reply.createdAt)}
+                    </span>
+                  </button>
+                  <p
+                    className="text-xs leading-relaxed"
+                    style={{ color: "oklch(0.78 0.02 240)" }}
+                  >
+                    {reply.body}
+                  </p>
+                  {reply.imageUrl && (
+                    <div className="mt-2 rounded-lg overflow-hidden">
+                      <img
+                        src={reply.imageUrl}
+                        alt=""
+                        className="max-h-40 object-cover rounded-lg"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
                         }}
-                      >
-                        <span
-                          className="font-semibold"
-                          style={{ color: "oklch(0.72 0.12 220)" }}
-                        >
-                          @{reply.replyTo.author}
-                        </span>{" "}
-                        {reply.replyTo.text.slice(0, 80)}
-                      </div>
-                    )}
-
-                    <SensitiveContentBlur label={reply.body}>
-                      {reply.body && (
-                        <p
-                          className="text-sm mb-2"
-                          style={{ color: "oklch(0.78 0.02 240)" }}
-                        >
-                          {reply.body}
-                        </p>
-                      )}
-                    </SensitiveContentBlur>
-
-                    {reply.imageUrl && (
-                      <button
-                        type="button"
-                        onClick={() => setLightboxSrc(reply.imageUrl!)}
-                        className="mb-2"
-                      >
-                        <img
-                          src={reply.imageUrl}
-                          alt="reply media"
-                          className="rounded-lg max-h-48 object-cover hover:opacity-90 transition-opacity"
-                        />
-                      </button>
-                    )}
-
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => handleUpvoteReply(reply.id)}
-                        className="flex items-center gap-1 text-xs transition-colors"
-                        style={{
-                          color: replyUpvoted
-                            ? "oklch(0.72 0.18 40)"
-                            : "oklch(0.45 0.04 240)",
-                        }}
-                      >
-                        <ArrowBigUp className="w-3.5 h-3.5" />
-                        {reply.upvotes}
-                      </button>
+                      />
                     </div>
-                    <ReactionBar
-                      reactions={reply.reactions}
-                      currentUsername={currentUser?.username}
-                      onReact={(emoji) => handleReactReply(reply.id, emoji)}
-                    />
+                  )}
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => onUpvoteReply(reply.id)}
+                      className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full"
+                      style={{
+                        background: reply.upvotedBy.includes(
+                          currentUser.username,
+                        )
+                          ? "oklch(0.55 0.18 25 / 0.15)"
+                          : "oklch(0.18 0.04 260)",
+                        color: reply.upvotedBy.includes(currentUser.username)
+                          ? "oklch(0.70 0.18 25)"
+                          : "oklch(0.50 0.04 240)",
+                      }}
+                    >
+                      <ArrowBigUp className="w-3 h-3" />
+                      {reply.upvotes}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setReplyTo({ author: reply.author, text: reply.body })
+                      }
+                      className="text-xs px-1.5 py-0.5 rounded-full hover:opacity-80"
+                      style={{
+                        background: "oklch(0.18 0.04 260)",
+                        color: "oklch(0.50 0.04 240)",
+                      }}
+                    >
+                      Reply
+                    </button>
+                    {REACTION_EMOJIS.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => onReactReply(reply.id, emoji)}
+                        className="text-sm rounded-full p-0.5 hover:scale-125 hover:bg-white/10 transition-all"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
                   </div>
-                );
-              })
-            )}
-          </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </ScrollArea>
-    </div>
-  );
-}
 
-// ─── Channels Sidebar ────────────────────────────────────────────────────────
-
-function ChannelsSidebar({
-  channels,
-  activeChannel,
-  onSelect,
-  onAdd,
-}: {
-  channels: string[];
-  activeChannel: string;
-  onSelect: (ch: string) => void;
-  onAdd: (ch: string) => void;
-}) {
-  const [newChannelInput, setNewChannelInput] = useState("");
-  const [adding, setAdding] = useState(false);
-
-  const handleAdd = () => {
-    const name = newChannelInput.trim().toLowerCase().replace(/\s+/g, "-");
-    if (!name) return;
-    onAdd(name);
-    setNewChannelInput("");
-    setAdding(false);
-  };
-
-  return (
-    <div
-      className="flex flex-col h-full"
-      style={{ background: "oklch(0.10 0.03 260)" }}
-    >
-      <div
-        className="px-3 py-2 border-b flex items-center justify-between"
-        style={{ borderColor: "oklch(0.18 0.04 260)" }}
-      >
-        <span
-          className="text-xs font-semibold uppercase tracking-wider"
-          style={{ color: "oklch(0.50 0.05 240)" }}
+      {/* Reply Input */}
+      {!post.locked && (
+        <div
+          className="p-3 border-t flex-shrink-0"
+          style={{ borderColor: "oklch(0.20 0.04 260)" }}
         >
-          Channels
-        </span>
-        <button
-          type="button"
-          data-ocid="community.channel.button"
-          onClick={() => setAdding(true)}
-          className="w-5 h-5 rounded flex items-center justify-center transition-colors"
-          style={{ color: "oklch(0.55 0.05 240)" }}
-        >
-          <Plus className="w-3.5 h-3.5" />
-        </button>
-      </div>
-
-      <ScrollArea className="flex-1">
-        <div className="py-1">
-          <button
-            type="button"
-            data-ocid="community.channel.all.tab"
-            onClick={() => onSelect("all")}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-colors"
-            style={{
-              background:
-                activeChannel === "all"
-                  ? "oklch(0.52 0.18 220 / 0.15)"
-                  : "transparent",
-              color:
-                activeChannel === "all"
-                  ? "oklch(0.82 0.12 220)"
-                  : "oklch(0.55 0.04 240)",
-            }}
-          >
-            <Hash className="w-3.5 h-3.5 flex-shrink-0" />
-            <span className="truncate">all</span>
-          </button>
-
-          {channels.map((ch) => (
-            <button
-              key={ch}
-              type="button"
-              data-ocid={`community.channel.${ch}.tab`}
-              onClick={() => onSelect(ch)}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm transition-colors"
+          {replyTo && (
+            <div
+              className="flex items-center justify-between text-xs px-2 py-1 rounded mb-2"
               style={{
-                background:
-                  activeChannel === ch
-                    ? "oklch(0.52 0.18 220 / 0.15)"
-                    : "transparent",
-                color:
-                  activeChannel === ch
-                    ? "oklch(0.82 0.12 220)"
-                    : "oklch(0.55 0.04 240)",
+                background: "oklch(0.18 0.04 260)",
+                color: "oklch(0.60 0.04 240)",
+                borderLeft: "2px solid oklch(0.52 0.18 220)",
               }}
             >
-              <Hash className="w-3.5 h-3.5 flex-shrink-0" />
-              <span className="truncate">{ch}</span>
-            </button>
-          ))}
-        </div>
-      </ScrollArea>
-
-      {adding && (
-        <div
-          className="p-2 border-t"
-          style={{ borderColor: "oklch(0.18 0.04 260)" }}
-        >
-          <Input
-            data-ocid="community.channel.input"
-            value={newChannelInput}
-            onChange={(e) => setNewChannelInput(e.target.value)}
-            placeholder="new-channel"
-            className="h-7 text-xs mb-1.5"
-            style={{
-              background: "oklch(0.16 0.04 260)",
-              borderColor: "oklch(0.26 0.05 260)",
-              color: "oklch(0.92 0.01 240)",
-            }}
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleAdd();
-              if (e.key === "Escape") setAdding(false);
-            }}
-          />
-          <div className="flex gap-1">
+              <span>Replying to {replyTo.author}</span>
+              <button type="button" onClick={() => setReplyTo(undefined)}>
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+          {replyImage && (
+            <div className="flex items-center gap-2 mb-2">
+              <img
+                src={replyImage}
+                alt=""
+                className="h-12 rounded-lg object-cover"
+              />
+              <button type="button" onClick={() => setReplyImage("")}>
+                <X
+                  className="w-3 h-3"
+                  style={{ color: "oklch(0.55 0.04 240)" }}
+                />
+              </button>
+            </div>
+          )}
+          <div className="flex gap-2 items-end">
+            <Textarea
+              data-ocid="community.reply.textarea"
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              placeholder="Write a reply..."
+              className="flex-1 min-h-[36px] max-h-[100px] text-sm resize-none"
+              style={{
+                background: "oklch(0.16 0.04 260)",
+                borderColor: "oklch(0.26 0.05 260)",
+                color: "white",
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  submitReply();
+                }
+              }}
+            />
+            {/* GIF picker */}
+            <Popover open={showGif} onOpenChange={setShowGif}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="p-2 rounded-lg hover:opacity-70 transition-opacity flex-shrink-0"
+                  style={{ color: "oklch(0.55 0.04 240)" }}
+                  data-ocid="community.gif.button"
+                >
+                  <Image className="w-4 h-4" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                className="p-0 w-auto border-0"
+                side="top"
+                align="end"
+              >
+                <GifPickerPanel
+                  onSelect={(url) => {
+                    setReplyImage(url);
+                    setShowGif(false);
+                  }}
+                  onClose={() => setShowGif(false)}
+                />
+              </PopoverContent>
+            </Popover>
+            {/* Sticker picker */}
+            <Popover open={showStickers} onOpenChange={setShowStickers}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="p-2 rounded-lg hover:opacity-70 transition-opacity flex-shrink-0 text-base"
+                  style={{ color: "oklch(0.65 0.10 60)" }}
+                  data-ocid="community.sticker.button"
+                >
+                  😊
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                className="p-0 w-auto border-0"
+                side="top"
+                align="end"
+              >
+                <StickerPicker
+                  onSelect={(url) => {
+                    setReplyImage(url);
+                    setShowStickers(false);
+                  }}
+                  onClose={() => setShowStickers(false)}
+                />
+              </PopoverContent>
+            </Popover>
             <Button
-              data-ocid="community.channel.save_button"
+              data-ocid="community.reply.submit_button"
+              onClick={submitReply}
+              disabled={!replyText.trim() && !replyImage}
               size="sm"
-              className="flex-1 h-6 text-xs"
-              style={{ background: "oklch(0.60 0.18 220)", color: "white" }}
-              onClick={handleAdd}
+              className="flex-shrink-0"
+              style={{ background: "oklch(0.52 0.18 220)", color: "white" }}
             >
-              Add
-            </Button>
-            <Button
-              data-ocid="community.channel.cancel_button"
-              size="sm"
-              variant="ghost"
-              className="flex-1 h-6 text-xs"
-              style={{ color: "oklch(0.55 0.04 240)" }}
-              onClick={() => setAdding(false)}
-            >
-              Cancel
+              Post
             </Button>
           </div>
         </div>
@@ -1556,459 +1302,688 @@ function ChannelsSidebar({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function CommunityChatsPage() {
+const SORT_OPTIONS = [
+  { value: "hot", label: "Hot", icon: Flame },
+  { value: "new", label: "New", icon: Clock },
+  { value: "top", label: "Top", icon: TrendingUp },
+];
+
+export function CommunityChatsPage({
+  currentUser,
+}: {
+  currentUser: CurrentUser;
+}) {
+  const [customChannels, setCustomChannels] = useState(loadCustomChannels);
+  const allChannels = [...DEFAULT_CHANNELS, ...customChannels];
+
   const [posts, setPosts] = useState<ForumPost[]>(() => {
-    const stored = loadPosts();
-    if (stored.length === 0) {
+    const saved = loadPosts();
+    if (saved.length === 0) {
       savePosts(SEED_POSTS);
       return SEED_POSTS;
     }
-    return stored;
+    return saved;
   });
 
-  const [currentUser] = useState<CurrentUser | null>(() => {
-    try {
-      return JSON.parse(localStorage.getItem("researchHubUser") || "null");
-    } catch {
-      return null;
-    }
-  });
-
+  const [activeChannel, setActiveChannel] = useState("general");
   const [sort, setSort] = useState<"hot" | "new" | "top">("hot");
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("All");
+  const [search, setSearch] = useState("");
   const [openPost, setOpenPost] = useState<ForumPost | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [activeChannel, setActiveChannel] = useState("all");
-  const [customChannels, setCustomChannels] = useState<string[]>(() =>
-    loadCustomChannels(),
-  );
-  const [showChannels, setShowChannels] = useState(true);
-
-  const allChannels = [...DEFAULT_CHANNELS, ...customChannels];
-
+  const [showChannelInput, setShowChannelInput] = useState(false);
+  const [newChannelName, setNewChannelName] = useState("");
   const [newTitle, setNewTitle] = useState("");
   const [newBody, setNewBody] = useState("");
-  const [newCategory, setNewCategory] = useState("Research");
+  const [newCategory, setNewCategory] = useState(
+    "General" in CATEGORY_COLORS ? "General" : "Research",
+  );
+  const [newChannel, setNewChannel] = useState(activeChannel);
   const [newImageUrl, setNewImageUrl] = useState("");
-  const [newChannel, setNewChannel] = useState("general");
+  const [showGifInPost, setShowGifInPost] = useState(false);
+  const [showStickerInPost, setShowStickerInPost] = useState(false);
+  const [mobileTab, setMobileTab] = useState<"posts" | "members">("posts");
 
-  const status = currentUser ? getUserStatus(currentUser.username) : null;
-  const canCreatePost = currentUser && !status?.banned && !status?.muted;
+  // Profile modal state
+  const [viewedProfile, setViewedProfile] = useState<string | null>(null);
 
-  const updatePost = (updated: ForumPost) => {
-    const next = posts.map((p) => (p.id === updated.id ? updated : p));
-    setPosts(next);
-    savePosts(next);
-    if (openPost?.id === updated.id) setOpenPost(updated);
-  };
+  // Members list (unique authors)
+  const allMembers = Array.from(new Set(posts.map((p) => p.author)));
 
-  const handleUpvote = (postId: number) => {
-    if (!currentUser) {
-      toast.error("Login to upvote");
+  function handleViewProfile(username: string) {
+    setViewedProfile(username);
+  }
+
+  function updatePosts(updated: ForumPost[]) {
+    setPosts(updated);
+    savePosts(updated);
+  }
+
+  function handleUpvote(postId: number) {
+    updatePosts(
+      posts.map((p) =>
+        p.id === postId
+          ? {
+              ...p,
+              upvotes: p.upvotedBy.includes(currentUser.username)
+                ? p.upvotes - 1
+                : p.upvotes + 1,
+              upvotedBy: p.upvotedBy.includes(currentUser.username)
+                ? p.upvotedBy.filter((u) => u !== currentUser.username)
+                : [...p.upvotedBy, currentUser.username],
+            }
+          : p,
+      ),
+    );
+  }
+
+  function handleReact(postId: number, emoji: string) {
+    updatePosts(
+      posts.map((p) =>
+        p.id === postId
+          ? {
+              ...p,
+              reactions: {
+                ...p.reactions,
+                [emoji]: p.reactions?.[emoji]?.includes(currentUser.username)
+                  ? (p.reactions[emoji] || []).filter(
+                      (u) => u !== currentUser.username,
+                    )
+                  : [...(p.reactions?.[emoji] || []), currentUser.username],
+              },
+            }
+          : p,
+      ),
+    );
+  }
+
+  function handleUpvoteReply(postId: number, replyId: number) {
+    updatePosts(
+      posts.map((p) =>
+        p.id === postId
+          ? {
+              ...p,
+              replies: p.replies.map((r) =>
+                r.id === replyId
+                  ? {
+                      ...r,
+                      upvotes: r.upvotedBy.includes(currentUser.username)
+                        ? r.upvotes - 1
+                        : r.upvotes + 1,
+                      upvotedBy: r.upvotedBy.includes(currentUser.username)
+                        ? r.upvotedBy.filter((u) => u !== currentUser.username)
+                        : [...r.upvotedBy, currentUser.username],
+                    }
+                  : r,
+              ),
+            }
+          : p,
+      ),
+    );
+  }
+
+  function handleReactReply(postId: number, replyId: number, emoji: string) {
+    updatePosts(
+      posts.map((p) =>
+        p.id === postId
+          ? {
+              ...p,
+              replies: p.replies.map((r) =>
+                r.id === replyId
+                  ? {
+                      ...r,
+                      reactions: {
+                        ...r.reactions,
+                        [emoji]: r.reactions?.[emoji]?.includes(
+                          currentUser.username,
+                        )
+                          ? (r.reactions[emoji] || []).filter(
+                              (u) => u !== currentUser.username,
+                            )
+                          : [
+                              ...(r.reactions?.[emoji] || []),
+                              currentUser.username,
+                            ],
+                      },
+                    }
+                  : r,
+              ),
+            }
+          : p,
+      ),
+    );
+  }
+
+  function handleAddReply(
+    postId: number,
+    body: string,
+    imageUrl?: string,
+    replyTo?: ReplyRef,
+  ) {
+    const status = getUserStatus(currentUser.username);
+    if (status.banned) {
+      toast.error("You are banned");
       return;
     }
-    const post = posts.find((p) => p.id === postId);
-    if (!post) return;
-    const already = post.upvotedBy.includes(currentUser.username);
-    updatePost({
-      ...post,
-      upvotes: already ? post.upvotes - 1 : post.upvotes + 1,
-      upvotedBy: already
-        ? post.upvotedBy.filter((u) => u !== currentUser.username)
-        : [...post.upvotedBy, currentUser.username],
-    });
-  };
+    if (status.muted) {
+      toast.error("You are muted");
+      return;
+    }
+    const newReply: ForumReply = {
+      id: Date.now(),
+      body,
+      author: currentUser.username,
+      upvotes: 0,
+      upvotedBy: [],
+      createdAt: Date.now(),
+      reactions: {},
+      imageUrl,
+      replyTo,
+    };
+    updatePosts(
+      posts.map((p) =>
+        p.id === postId ? { ...p, replies: [...p.replies, newReply] } : p,
+      ),
+    );
+    // update openPost too
+    if (openPost?.id === postId) {
+      setOpenPost((prev) =>
+        prev ? { ...prev, replies: [...prev.replies, newReply] } : prev,
+      );
+    }
+  }
 
-  const handleReact = (postId: number, emoji: string) => {
-    if (!currentUser) {
-      toast.error("Login to react");
+  function handleCreatePost() {
+    if (!newTitle.trim() || !newBody.trim()) return;
+    const status = getUserStatus(currentUser.username);
+    if (status.banned) {
+      toast.error("You are banned");
       return;
     }
-    const post = posts.find((p) => p.id === postId);
-    if (!post) return;
-    const existing = post.reactions?.[emoji] ?? [];
-    const mine = existing.includes(currentUser.username);
-    updatePost({
-      ...post,
-      reactions: {
-        ...(post.reactions ?? {}),
-        [emoji]: mine
-          ? existing.filter((u) => u !== currentUser.username)
-          : [...existing, currentUser.username],
-      },
-    });
-  };
-
-  const handleCreatePost = () => {
-    if (!newTitle.trim() || !newBody.trim()) {
-      toast.error("Title and body are required");
-      return;
-    }
-    if (!currentUser) {
-      toast.error("Login required");
-      return;
-    }
-    const newPost: ForumPost = {
+    const post: ForumPost = {
       id: Date.now(),
       title: newTitle.trim(),
       body: newBody.trim(),
       category: newCategory,
       channel: newChannel,
       author: currentUser.username,
-      upvotes: 1,
-      upvotedBy: [currentUser.username],
+      upvotes: 0,
+      upvotedBy: [],
       replies: [],
       createdAt: Date.now(),
       imageUrl: newImageUrl.trim() || undefined,
       reactions: {},
     };
-    const next = [newPost, ...posts];
-    setPosts(next);
-    savePosts(next);
+    updatePosts([post, ...posts]);
     setNewTitle("");
     setNewBody("");
-    setNewCategory("Research");
     setNewImageUrl("");
-    setNewChannel("general");
     setShowCreateModal(false);
     toast.success("Post created!");
-  };
+  }
 
-  const handleAddChannel = (ch: string) => {
-    if (allChannels.includes(ch)) {
+  function addCustomChannel() {
+    const name = newChannelName.trim().toLowerCase().replace(/\s+/g, "-");
+    if (!name) return;
+    if (allChannels.includes(name)) {
       toast.error("Channel already exists");
       return;
     }
-    const updated = [...customChannels, ch];
+    const updated = [...customChannels, name];
     setCustomChannels(updated);
     saveCustomChannels(updated);
-    setActiveChannel(ch);
-    toast.success(`#${ch} created`);
-  };
+    setActiveChannel(name);
+    setNewChannelName("");
+    setShowChannelInput(false);
+    toast.success(`#${name} created!`);
+  }
 
-  let filtered = posts.filter((p) => {
-    const matchCat =
-      selectedCategory === "All" || p.category === selectedCategory;
-    const matchSearch =
-      !searchQuery ||
-      p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.body.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchChannel =
-      activeChannel === "all" || (p.channel ?? "general") === activeChannel;
-    return matchCat && matchSearch && matchChannel;
-  });
-
-  if (sort === "new")
-    filtered = [...filtered].sort((a, b) => b.createdAt - a.createdAt);
-  else if (sort === "top")
-    filtered = [...filtered].sort((a, b) => b.upvotes - a.upvotes);
-  else {
-    filtered = [...filtered].sort((a, b) => {
+  // Filter & sort posts
+  const channelPosts = posts.filter(
+    (p) => (p.channel || "general") === activeChannel,
+  );
+  const filtered = channelPosts
+    .filter((p) => categoryFilter === "All" || p.category === categoryFilter)
+    .filter(
+      (p) =>
+        !search ||
+        p.title.toLowerCase().includes(search.toLowerCase()) ||
+        p.body.toLowerCase().includes(search.toLowerCase()),
+    )
+    .sort((a, b) => {
+      if (sort === "new") return b.createdAt - a.createdAt;
+      if (sort === "top") return b.upvotes - a.upvotes;
+      // hot: score based on upvotes + recency
       const scoreA =
         a.upvotes + a.replies.length * 2 - (Date.now() - a.createdAt) / 3600000;
       const scoreB =
         b.upvotes + b.replies.length * 2 - (Date.now() - b.createdAt) / 3600000;
       return scoreB - scoreA;
     });
-  }
 
-  if (openPost) {
-    return (
-      <ThreadView
-        post={openPost}
-        currentUser={currentUser}
-        onBack={() => setOpenPost(null)}
-        onPostUpdate={updatePost}
-      />
-    );
-  }
+  const openPostData = openPost
+    ? posts.find((p) => p.id === openPost.id) || openPost
+    : null;
 
   return (
-    <div className="flex h-full" style={{ background: "oklch(0.10 0.02 260)" }}>
-      {/* Channels sidebar — desktop */}
+    <div
+      className="flex h-full min-h-0"
+      style={{ background: "oklch(0.11 0.02 260)" }}
+    >
+      {/* ── Channels Sidebar ── */}
       <div
         className="hidden md:flex flex-col flex-shrink-0 border-r"
-        style={{ width: "160px", borderColor: "oklch(0.18 0.04 260)" }}
+        style={{
+          width: "180px",
+          borderColor: "oklch(0.20 0.04 260)",
+          background: "oklch(0.10 0.02 260)",
+        }}
       >
-        <ChannelsSidebar
-          channels={allChannels}
-          activeChannel={activeChannel}
-          onSelect={setActiveChannel}
-          onAdd={handleAddChannel}
-        />
-      </div>
-
-      {/* Main content */}
-      <div className="flex flex-col flex-1 min-w-0">
-        {/* Header */}
         <div
           className="p-3 border-b"
-          style={{
-            borderColor: "oklch(0.20 0.04 260)",
-            background: "oklch(0.12 0.03 260)",
-          }}
+          style={{ borderColor: "oklch(0.18 0.04 260)" }}
         >
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
+          <p
+            className="text-xs font-bold uppercase tracking-wider"
+            style={{ color: "oklch(0.50 0.06 240)" }}
+          >
+            Channels
+          </p>
+        </div>
+        <ScrollArea className="flex-1">
+          <div className="p-2 space-y-0.5">
+            {allChannels.map((ch) => (
               <button
+                key={ch}
                 type="button"
-                data-ocid="community.channels.toggle"
-                onClick={() => setShowChannels((v) => !v)}
-                className="md:hidden flex items-center gap-1 text-xs px-2 py-1 rounded"
-                style={{
-                  background: "oklch(0.16 0.04 260)",
-                  color: "oklch(0.65 0.08 220)",
-                }}
-              >
-                <Hash className="w-3 h-3" />
-                {activeChannel === "all" ? "all" : `#${activeChannel}`}
-              </button>
-              <div>
-                <h2
-                  className="font-bold text-base"
-                  style={{ color: "oklch(0.92 0.02 240)" }}
-                >
-                  Community
-                  {activeChannel !== "all" && (
-                    <span
-                      className="ml-2 text-sm font-normal"
-                      style={{ color: "oklch(0.65 0.08 220)" }}
-                    >
-                      #{activeChannel}
-                    </span>
-                  )}
-                </h2>
-                <p
-                  className="text-xs"
-                  style={{ color: "oklch(0.50 0.04 240)" }}
-                >
-                  {filtered.length} posts
-                </p>
-              </div>
-            </div>
-            {!currentUser ? (
-              <Button
-                size="sm"
-                variant="outline"
-                data-ocid="community.login.button"
-                className="text-xs gap-1"
-                style={{
-                  borderColor: "oklch(0.30 0.05 260)",
-                  color: "oklch(0.72 0.04 240)",
-                }}
-              >
-                <User className="w-3.5 h-3.5" /> Login to post
-              </Button>
-            ) : canCreatePost ? (
-              <Button
-                size="sm"
-                data-ocid="community.create.primary_button"
-                className="gap-1.5 text-xs"
-                style={{ background: "oklch(0.60 0.18 220)", color: "white" }}
-                onClick={() => setShowCreateModal(true)}
-              >
-                <Plus className="w-3.5 h-3.5" /> Create Post
-              </Button>
-            ) : (
-              <Badge
-                className="text-xs px-2 border-0"
-                style={{
-                  background: "oklch(0.55 0.18 30)/0.15",
-                  color: "oklch(0.72 0.18 30)",
-                }}
-              >
-                {status?.banned ? "Banned" : "Muted"}
-              </Badge>
-            )}
-          </div>
-
-          {/* Mobile channel list */}
-          {showChannels && (
-            <div
-              className="md:hidden flex gap-1.5 overflow-x-auto pb-1 mb-2"
-              style={{ scrollbarWidth: "none" }}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveChannel("all");
-                  setShowChannels(false);
-                }}
-                className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded text-xs"
+                onClick={() => setActiveChannel(ch)}
+                data-ocid="community.channel.tab"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors text-sm"
                 style={{
                   background:
-                    activeChannel === "all"
-                      ? "oklch(0.52 0.18 220 / 0.2)"
-                      : "oklch(0.16 0.04 260)",
+                    activeChannel === ch
+                      ? "oklch(0.52 0.18 220 / 0.15)"
+                      : "transparent",
                   color:
-                    activeChannel === "all"
-                      ? "oklch(0.82 0.12 220)"
+                    activeChannel === ch
+                      ? "oklch(0.78 0.12 220)"
                       : "oklch(0.55 0.04 240)",
-                  border: `1px solid ${
-                    activeChannel === "all"
-                      ? "oklch(0.52 0.18 220 / 0.4)"
-                      : "oklch(0.22 0.04 260)"
-                  }`,
                 }}
               >
-                <Hash className="w-3 h-3" /> all
-              </button>
-              {allChannels.map((ch) => (
-                <button
-                  key={ch}
-                  type="button"
-                  onClick={() => {
-                    setActiveChannel(ch);
-                    setShowChannels(false);
-                  }}
-                  className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded text-xs"
-                  style={{
-                    background:
-                      activeChannel === ch
-                        ? "oklch(0.52 0.18 220 / 0.2)"
-                        : "oklch(0.16 0.04 260)",
-                    color:
-                      activeChannel === ch
-                        ? "oklch(0.82 0.12 220)"
-                        : "oklch(0.55 0.04 240)",
-                    border: `1px solid ${
-                      activeChannel === ch
-                        ? "oklch(0.52 0.18 220 / 0.4)"
-                        : "oklch(0.22 0.04 260)"
-                    }`,
-                  }}
-                >
-                  <Hash className="w-3 h-3" /> {ch}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Search */}
-          <div className="relative mb-2">
-            <Search
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none"
-              style={{ color: "oklch(0.45 0.04 240)" }}
-            />
-            <Input
-              data-ocid="community.search.search_input"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search posts..."
-              className="pl-8 h-8 text-xs"
-              style={{
-                background: "oklch(0.15 0.03 260)",
-                borderColor: "oklch(0.24 0.05 260)",
-                color: "oklch(0.92 0.01 240)",
-              }}
-            />
-          </div>
-
-          {/* Sort */}
-          <div className="flex items-center gap-1">
-            {(["hot", "new", "top"] as const).map((s) => (
-              <button
-                key={s}
-                type="button"
-                data-ocid={`community.sort.${s}.tab`}
-                onClick={() => setSort(s)}
-                className="flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium transition-colors"
-                style={{
-                  background:
-                    sort === s ? "oklch(0.60 0.18 220 / 0.15)" : "transparent",
-                  color:
-                    sort === s
-                      ? "oklch(0.72 0.18 220)"
-                      : "oklch(0.50 0.04 240)",
-                }}
-              >
-                {s === "hot" && <Flame className="w-3 h-3" />}
-                {s === "new" && <Clock className="w-3 h-3" />}
-                {s === "top" && <TrendingUp className="w-3 h-3" />}
-                {s.charAt(0).toUpperCase() + s.slice(1)}
+                <Hash className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="truncate">{ch}</span>
               </button>
             ))}
           </div>
-        </div>
-
-        {/* Category pills */}
+        </ScrollArea>
+        {/* Add channel */}
         <div
-          className="flex gap-1.5 p-2 overflow-x-auto border-b"
-          style={{
-            borderColor: "oklch(0.20 0.04 260)",
-            scrollbarWidth: "none",
-          }}
+          className="p-2 border-t"
+          style={{ borderColor: "oklch(0.18 0.04 260)" }}
         >
-          {CATEGORIES.map((cat) => (
+          {showChannelInput ? (
+            <div className="flex gap-1">
+              <Input
+                value={newChannelName}
+                onChange={(e) => setNewChannelName(e.target.value)}
+                placeholder="channel-name"
+                className="h-6 text-xs"
+                style={{
+                  background: "oklch(0.16 0.04 260)",
+                  borderColor: "oklch(0.26 0.05 260)",
+                  color: "white",
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") addCustomChannel();
+                  if (e.key === "Escape") setShowChannelInput(false);
+                }}
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={addCustomChannel}
+                className="text-xs px-1.5 rounded"
+                style={{ background: "oklch(0.52 0.18 220)", color: "white" }}
+              >
+                +
+              </button>
+            </div>
+          ) : (
             <button
-              key={cat}
               type="button"
-              data-ocid={`community.category.${cat.toLowerCase()}.tab`}
-              onClick={() => setSelectedCategory(cat)}
-              className="flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-medium transition-colors"
+              onClick={() => setShowChannelInput(true)}
+              className="w-full flex items-center gap-1 text-xs px-2 py-1 rounded hover:opacity-80"
+              style={{ color: "oklch(0.50 0.06 240)" }}
+              data-ocid="community.channel.button"
+            >
+              <Plus className="w-3 h-3" /> Add Channel
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── Center Feed ── */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">
+        {/* Mobile channel picker */}
+        <div
+          className="md:hidden flex items-center gap-2 px-3 py-2 border-b overflow-x-auto"
+          style={{ borderColor: "oklch(0.20 0.04 260)" }}
+        >
+          {allChannels.map((ch) => (
+            <button
+              key={ch}
+              type="button"
+              onClick={() => setActiveChannel(ch)}
+              className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-colors"
               style={{
                 background:
-                  selectedCategory === cat
-                    ? `${CATEGORY_COLORS[cat] ?? "oklch(0.60 0.18 220)"}/0.2`
-                    : "oklch(0.15 0.03 260)",
+                  activeChannel === ch
+                    ? "oklch(0.52 0.18 220 / 0.2)"
+                    : "oklch(0.16 0.04 260)",
                 color:
-                  selectedCategory === cat
-                    ? (CATEGORY_COLORS[cat] ?? "oklch(0.72 0.18 220)")
+                  activeChannel === ch
+                    ? "oklch(0.78 0.12 220)"
                     : "oklch(0.55 0.04 240)",
-                border: `1px solid ${
-                  selectedCategory === cat
-                    ? `${CATEGORY_COLORS[cat] ?? "oklch(0.60 0.18 220)"}/0.4`
-                    : "oklch(0.22 0.04 260)"
-                }`,
               }}
             >
-              {cat}
+              <Hash className="w-2.5 h-2.5" />
+              {ch}
             </button>
           ))}
         </div>
 
-        {/* Feed */}
-        <ScrollArea className="flex-1">
-          <div className="p-3 space-y-2 max-w-3xl mx-auto">
-            {filtered.length === 0 ? (
-              <div
-                data-ocid="community.posts.empty_state"
-                className="text-center py-16"
-                style={{ color: "oklch(0.45 0.04 240)" }}
+        {openPostData ? (
+          <ThreadView
+            post={openPostData}
+            currentUser={currentUser}
+            onBack={() => setOpenPost(null)}
+            onUpvotePost={() => handleUpvote(openPostData.id)}
+            onUpvoteReply={(rid) => handleUpvoteReply(openPostData.id, rid)}
+            onReactPost={(emoji) => handleReact(openPostData.id, emoji)}
+            onReactReply={(rid, emoji) =>
+              handleReactReply(openPostData.id, rid, emoji)
+            }
+            onAddReply={(body, imageUrl, replyTo) =>
+              handleAddReply(openPostData.id, body, imageUrl, replyTo)
+            }
+            onViewProfile={handleViewProfile}
+          />
+        ) : (
+          <>
+            {/* Feed header */}
+            <div
+              className="flex items-center gap-2 px-4 py-3 border-b flex-shrink-0 flex-wrap"
+              style={{ borderColor: "oklch(0.20 0.04 260)" }}
+            >
+              <h2
+                className="text-sm font-bold mr-2"
+                style={{ color: "oklch(0.85 0.05 240)" }}
               >
-                <Edit3 className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">No posts found.</p>
-                {currentUser && canCreatePost && (
-                  <Button
-                    size="sm"
-                    className="mt-3"
-                    style={{
-                      background: "oklch(0.60 0.18 220)",
-                      color: "white",
-                    }}
-                    onClick={() => setShowCreateModal(true)}
+                #{activeChannel}
+              </h2>
+
+              {/* Sort */}
+              {SORT_OPTIONS.map(({ value, label, icon: Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setSort(value as "hot" | "new" | "top")}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs transition-all"
+                  style={{
+                    background:
+                      sort === value
+                        ? "oklch(0.52 0.18 220 / 0.2)"
+                        : "oklch(0.16 0.04 260)",
+                    color:
+                      sort === value
+                        ? "oklch(0.72 0.14 220)"
+                        : "oklch(0.55 0.04 240)",
+                  }}
+                  data-ocid="community.sort.tab"
+                >
+                  <Icon className="w-3 h-3" />
+                  {label}
+                </button>
+              ))}
+
+              {/* Mobile Members tab */}
+              <button
+                type="button"
+                onClick={() =>
+                  setMobileTab((t) => (t === "members" ? "posts" : "members"))
+                }
+                className="md:hidden flex items-center gap-1 px-2.5 py-1 rounded-full text-xs ml-auto"
+                style={{
+                  background:
+                    mobileTab === "members"
+                      ? "oklch(0.52 0.18 220 / 0.2)"
+                      : "oklch(0.16 0.04 260)",
+                  color:
+                    mobileTab === "members"
+                      ? "oklch(0.72 0.14 220)"
+                      : "oklch(0.55 0.04 240)",
+                }}
+              >
+                <Users className="w-3 h-3" />
+                Members
+              </button>
+
+              {/* New post button */}
+              <Button
+                data-ocid="community.create.open_modal_button"
+                size="sm"
+                onClick={() => {
+                  setNewChannel(activeChannel);
+                  setShowCreateModal(true);
+                }}
+                className="ml-auto md:ml-0 h-7 px-3 text-xs"
+                style={{ background: "oklch(0.52 0.18 220)", color: "white" }}
+              >
+                <Plus className="w-3 h-3 mr-1" />
+                Post
+              </Button>
+            </div>
+
+            {/* Search + category */}
+            <div
+              className="flex items-center gap-2 px-4 py-2 border-b flex-shrink-0"
+              style={{ borderColor: "oklch(0.18 0.04 260)" }}
+            >
+              <div className="relative flex-1 max-w-xs">
+                <Search
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none"
+                  style={{ color: "oklch(0.50 0.06 240)" }}
+                />
+                <Input
+                  data-ocid="community.search.search_input"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search posts..."
+                  className="pl-8 h-7 text-xs"
+                  style={{
+                    background: "oklch(0.16 0.04 260)",
+                    borderColor: "oklch(0.26 0.05 260)",
+                    color: "white",
+                  }}
+                />
+              </div>
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger
+                  data-ocid="community.category.select"
+                  className="h-7 text-xs w-32"
+                  style={{
+                    background: "oklch(0.16 0.04 260)",
+                    borderColor: "oklch(0.26 0.05 260)",
+                    color: "white",
+                  }}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent
+                  style={{
+                    background: "oklch(0.15 0.03 260)",
+                    borderColor: "oklch(0.24 0.05 260)",
+                  }}
+                >
+                  {CATEGORIES.map((cat) => (
+                    <SelectItem
+                      key={cat}
+                      value={cat}
+                      style={{ color: "oklch(0.85 0.02 240)" }}
+                    >
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Mobile members list */}
+            {mobileTab === "members" && (
+              <div
+                className="md:hidden p-3 border-b"
+                style={{ borderColor: "oklch(0.18 0.04 260)" }}
+              >
+                <p
+                  className="text-xs font-semibold mb-2"
+                  style={{ color: "oklch(0.55 0.04 240)" }}
+                >
+                  Members ({allMembers.length})
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {allMembers.map((member) => (
+                    <button
+                      key={member}
+                      type="button"
+                      onClick={() => handleViewProfile(member)}
+                      className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs hover:opacity-80 transition-opacity"
+                      style={{
+                        background: "oklch(0.18 0.04 260)",
+                        color: "oklch(0.72 0.08 220)",
+                      }}
+                    >
+                      <div
+                        className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white"
+                        style={{ background: getAvatarColor(member) }}
+                      >
+                        {getInitials(member)}
+                      </div>
+                      {member}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Posts feed */}
+            <ScrollArea className="flex-1">
+              <div className="p-4 space-y-3">
+                {filtered.length === 0 ? (
+                  <div
+                    data-ocid="community.posts.empty_state"
+                    className="text-center py-16"
+                    style={{ color: "oklch(0.50 0.04 240)" }}
                   >
-                    Create the first post
-                  </Button>
+                    <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                    <p className="text-sm font-medium">No posts yet</p>
+                    <p className="text-xs mt-1 opacity-60 mb-4">
+                      Be the first to post in #{activeChannel}
+                    </p>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setNewChannel(activeChannel);
+                        setShowCreateModal(true);
+                      }}
+                      style={{
+                        background: "oklch(0.52 0.18 220)",
+                        color: "white",
+                      }}
+                    >
+                      Create the first post
+                    </Button>
+                  </div>
+                ) : (
+                  filtered.map((post, idx) => (
+                    <div
+                      key={post.id}
+                      data-ocid={`community.posts.item.${idx + 1}`}
+                    >
+                      <PostCard
+                        post={post}
+                        currentUser={currentUser}
+                        onOpen={() => setOpenPost(post)}
+                        onUpvote={() => handleUpvote(post.id)}
+                        onReact={(emoji) => handleReact(post.id, emoji)}
+                        onViewProfile={handleViewProfile}
+                      />
+                    </div>
+                  ))
                 )}
               </div>
-            ) : (
-              filtered.map((post, idx) => (
+            </ScrollArea>
+          </>
+        )}
+      </div>
+
+      {/* ── Members Sidebar (desktop) ── */}
+      <div
+        className="hidden md:flex flex-col flex-shrink-0 border-l"
+        style={{
+          width: "200px",
+          borderColor: "oklch(0.20 0.04 260)",
+          background: "oklch(0.10 0.02 260)",
+        }}
+      >
+        <div
+          className="p-3 border-b flex items-center gap-2"
+          style={{ borderColor: "oklch(0.18 0.04 260)" }}
+        >
+          <Users
+            className="w-3.5 h-3.5"
+            style={{ color: "oklch(0.50 0.06 240)" }}
+          />
+          <p
+            className="text-xs font-bold uppercase tracking-wider"
+            style={{ color: "oklch(0.50 0.06 240)" }}
+          >
+            Members
+          </p>
+          <span
+            className="text-xs ml-auto"
+            style={{ color: "oklch(0.40 0.04 240)" }}
+          >
+            {allMembers.length}
+          </span>
+        </div>
+        <ScrollArea className="flex-1">
+          <div className="p-2 space-y-0.5">
+            {allMembers.map((member) => (
+              <button
+                key={member}
+                type="button"
+                onClick={() => handleViewProfile(member)}
+                data-ocid="community.member.button"
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors hover:opacity-80"
+                style={{ color: "oklch(0.68 0.06 240)" }}
+              >
                 <div
-                  key={post.id}
-                  data-ocid={`community.posts.item.${idx + 1}`}
+                  className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
+                  style={{ background: getAvatarColor(member) }}
                 >
-                  <PostCard
-                    post={post}
-                    currentUser={currentUser}
-                    onOpen={() => setOpenPost(post)}
-                    onUpvote={() => handleUpvote(post.id)}
-                    onReact={(emoji) => handleReact(post.id, emoji)}
-                  />
+                  {getInitials(member)}
                 </div>
-              ))
-            )}
+                <span className="text-xs truncate">{member}</span>
+                {member === currentUser.username && (
+                  <span
+                    className="text-[9px] ml-auto"
+                    style={{ color: "oklch(0.52 0.18 220)" }}
+                  >
+                    you
+                  </span>
+                )}
+              </button>
+            ))}
           </div>
         </ScrollArea>
       </div>
@@ -2148,17 +2123,75 @@ export function CommunityChatsPage() {
               >
                 Image URL (optional)
               </Label>
-              <Input
-                data-ocid="community.create.image.input"
-                value={newImageUrl}
-                onChange={(e) => setNewImageUrl(e.target.value)}
-                placeholder="https://..."
-                style={{
-                  background: "oklch(0.16 0.03 260)",
-                  borderColor: "oklch(0.26 0.05 260)",
-                  color: "oklch(0.92 0.01 240)",
-                }}
-              />
+              <div className="flex gap-2">
+                <Input
+                  data-ocid="community.create.image.input"
+                  value={newImageUrl}
+                  onChange={(e) => setNewImageUrl(e.target.value)}
+                  placeholder="https://... or pick a GIF/sticker"
+                  style={{
+                    background: "oklch(0.16 0.03 260)",
+                    borderColor: "oklch(0.26 0.05 260)",
+                    color: "oklch(0.92 0.01 240)",
+                  }}
+                />
+                {/* GIF in post */}
+                <Popover open={showGifInPost} onOpenChange={setShowGifInPost}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="px-2 py-1 rounded text-xs"
+                      style={{
+                        background: "oklch(0.20 0.04 260)",
+                        color: "oklch(0.65 0.08 220)",
+                      }}
+                    >
+                      GIF
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="p-0 w-auto border-0"
+                    side="top"
+                    align="end"
+                  >
+                    <GifPickerPanel
+                      onSelect={(url) => {
+                        setNewImageUrl(url);
+                        setShowGifInPost(false);
+                      }}
+                      onClose={() => setShowGifInPost(false)}
+                    />
+                  </PopoverContent>
+                </Popover>
+                {/* Sticker in post */}
+                <Popover
+                  open={showStickerInPost}
+                  onOpenChange={setShowStickerInPost}
+                >
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="px-2 py-1 rounded text-base"
+                      style={{ background: "oklch(0.20 0.04 260)" }}
+                    >
+                      😊
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="p-0 w-auto border-0"
+                    side="top"
+                    align="end"
+                  >
+                    <StickerPicker
+                      onSelect={(url) => {
+                        setNewImageUrl(url);
+                        setShowStickerInPost(false);
+                      }}
+                      onClose={() => setShowStickerInPost(false)}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
           </div>
           <DialogFooter>
@@ -2181,6 +2214,17 @@ export function CommunityChatsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Profile Modal */}
+      {viewedProfile && (
+        <ProfileModal
+          username={viewedProfile}
+          currentUser={currentUser}
+          posts={posts}
+          open={!!viewedProfile}
+          onClose={() => setViewedProfile(null)}
+        />
+      )}
     </div>
   );
 }
