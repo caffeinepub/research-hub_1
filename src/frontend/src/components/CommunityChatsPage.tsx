@@ -219,8 +219,9 @@ export function CommunityChatsPage() {
   return (
     <div
       data-ocid="chat.section"
-      className="flex h-[calc(100vh-8rem)] overflow-hidden rounded-2xl"
+      className="flex overflow-hidden rounded-2xl"
       style={{
+        height: "calc(100vh - 152px)",
         background: "oklch(0.13 0.03 260)",
         border: "1px solid oklch(0.25 0.05 260)",
       }}
@@ -622,6 +623,7 @@ export function CommunityChatsPage() {
                 placeholder={`Message #${selectedRoom?.name || "chat"}...`}
                 className="flex-1 resize-none min-h-[36px] max-h-[120px] py-1.5 text-sm"
                 rows={1}
+                style={{ color: "oklch(0.95 0.02 240)" }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();

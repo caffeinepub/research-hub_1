@@ -265,22 +265,27 @@ export function searchYouTubePublicDomain(query: string): WikiVideo[] {
 
 function archiveVideo(collection: string, source: string, baseId: number) {
   return async (query: string): Promise<WikiVideo[]> => {
-    const q = collection
-      ? `${encodeURIComponent(query)}+AND+collection:${collection}+AND+mediatype:movies`
-      : `${encodeURIComponent(query)}+AND+mediatype:movies`;
-    const url = `https://archive.org/advancedsearch.php?q=${q}&fl[]=identifier,title,description&rows=50&output=json`;
-    const res = await fetch(url);
-    const data = await res.json();
-    return (data?.response?.docs ?? []).map((doc: any, idx: number) => ({
-      pageid: baseId + idx,
-      title: doc.title ?? doc.identifier ?? "Untitled",
-      url: `https://archive.org/details/${doc.identifier}`,
-      embedUrl: `https://archive.org/embed/${doc.identifier}`,
-      mime: "video/mp4" as const,
-      thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
-      description: doc.description ?? "",
-      source,
-    }));
+    try {
+      const q = collection
+        ? `${encodeURIComponent(query)}+AND+collection:${collection}+AND+mediatype:movies`
+        : `${encodeURIComponent(query)}+AND+mediatype:movies`;
+      const url = `https://archive.org/advancedsearch.php?q=${q}&fl[]=identifier,title,description&rows=50&output=json&sort[]=downloads+desc`;
+      const res = await fetch(url);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return (data?.response?.docs ?? []).map((doc: any, idx: number) => ({
+        pageid: baseId + idx,
+        title: doc.title ?? doc.identifier ?? "Untitled",
+        url: `https://archive.org/details/${doc.identifier}`,
+        embedUrl: `https://archive.org/embed/${doc.identifier}`,
+        mime: "video/mp4" as const,
+        thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
+        description: doc.description ?? "",
+        source,
+      }));
+    } catch {
+      return [];
+    }
   };
 }
 
@@ -411,135 +416,165 @@ export const fetchArchiveHomeMovies = archiveVideo(
 );
 
 export async function fetchNasaVideos(query: string): Promise<WikiVideo[]> {
-  const url = `https://images.nasa.gov/api/v1/search?q=${encodeURIComponent(query)}&media_type=video&page_size=6`;
-  const res = await fetch(url);
-  const data = await res.json();
-  return (data?.collection?.items ?? [])
-    .filter((item: any) => item.links?.[0]?.href && item.data?.[0])
-    .map((item: any, idx: number) => {
-      const meta = item.data[0];
-      return {
-        pageid: 100000 + idx,
-        title: meta.title ?? "NASA Video",
-        url: item.links[0].href,
-        mime: "video/mp4",
-        description: meta.description ?? "",
-        source: "NASA",
-      };
-    });
+  try {
+    const url = `https://images.nasa.gov/api/v1/search?q=${encodeURIComponent(query)}&media_type=video&page_size=6`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data?.collection?.items ?? [])
+      .filter((item: any) => item.links?.[0]?.href && item.data?.[0])
+      .map((item: any, idx: number) => {
+        const meta = item.data[0];
+        return {
+          pageid: 100000 + idx,
+          title: meta.title ?? "NASA Video",
+          url: item.links[0].href,
+          mime: "video/mp4",
+          description: meta.description ?? "",
+          source: "NASA",
+        };
+      });
+  } catch {
+    return [];
+  }
 }
 
 export async function fetchLocFilms(query: string): Promise<WikiVideo[]> {
-  const url = `https://www.loc.gov/film/?q=${encodeURIComponent(query)}&fo=json&c=8`;
-  const res = await fetch(url);
-  const data = await res.json();
-  return (data?.results ?? [])
-    .filter(
-      (r: any) =>
-        r.online_format?.includes("video") ||
-        r.mime_type?.some?.((m: string) => m.startsWith("video")),
-    )
-    .map((r: any, idx: number) => ({
-      pageid: 2000000 + idx,
-      title: r.title ?? "Library of Congress Film",
-      url: r.url ?? r.id ?? "",
-      mime: "video/mp4" as const,
-      thumbUrl: r.image_url?.[0] ?? undefined,
-      description: Array.isArray(r.description)
-        ? r.description[0]
-        : (r.description ?? ""),
-      source: "Library of Congress",
-    }));
+  try {
+    const url = `https://www.loc.gov/film/?q=${encodeURIComponent(query)}&fo=json&c=8`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data?.results ?? [])
+      .filter(
+        (r: any) =>
+          r.online_format?.includes("video") ||
+          r.mime_type?.some?.((m: string) => m.startsWith("video")),
+      )
+      .map((r: any, idx: number) => ({
+        pageid: 2000000 + idx,
+        title: r.title ?? "Library of Congress Film",
+        url: r.url ?? r.id ?? "",
+        mime: "video/mp4" as const,
+        thumbUrl: r.image_url?.[0] ?? undefined,
+        description: Array.isArray(r.description)
+          ? r.description[0]
+          : (r.description ?? ""),
+        source: "Library of Congress",
+      }));
+  } catch {
+    return [];
+  }
 }
 
 export async function fetchDplaVideos(query: string): Promise<WikiVideo[]> {
-  const url = `https://api.dp.la/v2/items?q=${encodeURIComponent(query)}&sourceResource.type=moving+image&page_size=6`;
-  const res = await fetch(url);
-  const data = await res.json();
-  return (data?.docs ?? [])
-    .filter((doc: any) => doc.object || doc.sourceResource?.title)
-    .map((doc: any, idx: number) => ({
-      pageid: 2100000 + idx,
-      title: doc.sourceResource?.title?.[0] ?? "DPLA Video",
-      url: doc.isShownAt ?? doc.object ?? "",
-      mime: "video/mp4" as const,
-      thumbUrl: doc.object ?? undefined,
-      description: doc.sourceResource?.description?.[0] ?? "",
-      source: "DPLA",
-    }));
+  try {
+    const url = `https://api.dp.la/v2/items?q=${encodeURIComponent(query)}&sourceResource.type=moving+image&page_size=6`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data?.docs ?? [])
+      .filter((doc: any) => doc.object || doc.sourceResource?.title)
+      .map((doc: any, idx: number) => ({
+        pageid: 2100000 + idx,
+        title: doc.sourceResource?.title?.[0] ?? "DPLA Video",
+        url: doc.isShownAt ?? doc.object ?? "",
+        mime: "video/mp4" as const,
+        thumbUrl: doc.object ?? undefined,
+        description: doc.sourceResource?.description?.[0] ?? "",
+        source: "DPLA",
+      }));
+  } catch {
+    return [];
+  }
 }
 
 export async function fetchEuropeanFilmGateway(
   query: string,
 ): Promise<WikiVideo[]> {
-  const url = `https://api.europeana.eu/record/v2/search.json?wskey=api2demo&query=${encodeURIComponent(query)}&qf=TYPE:VIDEO&rows=6`;
-  const res = await fetch(url);
-  const data = await res.json();
-  const EMBEDDABLE = /\.(mp4|webm|ogg)$/i;
-  const results: WikiVideo[] = [];
-  for (const item of data?.items ?? []) {
-    const directUrl: string = item.edmIsShownBy?.[0] ?? "";
-    const pageUrl: string = item.edmIsShownAt?.[0] ?? "";
-    const videoUrl = directUrl || pageUrl;
-    if (!videoUrl) continue;
-    const isEmbeddable =
-      EMBEDDABLE.test(videoUrl) || videoUrl.includes("player");
-    results.push({
-      pageid: 2200000 + results.length,
-      title: item.title?.[0] ?? "European Film",
-      url: videoUrl,
-      mime: "video/mp4" as const,
-      thumbUrl: item.edmPreview?.[0] ?? undefined,
-      description: item.dcDescription?.[0] ?? "",
-      embedUrl: isEmbeddable ? videoUrl : undefined,
-      source: "European Film Gateway",
-    });
+  try {
+    const url = `https://api.europeana.eu/record/v2/search.json?wskey=api2demo&query=${encodeURIComponent(query)}&qf=TYPE:VIDEO&rows=20`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const data = await res.json();
+    const EMBEDDABLE = /\.(mp4|webm|ogg)$/i;
+    const results: WikiVideo[] = [];
+    for (const item of data?.items ?? []) {
+      const directUrl: string = item.edmIsShownBy?.[0] ?? "";
+      const pageUrl: string = item.edmIsShownAt?.[0] ?? "";
+      const videoUrl = directUrl || pageUrl;
+      if (!videoUrl) continue;
+      const isEmbeddable =
+        EMBEDDABLE.test(videoUrl) || videoUrl.includes("player");
+      results.push({
+        pageid: 2200000 + results.length,
+        title: item.title?.[0] ?? "European Film",
+        url: videoUrl,
+        mime: "video/mp4" as const,
+        thumbUrl: item.edmPreview?.[0] ?? undefined,
+        description: item.dcDescription?.[0] ?? "",
+        embedUrl: isEmbeddable ? videoUrl : undefined,
+        source: "European Film Gateway",
+      });
+    }
+    return results;
+  } catch {
+    return [];
   }
-  return results;
 }
 
 export async function fetchWikimediaVideos(
   query: string,
 ): Promise<WikiVideo[]> {
-  const url = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(query)}+filetype:video&prop=imageinfo&iiprop=url|mime&format=json&origin=*&gsrlimit=8`;
-  const res = await fetch(url);
-  const data = await res.json();
-  const pages = data?.query?.pages ? Object.values(data.query.pages) : [];
-  return (pages as any[])
-    .filter((p: any) => p.imageinfo?.[0]?.mime?.startsWith("video"))
-    .map((p: any, idx: number) => {
-      const info = p.imageinfo[0];
-      return {
-        pageid: 2300000 + idx,
-        title: p.title?.replace(/^File:/, "") ?? "Commons Video",
-        url: info.url,
-        mime: info.mime ?? "video/webm",
-        thumbUrl: undefined,
-        description: "",
-        source: "Wikimedia Commons",
-      };
-    });
+  try {
+    const url = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(query)}+filetype:video&prop=imageinfo&iiprop=url|mime&format=json&origin=*&gsrlimit=25`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const data = await res.json();
+    const pages = data?.query?.pages ? Object.values(data.query.pages) : [];
+    return (pages as any[])
+      .filter((p: any) => p.imageinfo?.[0]?.mime?.startsWith("video"))
+      .map((p: any, idx: number) => {
+        const info = p.imageinfo[0];
+        return {
+          pageid: 2300000 + idx,
+          title: p.title?.replace(/^File:/, "") ?? "Commons Video",
+          url: info.url,
+          mime: info.mime ?? "video/webm",
+          thumbUrl: undefined,
+          description: "",
+          source: "Wikimedia Commons",
+        };
+      });
+  } catch {
+    return [];
+  }
 }
 
 export async function fetchVimeoCC(query: string): Promise<WikiVideo[]> {
-  const url = `https://api.openverse.org/v1/videos/?q=${encodeURIComponent(query)}&source=vimeo&page_size=8`;
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
-  const data = await res.json();
-  return (data?.results ?? []).map((item: any, idx: number) => {
-    const pageUrl: string = item.url ?? "";
-    const vimeoMatch = pageUrl.match(/vimeo\.com\/(\d+)/);
-    const embedUrl = vimeoMatch
-      ? `https://player.vimeo.com/video/${vimeoMatch[1]}`
-      : undefined;
-    return {
-      pageid: 2700000 + idx,
-      title: item.title ?? "Vimeo Video",
-      url: pageUrl,
-      mime: "video/mp4" as const,
-      embedUrl,
-      thumbUrl: item.thumbnail ?? undefined,
-      description: item.description ?? "",
-      source: "Vimeo CC",
-    };
-  });
+  try {
+    const url = `https://api.openverse.org/v1/videos/?q=${encodeURIComponent(query)}&source=vimeo&page_size=8`;
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data?.results ?? []).map((item: any, idx: number) => {
+      const pageUrl: string = item.url ?? "";
+      const vimeoMatch = pageUrl.match(/vimeo\.com\/(\d+)/);
+      const embedUrl = vimeoMatch
+        ? `https://player.vimeo.com/video/${vimeoMatch[1]}`
+        : undefined;
+      return {
+        pageid: 2700000 + idx,
+        title: item.title ?? "Vimeo Video",
+        url: pageUrl,
+        mime: "video/mp4" as const,
+        embedUrl,
+        thumbUrl: item.thumbnail ?? undefined,
+        description: item.description ?? "",
+        source: "Vimeo CC",
+      };
+    });
+  } catch {
+    return [];
+  }
 }

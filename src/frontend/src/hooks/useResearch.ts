@@ -37,13 +37,17 @@ import {
   fetchAudioGeorge,
   fetchAudioLibriVox,
   fetchAudioMusic,
+  fetchAudioNews,
   fetchAudioOTR,
   fetchAudioPodcast,
   fetchAudioRadio,
+  fetchAudioTech,
+  fetchAudioWorldMusic,
 } from "./fetchAudio";
 import {
   fetchArtInstituteImages,
   fetchClevelandMuseumImages,
+  fetchDeviantArtImages,
   fetchDplaImages,
   fetchEuropeanaImages,
   fetchFlickrImages,
@@ -91,13 +95,13 @@ import {
 } from "./fetchVideos";
 
 const WIKI_SEARCH = (q: string) =>
-  `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(q)}&format=json&origin=*&srlimit=12&srprop=snippet|titlesnippet`;
+  `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(q)}&format=json&origin=*&srlimit=30&srprop=snippet|titlesnippet`;
 
 const WIKI_SUMMARY = (title: string) =>
   `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
 
 const COMMONS_SEARCH = (q: string) =>
-  `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(q)}&prop=imageinfo&iiprop=url|mime|extmetadata&iiurlwidth=400&format=json&origin=*&gsrlimit=40`;
+  `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(q)}&prop=imageinfo&iiprop=url|mime|extmetadata&iiurlwidth=400&format=json&origin=*&gsrlimit=80`;
 
 const IMAGE_EXTS = /\.(jpe?g|png|gif|svg|webp)$/i;
 const VIDEO_MIMES = ["video/webm", "video/ogg"];
@@ -164,7 +168,7 @@ export function useResearch() {
         source: "Wikipedia",
       }));
 
-      const topArticles = wikiArticles.slice(0, 6);
+      const topArticles = wikiArticles.slice(0, 10);
       const summaryResults = await Promise.allSettled(
         topArticles.map((a) =>
           fetch(WIKI_SUMMARY(a.title)).then((r) => r.json()),
@@ -307,6 +311,10 @@ export function useResearch() {
         podcastR,
         radioR,
         georgeR,
+        techAudioR,
+        newsAudioR,
+        worldMusicR,
+        deviantArtImgR,
       ] = await Promise.allSettled([
         fetchInternetArchiveArticles(query),
         fetchGutenbergArticles(query),
@@ -381,6 +389,10 @@ export function useResearch() {
         fetchAudioPodcast(query),
         fetchAudioRadio(query),
         fetchAudioGeorge(query),
+        fetchAudioTech(query),
+        fetchAudioNews(query),
+        fetchAudioWorldMusic(query),
+        fetchDeviantArtImages(query),
       ]);
 
       let articles: WikiArticle[] = [
@@ -420,6 +432,7 @@ export function useResearch() {
         ...extra(dplaImgR),
         ...extra(rijksR),
         ...extra(pixabayR),
+        ...extra(deviantArtImgR),
       ];
 
       let videos: WikiVideo[] = [
@@ -477,6 +490,9 @@ export function useResearch() {
         ...extra(podcastR),
         ...extra(radioR),
         ...extra(georgeR),
+        ...extra(techAudioR),
+        ...extra(newsAudioR),
+        ...extra(worldMusicR),
       ];
       const seenAudioIds = new Set<string>();
       const audio: AudioResult[] = allAudio.filter((a) => {

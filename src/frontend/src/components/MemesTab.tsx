@@ -66,7 +66,7 @@ async function fetchGiphy(q: string, offset = 0): Promise<MemeItem[]> {
       `https://api.giphy.com/v1/gifs/search?api_key=dc6zaTOxFJmzC&q=${encodeURIComponent(q)}&limit=50&offset=${offset}&rating=g`,
     );
     const data = await r.json();
-    return (data.data || []).map((g: any) => ({
+    const results = (data.data || []).map((g: any) => ({
       id: `giphy-${g.id}`,
       url: g.images?.original?.url || g.images?.downsized?.url || "",
       previewUrl:
@@ -75,7 +75,25 @@ async function fetchGiphy(q: string, offset = 0): Promise<MemeItem[]> {
       source: "Giphy" as const,
       pageUrl: g.url,
     }));
-  } catch {
+    // Fallback to trending if no results
+    if (results.length === 0 && offset === 0) {
+      const tr = await fetch(
+        "https://api.giphy.com/v1/gifs/trending?api_key=dc6zaTOxFJmzC&limit=30&rating=g",
+      );
+      const td = await tr.json();
+      return (td.data || []).map((g: any) => ({
+        id: `giphy-trend-${g.id}`,
+        url: g.images?.original?.url || g.images?.downsized?.url || "",
+        previewUrl:
+          g.images?.fixed_width_small?.url || g.images?.preview_gif?.url || "",
+        title: g.title || "Trending GIF",
+        source: "Giphy" as const,
+        pageUrl: g.url,
+      }));
+    }
+    return results;
+  } catch (err) {
+    console.error("Giphy fetch error:", err);
     return [];
   }
 }
@@ -84,7 +102,7 @@ async function fetchTenor(q: string, pos = ""): Promise<MemeItem[]> {
   try {
     const posParam = pos ? `&pos=${pos}` : "";
     const r = await fetch(
-      `https://tenor.googleapis.com/v2/search?key=AIzaSyAyimkuYQYF_FXVALexPzkcsvZiClL7blc&q=${encodeURIComponent(q)}&limit=50${posParam}`,
+      `https://tenor.googleapis.com/v2/search?key=AIzaSyAyimkuYQYF_FXVALexPzkcsvZpe6AoxjI&q=${encodeURIComponent(q)}&limit=20${posParam}`,
     );
     const data = await r.json();
     return (data.results || []).map((g: any) => ({
@@ -138,6 +156,25 @@ async function fetchArchiveMemes(q: string, page = 1): Promise<MemeItem[]> {
   }
 }
 
+async function fetchOpenverseImages(q: string): Promise<MemeItem[]> {
+  try {
+    const r = await fetch(
+      `https://api.openverse.org/v1/images/?q=${encodeURIComponent(q)}&license_type=commercial,modification&page_size=20`,
+    );
+    const data = await r.json();
+    return (data.results || []).map((img: any) => ({
+      id: `openverse-${img.id}`,
+      url: img.url,
+      previewUrl: img.thumbnail || img.url,
+      title: img.title || "Image",
+      source: "Archive" as const,
+      pageUrl: img.foreign_landing_url,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 function interleave(arrays: MemeItem[][]): MemeItem[] {
   const merged: MemeItem[] = [];
   const max = Math.max(...arrays.map((a) => a.length));
@@ -167,6 +204,7 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
 
   const doSearch = useCallback(async (q: string) => {
     if (!q.trim()) return;
+    setAllItems([]);
     setLoading(true);
     setSearched(true);
     setPage(1);
@@ -179,7 +217,12 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
       fetchArchiveMemes(q, 1),
       fetchRedditMemes(q, ""),
     ]);
-    setAllItems(interleave([giphy, tenor, imgflip, archive, reddit]));
+    let items = interleave([giphy, tenor, imgflip, archive, reddit]);
+    if (items.length === 0) {
+      const openverse = await fetchOpenverseImages(q);
+      items = openverse;
+    }
+    setAllItems(items);
     setVisibleCount(30);
     setLoading(false);
   }, []);
@@ -261,6 +304,10 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search memes, GIFs, stickers..."
             className="pl-9 h-10"
+            style={{
+              background: "oklch(0.18 0.04 260)",
+              color: "oklch(0.95 0.02 240)",
+            }}
           />
         </div>
         <Button

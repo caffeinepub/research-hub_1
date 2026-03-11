@@ -14,7 +14,8 @@ interface Props {
   onSelect?: (article: WikiArticle) => void;
 }
 
-const PAGE_SIZE = 12;
+const INITIAL_SIZE = 20;
+const PAGE_INCREMENT = 20;
 const SKELETON_IDS = ["sk-a", "sk-b", "sk-c", "sk-d", "sk-e", "sk-f"];
 
 const SOURCE_COLORS: Record<string, string> = {
@@ -34,11 +35,11 @@ const SOURCE_COLORS: Record<string, string> = {
 };
 
 export function ArticlesTab({ articles, loading, onExpand, onSelect }: Props) {
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [visibleCount, setVisibleCount] = useState(INITIAL_SIZE);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset on new search
   useEffect(() => {
-    setVisibleCount(PAGE_SIZE);
+    setVisibleCount(INITIAL_SIZE);
   }, [articles]);
 
   const visibleArticles = articles.slice(0, visibleCount);
@@ -88,8 +89,12 @@ export function ArticlesTab({ articles, loading, onExpand, onSelect }: Props) {
             data-ocid={`articles.item.${idx + 1}`}
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: idx * 0.05, duration: 0.3 }}
-            className={`article-card${onSelect ? " cursor-pointer hover:border-primary/50 transition-colors" : ""}`}
+            transition={{ delay: Math.min(idx * 0.03, 0.3), duration: 0.3 }}
+            className={`article-card${
+              onSelect
+                ? " cursor-pointer hover:border-primary/50 transition-colors"
+                : ""
+            }`}
             onClick={onSelect ? () => onSelect(article) : undefined}
           >
             {article.thumbnail && (
@@ -186,7 +191,7 @@ export function ArticlesTab({ articles, loading, onExpand, onSelect }: Props) {
             type="button"
             variant="outline"
             data-ocid="articles.pagination_next"
-            onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+            onClick={() => setVisibleCount((c) => c + PAGE_INCREMENT)}
             className="min-w-[140px]"
           >
             Load More

@@ -552,7 +552,7 @@ export function AIChatPage({ onSearchMore }: AIChatPageProps) {
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask anything... e.g. What is quantum physics?"
             className="flex-1 h-12 border-0 bg-transparent text-sm shadow-none focus-visible:ring-0 px-3"
-            style={{ color: "oklch(0.20 0.04 260)" }}
+            style={{ color: "oklch(0.95 0.02 240)" }}
             disabled={status === "loading"}
           />
           <Button

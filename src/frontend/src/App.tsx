@@ -4,12 +4,15 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertCircle,
+  BookImage,
   BookOpen,
+  BookType,
   Clapperboard,
   Compass,
   Film,
   Globe,
   Globe2,
+  GraduationCap,
   Image,
   Loader2,
   MessageSquare,
@@ -27,9 +30,12 @@ import { ArticleDetailPage } from "./components/ArticleDetailPage";
 import { ArticlesTab } from "./components/ArticlesTab";
 import { AudioTab } from "./components/AudioTab";
 import { BrowserPage } from "./components/BrowserPage";
+import { ComicsTab } from "./components/ComicsTab";
 import { CommunityChatsPage } from "./components/CommunityChatsPage";
+import { DictionaryTab } from "./components/DictionaryTab";
 import { DiscoverPage } from "./components/DiscoverPage";
 import { FilmsTab } from "./components/FilmsTab";
+import { HomeworkHelpPage } from "./components/HomeworkHelpPage";
 import { ImagesTab } from "./components/ImagesTab";
 import { MemesTab } from "./components/MemesTab";
 import { ProfilePage } from "./components/ProfilePage";
@@ -46,7 +52,16 @@ const TOPIC_CHIPS = [
   { label: "Art & Culture", query: "art culture renaissance" },
 ];
 
-type NavKey = "search" | "discover" | "browser" | "ai" | "chat" | "profile";
+type NavKey =
+  | "search"
+  | "discover"
+  | "browser"
+  | "ai"
+  | "chat"
+  | "dictionary"
+  | "study"
+  | "profile"
+  | "comics";
 
 export default function App() {
   const [query, setQuery] = useState("");
@@ -97,6 +112,22 @@ export default function App() {
     setSelectedArticle(null);
   };
 
+  const handleSelectRelated = (title: string, source: string) => {
+    const existing = results.articles.find((a) => a.title === title);
+    if (existing) {
+      setSelectedArticle(existing);
+    } else {
+      setSelectedArticle({
+        pageid: Math.random(),
+        title,
+        snippet: "",
+        source,
+        expanded: false,
+      } as any);
+    }
+    setView("article");
+  };
+
   const handleBottomNav = (nav: NavKey) => {
     setBottomNav(nav);
     setView(nav);
@@ -116,7 +147,11 @@ export default function App() {
   // Article detail view
   if (view === "article" && selectedArticle) {
     return (
-      <ArticleDetailPage article={selectedArticle} onBack={handleArticleBack} />
+      <ArticleDetailPage
+        article={selectedArticle}
+        onBack={handleArticleBack}
+        onSelectRelated={handleSelectRelated}
+      />
     );
   }
 
@@ -209,6 +244,67 @@ export default function App() {
     );
   }
 
+  // Study / Homework view
+  if (view === "study") {
+    return (
+      <div
+        className="min-h-screen bg-background flex flex-col"
+        style={{ height: "100dvh" }}
+      >
+        <header className="px-4 py-3 border-b border-border/60 flex items-center gap-3 shrink-0">
+          <div
+            className="p-1.5 rounded-lg"
+            style={{
+              background: "oklch(0.72 0.18 55 / 0.15)",
+              border: "1px solid oklch(0.72 0.18 55 / 0.3)",
+            }}
+          >
+            <GraduationCap
+              className="w-5 h-5"
+              style={{ color: "oklch(0.78 0.18 55)" }}
+            />
+          </div>
+          <h1 className="font-display text-xl font-bold">
+            Study &amp; Homework Help
+          </h1>
+        </header>
+        <main className="flex-1 overflow-hidden flex flex-col pb-16">
+          <HomeworkHelpPage />
+        </main>
+        <BottomNav current={bottomNav} onChange={handleBottomNav} />
+      </div>
+    );
+  }
+
+  // Dictionary view
+  if (view === "dictionary") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <header className="px-4 py-3 border-b border-border/60 flex items-center gap-3">
+          <div
+            className="p-1.5 rounded-lg"
+            style={{
+              background: "oklch(0.72 0.18 55 / 0.15)",
+              border: "1px solid oklch(0.72 0.18 55 / 0.3)",
+            }}
+          >
+            <BookType
+              className="w-5 h-5"
+              style={{ color: "oklch(0.78 0.18 55)" }}
+            />
+          </div>
+          <h1 className="font-display text-xl font-bold">
+            Dictionary &amp; Thesaurus
+          </h1>
+        </header>
+        <main className="flex-1 container mx-auto px-4 max-w-3xl pb-24 overflow-auto">
+          <DictionaryTab />
+        </main>
+        <BottomNav current={bottomNav} onChange={handleBottomNav} />
+      </div>
+    );
+  }
+
   // Profile view
   if (view === "profile") {
     return (
@@ -230,6 +326,33 @@ export default function App() {
         </header>
         <main className="flex-1 container mx-auto max-w-6xl pb-24 overflow-auto">
           <ProfilePage />
+        </main>
+        <BottomNav current={bottomNav} onChange={handleBottomNav} />
+      </div>
+    );
+  }
+
+  // Comics view
+  if (view === "comics") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <header className="px-4 py-3 border-b border-border/60 flex items-center gap-3">
+          <div
+            className="p-1.5 rounded-lg"
+            style={{
+              background: "oklch(0.65 0.18 55 / 0.15)",
+              border: "1px solid oklch(0.65 0.18 55 / 0.3)",
+            }}
+          >
+            <BookImage
+              className="w-5 h-5"
+              style={{ color: "oklch(0.78 0.18 55)" }}
+            />
+          </div>
+          <h1 className="font-display text-xl font-bold">Comics &amp; Books</h1>
+        </header>
+        <main className="flex-1 container mx-auto px-4 py-4 max-w-6xl pb-24 overflow-auto">
+          <ComicsTab />
         </main>
         <BottomNav current={bottomNav} onChange={handleBottomNav} />
       </div>
@@ -701,8 +824,11 @@ function BottomNav({
     { key: "discover", icon: Compass, label: "Discover" },
     { key: "browser", icon: Globe2, label: "Browser" },
     { key: "ai", icon: Sparkles, label: "AI Chat" },
-    { key: "chat", icon: MessageSquare, label: "Chat" },
+    { key: "chat", icon: MessageSquare, label: "Community" },
+    { key: "dictionary", icon: BookType, label: "Dictionary" },
+    { key: "study", icon: GraduationCap, label: "Study" },
     { key: "profile", icon: User, label: "Profile" },
+    { key: "comics", icon: BookImage, label: "Comics" },
   ];
 
   return (
@@ -714,13 +840,16 @@ function BottomNav({
       }}
     >
       <div className="container mx-auto px-4 max-w-6xl">
-        <div className="flex items-stretch h-16">
+        <div
+          className="flex items-stretch h-16 overflow-x-auto"
+          style={{ WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}
+        >
           {items.map(({ key, icon: Icon, label }) => (
             <button
               key={key}
               type="button"
               data-ocid={`nav.${key}_tab`}
-              className="flex-1 flex flex-col items-center justify-center gap-1 transition-colors relative"
+              className="flex-shrink-0 min-w-[62px] flex flex-col items-center justify-center gap-1 transition-colors relative"
               style={{
                 color:
                   current === key

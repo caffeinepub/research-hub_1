@@ -1,34 +1,36 @@
 # Research Hub
 
 ## Current State
-- AIChatPage.tsx: fetches all sources in parallel then renders all at once; input bar overlaps bottom nav causing scroll cutoff
-- MemesTab.tsx: has Load More button but no infinite scroll; Giphy/Tenor return limited results
-- ImagesTab.tsx: has Load More button but no infinite scroll; limited results per source
-- VideosTab.tsx: fetches fixed small page sizes from Archive.org and other sources; Archive.org embed URLs may not be correct format for playback
-- All tabs: fetch logic is inline in each component
+Research Hub is a multi-tab research platform with Articles, Images, Videos, Films, Audio, Discover, AI Chat, GIFs & Memes, Browser, Dictionary, Study, Community, and Profile sections. The app has a dark theme (dark navy backgrounds).
+
+Known issues:
+- Input/textarea text is nearly invisible (dark color on dark background) in AI Chat, Community chat, Homework Help, Dictionary, and Memes search bar
+- Bottom nav has 8 items crammed in a fixed-width row — items are too small and no scrolling
+- GIF/Memes tab search doesn't visually update when user types a new term — keeps showing initial load results; Archive images missing from results
+- No Comics/Books section for reading public domain comics
+- Homework Help gives generic "here are resources" responses instead of truly explaining concepts
 
 ## Requested Changes (Diff)
 
 ### Add
-- Infinite scroll to GIFs/Memes tab (IntersectionObserver at bottom sentinel, auto-fetch next page)
-- Infinite scroll to Images tab (same pattern)
-- Infinite scroll to Videos tab with much higher result counts per page
-- Streaming/progressive result rendering in AIChatPage (show each source's results as they arrive, not all at once)
-- Archive.org video playback fix: use correct embed URL format `https://archive.org/embed/{identifier}` with proper iframe allow attributes
+- Comics tab in bottom nav: browse and read public domain comics from Archive.org (comics collection), Digital Comic Museum, Comic Book Plus, and Marvel/DC public domain
+- Comics reader: click a comic to open an inline reader with page-by-page navigation
+- Comics search bar: search by title, character, publisher, era
 
 ### Modify
-- AIChatPage: fix input bar positioning so it is always visible and reachable (sticky bottom, proper padding above nav bar); render results progressively as each fetch resolves
-- MemesTab: replace Load More button with IntersectionObserver infinite scroll; increase page size to 50 per source; bump Giphy/Tenor limits
-- ImagesTab: replace Load More button with IntersectionObserver infinite scroll; increase page size and result counts
-- VideosTab: increase Archive.org rows param to 50+, add infinite scroll, fix embed URL to use `https://archive.org/embed/{identifier}` format
-- All Archive.org video/audio embeds: ensure iframe sandbox allows scripts and same-origin, add `allowfullscreen`
+- **Input text colors**: All Input and Textarea components used in the app need explicit white/light text color (oklch ~0.95) so typed text is visible on dark backgrounds — affects AIChatPage (input at bottom), CommunityChatsPage (textarea), HomeworkHelpPage (textarea), DictionaryTab (input), MemesTab (input)
+- **Bottom nav**: Change from `flex items-stretch h-16` fixed row to `overflow-x-auto` scrollable row with `flex-shrink-0` on each button, so all 8 nav items are accessible by swiping
+- **GIF search**: Fix so that submitting a new search term clears old results and shows new ones. Add better fallback: if Giphy/Tenor return empty, fall back to Archive.org image search for the term. Improve Archive image URL construction.
+- **Homework Help / Study**: Make it act more like a real study partner — for math show step-by-step working, for other subjects give a real explanation paragraph before showing resources, use encouraging tone, break down answers clearly
 
 ### Remove
-- Load More buttons in MemesTab and ImagesTab (replaced by infinite scroll)
+- Nothing
 
 ## Implementation Plan
-1. Fix AIChatPage: sticky input bar above nav (pb-20 or similar), progressive rendering using Promise-based streaming (render each resolved promise immediately)
-2. Fix VideosTab: increase Archive.org fetch rows to 50, fix embed URL format to `https://archive.org/embed/{identifier}`, add infinite scroll sentinel
-3. Fix ImagesTab: add IntersectionObserver infinite scroll, remove Load More button, increase per-source limits
-4. Fix MemesTab: add IntersectionObserver infinite scroll, remove Load More button, increase Giphy/Tenor/Imgflip limits
-5. Ensure all Archive.org iframes have correct sandbox and allow attributes for playback
+1. Fix all input/textarea text colors to `color: "oklch(0.95 0.02 240)"` in AIChatPage, CommunityChatsPage, HomeworkHelpPage, DictionaryTab, MemesTab
+2. Make bottom nav scrollable: wrap nav items in `overflow-x-auto` div, add `flex-shrink-0` to each button, use `min-w-[60px]` per item
+3. Fix GIF search: ensure `doSearch` clears `allItems` before setting new results; fix Archive image URLs to use `https://archive.org/services/img/${identifier}`; add direct image search fallback from Openverse
+4. Fix Homework Help: expand `buildAssistantText` to return real subject explanations with bullet points; for science/history/english/writing give a 3-4 sentence explanation before resources
+5. Add ComicsTab component: fetch from Archive.org comics collection (`collection:comics` or `collection:digitalcomicmuseum`), display covers in grid, click opens inline comic reader using Archive.org embed or page images
+6. Add Comics nav item to bottom nav (BookImage icon, label "Comics")
+7. Wire ComicsTab into App.tsx view routing
