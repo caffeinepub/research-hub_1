@@ -8,7 +8,19 @@ function archiveAudio(
 ) {
   return async (query: string): Promise<AudioResult[]> => {
     try {
-      const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+mediatype:audio+AND+collection:${collection}&output=json&rows=${rows}&fl[]=identifier,title,description,creator,year&sort[]=downloads+desc`;
+      const queryStr = `${query} AND mediatype:audio AND collection:${collection}`;
+      const params = new URLSearchParams({
+        q: queryStr,
+        output: "json",
+        rows: String(rows),
+      });
+      params.append("fl[]", "identifier");
+      params.append("fl[]", "title");
+      params.append("fl[]", "description");
+      params.append("fl[]", "creator");
+      params.append("fl[]", "year");
+      params.append("sort[]", "downloads desc");
+      const url = `https://archive.org/advancedsearch.php?${params.toString()}`;
       const res = await fetch(url);
       if (!res.ok) return [];
       const data = await res.json();
@@ -31,7 +43,19 @@ function archiveAudio(
 // Broad Archive.org audio search (no collection filter)
 export async function fetchAudioBroad(query: string): Promise<AudioResult[]> {
   try {
-    const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+mediatype:audio&output=json&rows=50&fl[]=identifier,title,description,creator,year,collection&sort[]=downloads+desc`;
+    const params = new URLSearchParams({
+      q: `${query} AND mediatype:audio`,
+      output: "json",
+      rows: "50",
+    });
+    params.append("fl[]", "identifier");
+    params.append("fl[]", "title");
+    params.append("fl[]", "description");
+    params.append("fl[]", "creator");
+    params.append("fl[]", "year");
+    params.append("fl[]", "collection");
+    params.append("sort[]", "downloads desc");
+    const url = `https://archive.org/advancedsearch.php?${params.toString()}`;
     const res = await fetch(url);
     if (!res.ok) return [];
     const data = await res.json();
@@ -128,3 +152,46 @@ export const fetchAudioWorldMusic = archiveAudio(
   "world",
   50,
 );
+
+export async function fetchCustomDomainAudio(
+  query: string,
+): Promise<AudioResult[]> {
+  try {
+    const domains: string[] = JSON.parse(
+      localStorage.getItem("custom_archive_domains") || "[]",
+    );
+    if (domains.length === 0) return [];
+    const results: AudioResult[] = [];
+    await Promise.allSettled(
+      domains.map(async (collectionId) => {
+        const params = new URLSearchParams({
+          q: `${query} AND collection:${collectionId}`,
+          output: "json",
+          rows: "20",
+        });
+        params.append("fl[]", "identifier");
+        params.append("fl[]", "title");
+        params.append("fl[]", "creator");
+        params.append("sort[]", "downloads desc");
+        const url = `https://archive.org/advancedsearch.php?${params.toString()}`;
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = await res.json();
+        for (const doc of data?.response?.docs ?? []) {
+          results.push({
+            id: `custom-${collectionId}-${doc.identifier}`,
+            title: doc.title || doc.identifier || "Custom Archive Audio",
+            description: "",
+            creator: doc.creator,
+            source: `Archive: ${collectionId}`,
+            embedUrl: `https://archive.org/embed/${doc.identifier}`,
+            downloadUrl: `https://archive.org/details/${doc.identifier}`,
+          });
+        }
+      }),
+    );
+    return results;
+  } catch {
+    return [];
+  }
+}

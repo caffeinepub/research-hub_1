@@ -51,9 +51,6 @@ const SOURCE_COLORS: Record<string, string> = {
   DPLA: "bg-purple-500/10 text-purple-400 border-purple-500/20",
   Rijksmuseum: "bg-orange-600/10 text-orange-400 border-orange-600/20",
   Pixabay: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-  DeviantArt: "bg-green-600/10 text-green-400 border-green-600/20",
-  Reddit: "bg-orange-600/10 text-orange-400 border-orange-600/20",
-  "Internet Archive": "bg-amber-500/10 text-amber-400 border-amber-500/20",
 };
 
 const TOPIC_CHIPS = [

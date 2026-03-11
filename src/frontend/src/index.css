@@ -28,54 +28,61 @@
 
 @layer base {
   :root {
-    --background: 0.98 0.004 240;
-    --foreground: 0.14 0.025 265;
+    /* Archive.org-inspired dark navy theme */
+    --background: 0.1 0.02 260;
+    --foreground: 0.92 0.01 240;
 
-    --card: 1 0 0;
-    --card-foreground: 0.14 0.025 265;
+    --card: 0.15 0.025 260;
+    --card-foreground: 0.92 0.01 240;
 
-    --popover: 1 0 0;
-    --popover-foreground: 0.14 0.025 265;
+    --popover: 0.14 0.025 260;
+    --popover-foreground: 0.92 0.01 240;
 
-    --primary: 0.52 0.18 220;
+    --primary: 0.6 0.18 220;
     --primary-foreground: 0.99 0 0;
 
-    --secondary: 0.94 0.02 240;
-    --secondary-foreground: 0.25 0.04 265;
+    --secondary: 0.18 0.03 260;
+    --secondary-foreground: 0.8 0.02 240;
 
-    --muted: 0.94 0.015 240;
-    --muted-foreground: 0.52 0.04 255;
+    --muted: 0.17 0.025 260;
+    --muted-foreground: 0.55 0.05 240;
 
-    --accent: 0.78 0.17 55;
-    --accent-foreground: 0.14 0.04 40;
+    --accent: 0.72 0.18 55;
+    --accent-foreground: 0.12 0.04 40;
 
     --destructive: 0.55 0.22 25;
     --destructive-foreground: 0.99 0 0;
 
-    --border: 0.88 0.02 255;
-    --input: 0.88 0.02 255;
-    --ring: 0.52 0.18 220;
+    --border: 0.22 0.04 260;
+    --input: 0.2 0.04 260;
+    --ring: 0.6 0.18 220;
 
-    --radius: 0.5rem;
+    --radius: 0.375rem;
 
-    --hero-bg: 0.18 0.06 265;
-    --hero-accent: 0.65 0.18 200;
-    --hero-gold: 0.82 0.17 80;
+    /* Archive collection accent colors */
+    --books-accent: 0.72 0.18 55;
+    --images-accent: 0.65 0.18 290;
+    --video-accent: 0.65 0.18 220;
+    --audio-accent: 0.65 0.18 170;
+    --memes-accent: 0.65 0.18 320;
+    --comics-accent: 0.65 0.18 25;
+    --study-accent: 0.65 0.16 145;
+    --community-accent: 0.65 0.16 200;
 
-    --chart-1: 0.52 0.18 220;
-    --chart-2: 0.65 0.18 200;
-    --chart-3: 0.78 0.17 55;
+    --chart-1: 0.6 0.18 220;
+    --chart-2: 0.65 0.18 170;
+    --chart-3: 0.72 0.18 55;
     --chart-4: 0.55 0.22 25;
-    --chart-5: 0.62 0.15 310;
+    --chart-5: 0.65 0.18 320;
 
-    --sidebar: 0.18 0.06 265;
-    --sidebar-foreground: 0.9 0.02 240;
-    --sidebar-primary: 0.65 0.18 200;
+    --sidebar: 0.08 0.03 260;
+    --sidebar-foreground: 0.85 0.02 240;
+    --sidebar-primary: 0.6 0.18 220;
     --sidebar-primary-foreground: 0.99 0 0;
-    --sidebar-accent: 0.25 0.07 260;
-    --sidebar-accent-foreground: 0.9 0.02 240;
-    --sidebar-border: 0.28 0.07 260;
-    --sidebar-ring: 0.65 0.18 200;
+    --sidebar-accent: 0.16 0.04 260;
+    --sidebar-accent-foreground: 0.85 0.02 240;
+    --sidebar-border: 0.2 0.04 260;
+    --sidebar-ring: 0.6 0.18 220;
   }
 
   * {
@@ -83,63 +90,100 @@
   }
 
   body {
-    @apply bg-background text-foreground font-body antialiased;
+    @apply bg-background font-body antialiased;
+    color: oklch(0.92 0.01 240);
   }
 
   html {
     scroll-behavior: smooth;
   }
+
+  /* Global white text on dark navy */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    color: oklch(0.92 0.01 240);
+  }
+
+  p {
+    color: oklch(0.88 0.02 240);
+  }
+
+  span {
+    color: inherit;
+  }
+
+  label {
+    color: oklch(0.88 0.03 240);
+  }
+
+  li {
+    color: oklch(0.88 0.02 240);
+  }
+
+  input,
+  textarea,
+  select {
+    color: white !important;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: oklch(0.5 0.05 240) !important;
+  }
+
+  /* Nav text visibility */
+  nav button,
+  nav a {
+    color: oklch(0.75 0.04 240);
+  }
 }
 
 @layer components {
-  .hero-gradient {
-    background: linear-gradient(
-      135deg,
-      oklch(0.14 0.07 270) 0%,
-      oklch(0.18 0.08 255) 40%,
-      oklch(0.22 0.09 235) 70%,
-      oklch(0.16 0.06 220) 100%
-    );
+  .archive-header {
+    background: oklch(0.08 0.03 260);
+    border-bottom: 1px solid oklch(0.2 0.04 260);
   }
 
-  .hero-noise {
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
-    background-size: 200px 200px;
+  .archive-tab-strip {
+    background: oklch(0.08 0.03 260);
+    border-bottom: 1px solid oklch(0.2 0.04 260);
+  }
+
+  .archive-card {
+    background: oklch(0.15 0.025 260);
+    border: 1px solid oklch(0.22 0.04 260);
+    border-radius: var(--radius);
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .archive-card:hover {
+    background: oklch(0.19 0.03 260);
+    border-color: oklch(0.3 0.06 260);
   }
 
   .chip-btn {
-    @apply px-4 py-2 rounded-full text-sm font-medium transition-all duration-200;
-    background: oklch(0.28 0.07 255 / 0.7);
-    color: oklch(0.88 0.08 210);
-    border: 1px solid oklch(0.4 0.1 230 / 0.5);
+    padding: 0.375rem 0.875rem;
+    border-radius: 9999px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    border: 1px solid oklch(0.3 0.06 260);
+    color: oklch(0.72 0.08 240);
+    background: oklch(0.15 0.03 260 / 0.7);
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    cursor: pointer;
   }
 
   .chip-btn:hover {
-    background: oklch(0.38 0.12 220 / 0.8);
-    color: oklch(0.97 0.01 240);
-    border-color: oklch(0.6 0.18 200 / 0.7);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 20px oklch(0.52 0.18 220 / 0.3);
+    background: oklch(0.22 0.05 260);
+    color: oklch(0.88 0.04 240);
+    border-color: oklch(0.4 0.1 260);
   }
 
-  .article-card {
-    @apply bg-card rounded-xl border border-border/60 overflow-hidden transition-all duration-200;
-  }
-
-  .article-card:hover {
-    @apply border-primary/40;
-    box-shadow: 0 8px 30px oklch(0.52 0.18 220 / 0.12);
-    transform: translateY(-2px);
-  }
-
-  .video-thumb {
-    @apply relative overflow-hidden rounded-lg cursor-pointer transition-all duration-200;
-    border: 2px solid transparent;
-  }
-
-  .video-thumb:hover,
-  .video-thumb.active {
-    border-color: oklch(0.65 0.18 200);
-    box-shadow: 0 0 20px oklch(0.65 0.18 200 / 0.3);
+  .nav-label {
+    color: white;
   }
 }

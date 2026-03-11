@@ -1,35 +1,32 @@
 # Research Hub
 
 ## Current State
-Version 28 is live with 28 tabs/features. Key relevant files:
-- `fetchVideos.ts` — `fetchEuropeanFilmGateway` uses Europeana API, sets `embedUrl` only for `.mp4/webm/ogg` or `player` URLs, otherwise uses page URL in `<video>` tag which fails
-- `fetchImages.ts` — `fetchDeviantArtImages` uses openverse source=deviantart; no Reddit image source exists for the Images tab
-- `fetchAudio.ts` — 14 Archive.org audio collections, all look structurally correct
-- `fetchVideos.ts` — Archive.org video fetches use correct `/advancedsearch.php` endpoint
-- `VideosTab.tsx`, `FilmsTab.tsx` — `VideoPlayer`/`FilmPlayer` renders `<iframe>` if `embedUrl`, else `<video>` tag (breaks for page URLs)
-- `ImagesTab.tsx` — has full lightbox with left/right navigation, `SOURCE_COLORS` does not include DeviantArt or Reddit entries
-- `useResearch.ts` — source-filtered search not implemented; query is passed verbatim to all sources
+- Browser tab uses DuckDuckGo as default search and starts on an empty page
+- Settings save button exists but is not working reliably
+- AI Credits system is partially implemented
+- Community Archive.org domain submission exists in Settings but needs wiring to display in search tabs
+- Comics tab exists but search returns no results
+- Archive.org content not reliably appearing in Videos, Audio, and Films tabs
 
 ## Requested Changes (Diff)
 
 ### Add
-- Reddit image source in `fetchImages.ts` using Reddit's public JSON search API
-- Source-filtered search logic in `useResearch.ts`: detect source keywords (DeviantArt, Reddit, NASA, etc.) in query, strip them, run normal search but filter results to that source only
-- `DeviantArt` and `Reddit` entries in `SOURCE_COLORS` in `ImagesTab.tsx`
+- AI Credits: daily limit for regular users (10 searches/day), unlimited for admin; credits earned via daily login, install, community participation; credits displayed on profile
+- Community Archive.org domain submission: users can submit new collection IDs from Settings, visible to all tabs; admin can remove them
 
 ### Modify
-- `fetchEuropeanFilmGateway` in `fetchVideos.ts`: improve embed detection; for items where no direct playable URL exists, set `embedUrl: undefined` and add a `pageUrl` field so the player can show a "Watch on Film Gateway" fallback button
-- `FilmPlayer` in `FilmsTab.tsx`: when `film.embedUrl` is undefined AND `film.url` is not a direct video file, show a thumbnail + "Watch on European Film Gateway" button (opens in new tab) instead of a broken `<video>` tag
-- `VideoPlayer` in `VideosTab.tsx`: same fallback for non-playable page URLs (check if URL ends with video extension or contains `archive.org/embed`, `youtube-nocookie`, `vimeo`, `player`)
-- `ImagesTab.tsx` SOURCE_COLORS: add DeviantArt and Reddit entries so badges show colored labels
-- `useResearch.ts` `search()`: add source keyword parsing — if query contains a known source name (case-insensitive), strip it from the search query and after results are assembled, filter `images`/`videos`/`audio` arrays to only that source
+- BrowserPage: Replace DuckDuckGo with Brave Search (`https://search.brave.com/search?q=`); start page should load `https://brave.com` by default when the tab is first opened; default address bar shows brave.com
+- SettingsPage: Fix the save button so it properly saves all settings to localStorage and shows feedback
+- ComicsTab: Fix Archive.org query to return real results (use correct API endpoint and collection IDs)
+- AudioTab, VideosTab, FilmsTab: Fix Archive.org fetches to reliably return results (correct API params, error handling, sort by downloads)
 
 ### Remove
 - Nothing removed
 
 ## Implementation Plan
-1. `fetchImages.ts`: Add `fetchRedditImages(query)` using `https://www.reddit.com/search.json?q={query}&type=link&limit=25&restrict_sr=false` (Reddit's unauthenticated JSON endpoint); extract post image URLs from `url_overridden_by_dest` for image posts
-2. `fetchVideos.ts`: Fix `fetchEuropeanFilmGateway` — use `edmIsShownBy` for direct video URL, mark `embedUrl` only if it passes a strict check (ends with `.mp4`/`.webm`/`.ogg` or host includes `player`/`embed`). Add `pageUrl` field to `WikiVideo` type for fallback link.
-3. `FilmsTab.tsx` & `VideosTab.tsx`: Update `FilmPlayer`/`VideoPlayer` — if `embedUrl` exists use iframe, else if URL ends with video extension use `<video>`, else show fallback card with thumbnail and external link button
-4. `ImagesTab.tsx`: Add DeviantArt and Reddit to `SOURCE_COLORS`
-5. `useResearch.ts`: Parse source keyword from query before searching. Known source aliases: `deviantart` → "DeviantArt", `reddit` → "Reddit", `nasa` → "NASA", `wikimedia` / `commons` → "Wikimedia Commons", `archive` → "Internet Archive", `flickr` → "Flickr Commons", `smithsonian` → "Smithsonian", etc. After search, if sourceFilter is set, filter images/videos/audio to matching source. Also add `fetchRedditImages` to the search waterfall.
+1. BrowserPage: Change `resolveInput` default search to use `https://search.brave.com/search?q=`, replace DuckDuckGo quick engine with Brave, set initial `currentUrl` and `addressInput` to `https://brave.com` so it loads on mount
+2. SettingsPage: Audit `handleSave` — ensure all state variables (theme, defaultTab, textSize, and new credits-related fields) are persisted; fix any ordering/closure issues; ensure button is always enabled
+3. ComicsTab: Fix Archive.org search URL to use `https://archive.org/advancedsearch.php?q=subject:(comics)+AND+(collection:digitalcomicmuseum OR collection:comics_inbox)&fl[]=identifier,title,description,mediatype&rows=50&output=json`
+4. AudioTab: Fix fetch to use `https://archive.org/advancedsearch.php?q=${query}&mediatype=audio&rows=50&output=json` and map results correctly
+5. VideosTab/FilmsTab: Fix Archive.org video fetch with correct mediatype param and result mapping
+6. AI Credits: implement `getCreditsBalance`, `useAICredit`, `claimDailyLogin`, `claimInstallReward` helpers in a shared `credits.ts` util; hook into AIChatPage to enforce daily limits; show remaining credits in AIChatPage header

@@ -176,18 +176,27 @@ export function AudioTab({ audio, loading, hasSearched }: Props) {
 
             {playingId === track.id ? (
               <div className="space-y-2">
-                <audio
-                  controls
-                  autoPlay
-                  className="w-full"
-                  style={{
-                    height: "40px",
-                    accentColor: "oklch(0.72 0.18 150)",
-                  }}
-                  src={track.downloadUrl ?? undefined}
-                >
-                  <track kind="captions" />
-                </audio>
+                {track.embedUrl ? (
+                  <iframe
+                    src={track.embedUrl}
+                    className="w-full rounded-lg"
+                    style={{ height: "120px", border: "none" }}
+                    title={track.title}
+                    allow="autoplay"
+                  />
+                ) : track.downloadUrl ? (
+                  <p className="text-xs text-muted-foreground">
+                    <a
+                      href={track.downloadUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline"
+                      style={{ color: "oklch(0.65 0.16 220)" }}
+                    >
+                      Open on Archive.org
+                    </a>
+                  </p>
+                ) : null}
                 <Button
                   size="sm"
                   variant="ghost"

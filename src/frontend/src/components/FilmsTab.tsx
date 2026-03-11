@@ -47,8 +47,6 @@ function isArchiveSource(source: string) {
   );
 }
 
-const VIDEO_DIRECT = /\.(mp4|webm|ogg)(\?.*)?$/i;
-
 function FilmPlayer({ film }: { film: WikiVideo }) {
   if (film.embedUrl) {
     const noSandbox =
@@ -68,39 +66,17 @@ function FilmPlayer({ film }: { film: WikiVideo }) {
       />
     );
   }
-  if (VIDEO_DIRECT.test(film.url)) {
-    return (
-      // biome-ignore lint/a11y/useMediaCaption: public domain video source may not have captions
-      <video
-        key={film.url}
-        controls
-        className="w-full aspect-video"
-        style={{ maxHeight: "500px" }}
-      >
-        <source src={film.url} type={film.mime} />
-        Your browser does not support this video format.
-      </video>
-    );
-  }
-  // Fallback: thumbnail + external link
   return (
-    <div className="w-full aspect-video flex flex-col items-center justify-center bg-black/60 rounded-lg gap-3 p-4">
-      {film.thumbUrl && (
-        <img
-          src={film.thumbUrl}
-          alt={film.title}
-          className="max-h-48 max-w-full object-contain rounded opacity-80"
-        />
-      )}
-      <a
-        href={film.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-2 px-4 py-2 bg-primary/80 hover:bg-primary text-primary-foreground rounded-lg text-sm font-medium transition-colors"
-      >
-        Watch on {film.source} ↗
-      </a>
-    </div>
+    // biome-ignore lint/a11y/useMediaCaption: public domain video source may not have captions
+    <video
+      key={film.url}
+      controls
+      className="w-full aspect-video"
+      style={{ maxHeight: "500px" }}
+    >
+      <source src={film.url} type={film.mime} />
+      Your browser does not support this video format.
+    </video>
   );
 }
 

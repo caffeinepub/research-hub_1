@@ -27,10 +27,25 @@ async function fetchComics(q: string, page = 1): Promise<Comic[]> {
 
   try {
     const collectionFilter =
-      "(collection:digitalcomicmuseum OR collection:comicbookplus OR collection:comics OR subject:comics)";
-    const fullQuery = q ? `${q} AND ${collectionFilter}` : collectionFilter;
-    const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(fullQuery)}&fl[]=identifier,title,creator,year,subject&output=json&rows=40&page=${page}&sort[]=downloads+desc`;
+      "(collection:digitalcomicmuseum OR collection:comicbookplus OR collection:comics OR subject:comics OR mediatype:texts)";
+    const fullQuery = q
+      ? `${q} AND ${collectionFilter}`
+      : `comics AND ${collectionFilter}`;
+    const params = new URLSearchParams({
+      q: fullQuery,
+      output: "json",
+      rows: "40",
+      page: String(page),
+    });
+    params.append("fl[]", "identifier");
+    params.append("fl[]", "title");
+    params.append("fl[]", "creator");
+    params.append("fl[]", "year");
+    params.append("fl[]", "subject");
+    params.append("sort[]", "downloads desc");
+    const url = `https://archive.org/advancedsearch.php?${params.toString()}`;
     const r = await fetch(url);
+    if (!r.ok) return results;
     const data = await r.json();
     for (const doc of data.response?.docs ?? []) {
       results.push({

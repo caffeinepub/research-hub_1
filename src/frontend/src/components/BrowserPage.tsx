@@ -10,15 +10,17 @@ import {
   RotateCw,
   Search,
 } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface HistoryEntry {
   url: string;
 }
 
+const DEFAULT_URL = "https://brave.com";
+
 function resolveInput(input: string): string {
   const trimmed = input.trim();
-  if (!trimmed) return "";
+  if (!trimmed) return DEFAULT_URL;
   if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
     return trimmed;
   }
@@ -26,19 +28,19 @@ function resolveInput(input: string): string {
   if (trimmed.includes(".") && !trimmed.includes(" ")) {
     return `https://${trimmed}`;
   }
-  // Otherwise treat as search query
-  return `https://duckduckgo.com/?q=${encodeURIComponent(trimmed)}&ia=web`;
+  // Otherwise treat as search query — use Brave Search
+  return `https://search.brave.com/search?q=${encodeURIComponent(trimmed)}`;
 }
 
 const QUICK_ENGINES = [
   {
-    id: "duckduckgo",
-    label: "DuckDuckGo",
-    color: "oklch(0.70 0.18 40)",
-    bg: "oklch(0.70 0.18 40 / 0.12)",
-    border: "oklch(0.70 0.18 40 / 0.35)",
+    id: "brave",
+    label: "Brave",
+    color: "oklch(0.72 0.18 40)",
+    bg: "oklch(0.72 0.18 40 / 0.12)",
+    border: "oklch(0.72 0.18 40 / 0.35)",
     buildUrl: (q: string) =>
-      `https://duckduckgo.com/?q=${encodeURIComponent(q)}&ia=web`,
+      `https://search.brave.com/search?q=${encodeURIComponent(q)}`,
   },
   {
     id: "wikipedia",
@@ -61,13 +63,20 @@ const QUICK_ENGINES = [
 ];
 
 export function BrowserPage() {
-  const [addressInput, setAddressInput] = useState("");
-  const [currentUrl, setCurrentUrl] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [addressInput, setAddressInput] = useState(DEFAULT_URL);
+  const [currentUrl, setCurrentUrl] = useState(DEFAULT_URL);
+  const [isLoading, setIsLoading] = useState(true);
   const [blocked, setBlocked] = useState(false);
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [history, setHistory] = useState<HistoryEntry[]>([
+    { url: DEFAULT_URL },
+  ]);
+  const [historyIndex, setHistoryIndex] = useState(0);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Navigate to brave.com on initial mount
+  useEffect(() => {
+    setIsLoading(true);
+  }, []);
 
   const navigate = useCallback(
     (url: string, pushHistory = true) => {
@@ -126,10 +135,7 @@ export function BrowserPage() {
   };
 
   const handleHome = () => {
-    setCurrentUrl("");
-    setAddressInput("");
-    setIsLoading(false);
-    setBlocked(false);
+    navigate(DEFAULT_URL);
   };
 
   const handleIframeLoad = () => {
@@ -350,7 +356,7 @@ export function BrowserPage() {
                 className="font-display text-lg font-bold mb-1"
                 style={{ color: "oklch(0.92 0.03 240)" }}
               >
-                This site doesn't allow embedding
+                This site doesn&apos;t allow embedding
               </h3>
               <p
                 className="text-sm max-w-sm"
@@ -386,7 +392,7 @@ export function BrowserPage() {
                 onClick={() => {
                   const domain = getDomain(currentUrl);
                   navigate(
-                    `https://duckduckgo.com/?q=${encodeURIComponent(domain)}&ia=web`,
+                    `https://search.brave.com/search?q=${encodeURIComponent(domain)}`,
                   );
                 }}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors"
@@ -397,122 +403,13 @@ export function BrowserPage() {
                 }}
               >
                 <Search className="w-4 h-4" />
-                Try DuckDuckGo Search
+                Search on Brave
               </button>
             </div>
           </div>
         )}
 
-        {/* Welcome screen */}
-        {!currentUrl && (
-          <div
-            className="absolute inset-0 flex flex-col items-center justify-center gap-8 px-6"
-            style={{ background: "oklch(0.12 0.04 265)" }}
-          >
-            <div className="text-center">
-              <div
-                className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5"
-                style={{
-                  background: "oklch(0.65 0.18 200 / 0.15)",
-                  border: "1px solid oklch(0.65 0.18 200 / 0.3)",
-                }}
-              >
-                <Globe
-                  className="w-8 h-8"
-                  style={{ color: "oklch(0.65 0.18 200)" }}
-                />
-              </div>
-              <h2
-                className="font-display text-2xl font-bold mb-2"
-                style={{ color: "oklch(0.95 0.01 240)" }}
-              >
-                Research Browser
-              </h2>
-              <p
-                className="text-sm max-w-md"
-                style={{ color: "oklch(0.65 0.06 240)" }}
-              >
-                Enter a URL or search query above to browse the web. Use the
-                quick search buttons to jump straight to DuckDuckGo, Wikipedia,
-                or Archive.org.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-xl w-full">
-              {[
-                {
-                  label: "Internet Archive",
-                  url: "https://archive.org",
-                  hint: "archive.org",
-                },
-                {
-                  label: "Wikipedia",
-                  url: "https://en.wikipedia.org",
-                  hint: "en.wikipedia.org",
-                },
-                {
-                  label: "NASA",
-                  url: "https://nasa.gov",
-                  hint: "nasa.gov",
-                },
-                {
-                  label: "Library of Congress",
-                  url: "https://loc.gov",
-                  hint: "loc.gov",
-                },
-              ].map((site) => (
-                <button
-                  key={site.url}
-                  type="button"
-                  data-ocid="browser.primary_button"
-                  onClick={() => navigate(site.url)}
-                  className="flex flex-col items-center gap-2 p-4 rounded-xl transition-all duration-200 text-center"
-                  style={{
-                    background: "oklch(0.18 0.06 260 / 0.7)",
-                    border: "1px solid oklch(0.3 0.06 255 / 0.5)",
-                    color: "oklch(0.88 0.06 220)",
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background =
-                      "oklch(0.25 0.09 250 / 0.8)";
-                    (e.currentTarget as HTMLButtonElement).style.borderColor =
-                      "oklch(0.5 0.15 220 / 0.6)";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background =
-                      "oklch(0.18 0.06 260 / 0.7)";
-                    (e.currentTarget as HTMLButtonElement).style.borderColor =
-                      "oklch(0.3 0.06 255 / 0.5)";
-                  }}
-                >
-                  <Globe
-                    className="w-5 h-5"
-                    style={{ color: "oklch(0.65 0.18 200)" }}
-                  />
-                  <span className="text-xs font-medium leading-tight">
-                    {site.label}
-                  </span>
-                  <span
-                    className="text-xs"
-                    style={{ color: "oklch(0.5 0.06 240)" }}
-                  >
-                    {site.hint}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            <p
-              className="text-xs text-center max-w-sm"
-              style={{ color: "oklch(0.45 0.04 250)" }}
-            >
-              Works great with open-access sites. Some sites (Google, YouTube)
-              block embedding by default.
-            </p>
-          </div>
-        )}
-
-        {/* iframe */}
+        {/* iframe — always renders when currentUrl is set */}
         {currentUrl && !blocked && (
           <iframe
             ref={iframeRef}

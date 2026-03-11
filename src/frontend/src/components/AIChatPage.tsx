@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  BookOpen,
   ExternalLink,
   Loader2,
   Search,
@@ -10,6 +11,7 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useResearch } from "../hooks/useResearch";
 import type {
   AudioResult,
@@ -17,6 +19,13 @@ import type {
   WikiImage,
   WikiVideo,
 } from "../types/research";
+import {
+  canSearch,
+  getRemainingSearches,
+  isAdmin,
+  recordSearch,
+} from "../utils/aiCredits";
+
 function evaluateMath(query: string): string | null {
   const mathPattern =
     /^[\d\s\+\-\*\/\^\(\)\.\%]+$|(\d+\s*(plus|minus|times|divided by|multiplied by|\+|\-|\*|\/|x)\s*\d+)/i;
@@ -30,7 +39,7 @@ function evaluateMath(query: string): string | null {
       .replace(/divided by/g, "/")
       .replace(/x/g, "*")
       .replace(/[^0-9\+\-\*\/\(\)\.\%\s]/g, "");
-    // eslint-disable-next-line
+    // biome-ignore lint/security/noGlobalEval: safe math eval
     const result = Function(`"use strict"; return (${expr})`)();
     if (typeof result === "number" && Number.isFinite(result)) {
       return result % 1 === 0
@@ -41,6 +50,56 @@ function evaluateMath(query: string): string | null {
   } catch {
     return null;
   }
+}
+
+// Solve simple linear equations like "2x+5=11" or "x/3=7"
+function solveLinearEquation(
+  query: string,
+): { steps: string[]; answer: string } | null {
+  const eq = query.trim().replace(/\s+/g, "");
+  const match = eq.match(/^([\d.]*)[xX]([+\-][\d.]+)?=([+\-]?[\d.]+)$/);
+  if (!match) return null;
+  const a =
+    match[1] === "" || match[1] === undefined ? 1 : Number.parseFloat(match[1]);
+  const b = match[2] ? Number.parseFloat(match[2]) : 0;
+  const c = Number.parseFloat(match[3]);
+  if (a === 0) return null;
+  const x = (c - b) / a;
+  const steps: string[] = [
+    `Start with: ${eq.replace("=", " = ")}`,
+    b !== 0
+      ? `Subtract ${b > 0 ? b : `(${b})`} from both sides: ${a}x = ${c} - ${b} = ${c - b}`
+      : `Equation: ${a}x = ${c}`,
+    `Divide both sides by ${a}: x = ${c - b} / ${a}`,
+    `x = ${x % 1 === 0 ? x : x.toFixed(4)}`,
+  ];
+  return { steps, answer: x % 1 === 0 ? x.toString() : x.toFixed(4) };
+}
+
+function buildStudyReply(query: string): string {
+  const q = query.trim().toLowerCase();
+  if (q.includes("derivative") || q.includes("d/dx")) {
+    return "To find a derivative, apply the power rule: d/dx[xⁿ] = n·xⁿ⁻¹. For example, d/dx[x³] = 3x². Use the chain rule for composite functions. What specific function would you like help with?";
+  }
+  if (q.includes("integral") || q.includes("∫")) {
+    return "Integration is the reverse of differentiation. The power rule for integrals: ∫xⁿ dx = xⁿ⁺¹/(n+1) + C. For example, ∫x² dx = x³/3 + C. What function are you integrating?";
+  }
+  if (
+    q.includes("pythagorean") ||
+    (q.includes("triangle") && q.includes("hypotenuse"))
+  ) {
+    return "The Pythagorean theorem: a² + b² = c², where c is the hypotenuse. To find c: c = √(a² + b²). Example: a=3, b=4 → c = √(9+16) = √25 = 5. Give me your values and I'll solve it!";
+  }
+  if (q.includes("quadratic") || (q.includes("x²") && q.includes("="))) {
+    return "For a quadratic equation ax² + bx + c = 0, use the quadratic formula:\nx = (-b ± √(b²-4ac)) / 2a\n\nThe discriminant b²-4ac tells you: >0 two real roots, =0 one root, <0 no real roots. What are your a, b, c values?";
+  }
+  if (q.includes("photosynthesis")) {
+    return "Photosynthesis is how plants make food using sunlight:\n6CO₂ + 6H₂O + light energy → C₆H₁₂O₆ + 6O₂\n\nLight reactions (in thylakoids) convert light to ATP and NADPH. The Calvin cycle (in stroma) uses these to fix CO₂ into glucose.";
+  }
+  if (q.includes("newton") || q.includes("force") || q.includes("f=ma")) {
+    return "Newton's Laws of Motion:\n1. Inertia: An object at rest stays at rest unless acted on by a force.\n2. F = ma (Force = mass × acceleration)\n3. Every action has an equal and opposite reaction.\n\nF = ma means: if F = 20N and m = 4kg, then a = 20/4 = 5 m/s².";
+  }
+  return `Great study question about "${query}"! I'll search my knowledge base for articles, explanations, and examples to help you understand this topic.`;
 }
 
 function buildConversationalReply(
@@ -93,6 +152,7 @@ interface Message {
   id: string;
   role: "user" | "assistant";
   text: string;
+  steps?: string[];
   results?: {
     articles: WikiArticle[];
     images: WikiImage[];
@@ -102,15 +162,25 @@ interface Message {
   suggestions?: string[];
   isLoading?: boolean;
   isCalcResult?: boolean;
+  isStudyAnswer?: boolean;
 }
 
-const EXAMPLE_QUESTIONS = [
+const RESEARCH_QUESTIONS = [
   "What is quantum entanglement?",
   "Tell me about the Roman Empire",
   "How does photosynthesis work?",
   "Who was Nikola Tesla?",
   "Explain the Big Bang theory",
   "What are black holes?",
+];
+
+const STUDY_QUESTIONS = [
+  "Solve 2x + 5 = 11",
+  "What is the quadratic formula?",
+  "Explain Newton's second law",
+  "Solve for x: 3x - 7 = 14",
+  "What is the Pythagorean theorem?",
+  "Find the derivative of x³",
 ];
 
 function getSuggestions(query: string): string[] {
@@ -246,6 +316,7 @@ interface AIChatPageProps {
 export function AIChatPage({ onSearchMore }: AIChatPageProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
+  const [mode, setMode] = useState<"research" | "study">("research");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { search, results, status } = useResearch();
@@ -302,6 +373,10 @@ export function AIChatPage({ onSearchMore }: AIChatPageProps) {
   const handleSend = (q?: string) => {
     const query = (q ?? input).trim();
     if (!query) return;
+    if (!canSearch()) {
+      toast.error("Daily limit reached. Earn more credits in Settings!");
+      return;
+    }
     setInput("");
 
     const userMsg: Message = {
@@ -310,18 +385,52 @@ export function AIChatPage({ onSearchMore }: AIChatPageProps) {
       text: query,
     };
 
-    // Check if it's a math expression
+    // Check math expression first
     const mathResult = evaluateMath(query);
     if (mathResult !== null) {
       const calcMsg: Message = {
         id: `a-${Date.now()}`,
         role: "assistant",
-        text: `= ${mathResult}
-
-${query} = ${mathResult}`,
+        text: `= ${mathResult}`,
         isCalcResult: true,
       };
       setMessages((prev) => [...prev, userMsg, calcMsg]);
+      return;
+    }
+
+    // Check linear equation (study mode)
+    if (mode === "study") {
+      const eqResult = solveLinearEquation(query);
+      if (eqResult !== null) {
+        const studyMsg: Message = {
+          id: `a-${Date.now()}`,
+          role: "assistant",
+          text: `Answer: x = ${eqResult.answer}`,
+          steps: eqResult.steps,
+          isStudyAnswer: true,
+        };
+        setMessages((prev) => [...prev, userMsg, studyMsg]);
+        return;
+      }
+
+      // Generic study reply with knowledge base search
+      const studyText = buildStudyReply(query);
+      const assistantMsg: Message = {
+        id: `a-${Date.now()}`,
+        role: "assistant",
+        text: "",
+        isLoading: true,
+      };
+      setMessages((prev) => [...prev, userMsg, assistantMsg]);
+      recordSearch();
+      pendingQueryRef.current = query;
+      // Show study reply first, then update with real results
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.isLoading ? { ...m, isLoading: false, text: studyText } : m,
+        ),
+      );
+      search(query);
       return;
     }
 
@@ -332,14 +441,60 @@ ${query} = ${mathResult}`,
       isLoading: true,
     };
     setMessages((prev) => [...prev, userMsg, assistantMsg]);
+    recordSearch();
     pendingQueryRef.current = query;
     search(query);
   };
 
   const isEmpty = messages.length === 0;
+  const exampleQuestions =
+    mode === "study" ? STUDY_QUESTIONS : RESEARCH_QUESTIONS;
 
   return (
     <div className="flex flex-col" style={{ height: "calc(100vh - 128px)" }}>
+      {/* Mode toggle */}
+      <div
+        className="flex-shrink-0 flex justify-center pt-3 px-4"
+        style={{ background: "oklch(0.10 0.04 265)" }}
+      >
+        <div
+          className="flex rounded-full p-0.5 gap-0"
+          style={{
+            background: "oklch(0.18 0.05 260)",
+            border: "1px solid oklch(0.28 0.06 255 / 0.5)",
+          }}
+        >
+          <button
+            type="button"
+            data-ocid="ai.tab"
+            onClick={() => setMode("research")}
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold transition-all"
+            style={{
+              background:
+                mode === "research" ? "oklch(0.52 0.18 220)" : "transparent",
+              color: mode === "research" ? "white" : "oklch(0.55 0.06 240)",
+            }}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Research
+          </button>
+          <button
+            type="button"
+            data-ocid="ai.tab"
+            onClick={() => setMode("study")}
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold transition-all"
+            style={{
+              background:
+                mode === "study" ? "oklch(0.65 0.18 145)" : "transparent",
+              color: mode === "study" ? "white" : "oklch(0.55 0.06 240)",
+            }}
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            Study
+          </button>
+        </div>
+      </div>
+
       {/* Messages scroll area */}
       <div
         ref={scrollRef}
@@ -352,25 +507,34 @@ ${query} = ${mathResult}`,
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="flex flex-col items-center gap-6 pt-10 px-2"
+            className="flex flex-col items-center gap-6 pt-6 px-2"
             data-ocid="ai.empty_state"
           >
-            {/* Google-style heading */}
+            {/* Heading */}
             <div className="text-center">
               <div className="flex items-center justify-center gap-2 mb-1">
-                <Sparkles
-                  className="w-6 h-6"
-                  style={{ color: "oklch(0.72 0.18 150)" }}
-                />
+                {mode === "study" ? (
+                  <BookOpen
+                    className="w-6 h-6"
+                    style={{ color: "oklch(0.72 0.18 145)" }}
+                  />
+                ) : (
+                  <Sparkles
+                    className="w-6 h-6"
+                    style={{ color: "oklch(0.72 0.18 150)" }}
+                  />
+                )}
                 <h2
                   className="font-display text-2xl font-bold"
                   style={{ color: "oklch(0.95 0.01 240)" }}
                 >
-                  Research Hub AI
+                  {mode === "study" ? "Study Helper" : "Research Hub AI"}
                 </h2>
               </div>
               <p className="text-sm" style={{ color: "oklch(0.55 0.05 240)" }}>
-                Search across millions of articles, videos, audio &amp; more
+                {mode === "study"
+                  ? "Solve equations, get step-by-step explanations, and learn"
+                  : "Search across millions of articles, videos, audio & more"}
               </p>
             </div>
 
@@ -380,10 +544,10 @@ ${query} = ${mathResult}`,
                 className="text-xs font-semibold uppercase tracking-widest mb-2 text-center"
                 style={{ color: "oklch(0.45 0.06 240)" }}
               >
-                Try asking
+                {mode === "study" ? "Try a problem" : "Try asking"}
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {EXAMPLE_QUESTIONS.map((q) => (
+                {exampleQuestions.map((q) => (
                   <button
                     key={q}
                     type="button"
@@ -475,23 +639,52 @@ ${query} = ${mathResult}`,
                           style={{ color: "oklch(0.72 0.18 150)" }}
                         />
                         <span style={{ color: "oklch(0.65 0.06 240)" }}>
-                          Researching...
+                          {mode === "study" ? "Thinking..." : "Researching..."}
                         </span>
                       </div>
                     ) : msg.isCalcResult ? (
                       <div>
                         <div
-                          className="text-2xl font-bold font-mono mb-1"
+                          className="text-2xl font-bold font-mono"
                           style={{ color: "oklch(0.72 0.18 150)" }}
                         >
-                          {msg.text.split(String.fromCharCode(10))[0]}
+                          {msg.text}
                         </div>
+                      </div>
+                    ) : msg.isStudyAnswer ? (
+                      <div className="space-y-2">
                         <div
-                          className="text-xs"
-                          style={{ color: "oklch(0.55 0.05 240)" }}
+                          className="text-lg font-bold font-mono"
+                          style={{ color: "oklch(0.72 0.18 145)" }}
                         >
-                          {msg.text.split(String.fromCharCode(10))[2]}
+                          {msg.text}
                         </div>
+                        {msg.steps && (
+                          <div className="space-y-1">
+                            <p
+                              className="text-xs font-semibold uppercase tracking-wide"
+                              style={{ color: "oklch(0.55 0.06 240)" }}
+                            >
+                              Step-by-step:
+                            </p>
+                            {msg.steps.map((step, si) => (
+                              <div
+                                // biome-ignore lint/suspicious/noArrayIndexKey: ordered steps
+                                key={si}
+                                className="flex gap-2 text-sm"
+                                style={{ color: "oklch(0.80 0.04 240)" }}
+                              >
+                                <span
+                                  className="font-mono text-xs w-4 flex-shrink-0 mt-0.5"
+                                  style={{ color: "oklch(0.65 0.18 145)" }}
+                                >
+                                  {si + 1}.
+                                </span>
+                                <span>{step}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <span>{renderTextWithLinks(msg.text)}</span>
@@ -656,22 +849,33 @@ ${query} = ${mathResult}`,
           }}
           className="flex items-center gap-0 rounded-full overflow-hidden max-w-2xl mx-auto"
           style={{
-            background: "oklch(0.96 0.01 240)",
+            background: "white",
             boxShadow: "0 2px 12px oklch(0 0 0 / 0.3)",
           }}
         >
-          <Search
-            className="ml-4 w-5 h-5 flex-shrink-0"
-            style={{ color: "oklch(0.45 0.06 240)" }}
-          />
+          {mode === "study" ? (
+            <BookOpen
+              className="ml-4 w-5 h-5 flex-shrink-0"
+              style={{ color: "oklch(0.55 0.12 145)" }}
+            />
+          ) : (
+            <Search
+              className="ml-4 w-5 h-5 flex-shrink-0"
+              style={{ color: "oklch(0.45 0.06 240)" }}
+            />
+          )}
           <Input
             ref={inputRef}
             data-ocid="ai.input"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask anything... e.g. What is quantum physics?"
+            placeholder={
+              mode === "study"
+                ? "Solve 2x+5=11, or ask a study question..."
+                : "Ask anything... e.g. What is quantum physics?"
+            }
             className="flex-1 h-12 border-0 bg-transparent text-sm shadow-none focus-visible:ring-0 px-3"
-            style={{ color: "oklch(0.95 0.02 240)" }}
+            style={{ color: "#111" }}
             disabled={status === "loading"}
           />
           <Button
@@ -682,7 +886,9 @@ ${query} = ${mathResult}`,
             style={{
               background:
                 input.trim() && status !== "loading"
-                  ? "oklch(0.72 0.18 150)"
+                  ? mode === "study"
+                    ? "oklch(0.65 0.18 145)"
+                    : "oklch(0.72 0.18 150)"
                   : "oklch(0.25 0.05 255)",
               color: "white",
             }}
@@ -694,6 +900,14 @@ ${query} = ${mathResult}`,
             )}
           </Button>
         </form>
+        <p
+          className="text-center text-xs mt-1.5"
+          style={{ color: "oklch(0.45 0.05 240)" }}
+        >
+          {isAdmin()
+            ? "Unlimited (Admin)"
+            : `${getRemainingSearches() === Number.POSITIVE_INFINITY ? "∞" : getRemainingSearches()} searches left today`}
+        </p>
       </div>
     </div>
   );

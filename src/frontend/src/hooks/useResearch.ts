@@ -43,6 +43,7 @@ import {
   fetchAudioRadio,
   fetchAudioTech,
   fetchAudioWorldMusic,
+  fetchCustomDomainAudio,
 } from "./fetchAudio";
 import {
   fetchArtInstituteImages,
@@ -51,6 +52,7 @@ import {
   fetchDplaImages,
   fetchEuropeanaImages,
   fetchFlickrImages,
+  fetchImgurImages,
   fetchLocImages,
   fetchMetMuseumImages,
   fetchNasaImages,
@@ -146,40 +148,7 @@ export function useResearch() {
     setLastQuery(query);
     setFuzzyUsed(false);
 
-    const SOURCE_KEYWORD_MAP: Record<string, string> = {
-      deviantart: "DeviantArt",
-      reddit: "Reddit",
-      nasa: "NASA",
-      wikimedia: "Wikimedia Commons",
-      commons: "Wikimedia Commons",
-      archive: "Internet Archive",
-      flickr: "Flickr Commons",
-      smithsonian: "Smithsonian",
-      europeana: "Europeana",
-      pixabay: "Pixabay",
-      rijksmuseum: "Rijksmuseum",
-      "met museum": "Met Museum",
-      "art institute": "Art Institute of Chicago",
-      "library of congress": "Library of Congress",
-    };
-
-    const lowerQuery = query.toLowerCase();
-    let activeSourceFilter: string | null = null;
-    let searchQuery = query;
-    for (const [keyword, source] of Object.entries(SOURCE_KEYWORD_MAP)) {
-      if (lowerQuery.includes(keyword)) {
-        activeSourceFilter = source;
-        searchQuery = query
-          .replace(new RegExp(keyword, "gi"), "")
-          .trim()
-          .replace(/\s+/g, " ");
-        if (!searchQuery) searchQuery = query;
-        break;
-      }
-    }
-    const effectiveQuery = searchQuery;
-
-    const cacheKey = effectiveQuery.toLowerCase().trim();
+    const cacheKey = query.toLowerCase().trim();
     const cached = searchCache.get(cacheKey);
     if (cached) {
       setResults(cached.results);
@@ -190,8 +159,8 @@ export function useResearch() {
 
     try {
       const [wikiRes, commonsRes] = await Promise.all([
-        fetch(WIKI_SEARCH(effectiveQuery)).then((r) => r.json()),
-        fetch(COMMONS_SEARCH(effectiveQuery)).then((r) => r.json()),
+        fetch(WIKI_SEARCH(query)).then((r) => r.json()),
+        fetch(COMMONS_SEARCH(query)).then((r) => r.json()),
       ]);
 
       const searchItems = wikiRes?.query?.search ?? [];
@@ -266,7 +235,7 @@ export function useResearch() {
         }
       }
 
-      const ytPublicDomainFilms = searchYouTubePublicDomain(effectiveQuery);
+      const ytPublicDomainFilms = searchYouTubePublicDomain(query);
 
       const extra = <T>(r: PromiseSettledResult<T[]>): T[] =>
         r.status === "fulfilled" ? r.value : [];
@@ -350,85 +319,89 @@ export function useResearch() {
         worldMusicR,
         deviantArtImgR,
         redditImgR,
+        imgurImgR,
+        customDomainAudioR,
       ] = await Promise.allSettled([
-        fetchInternetArchiveArticles(effectiveQuery),
-        fetchGutenbergArticles(effectiveQuery),
-        fetchPubMedArticles(effectiveQuery),
-        fetchNsfArticles(effectiveQuery),
-        fetchNihArticles(effectiveQuery),
-        fetchNasaImages(effectiveQuery),
-        fetchMetMuseumImages(effectiveQuery),
-        fetchLocImages(effectiveQuery),
-        fetchEuropeanaImages(effectiveQuery),
-        fetchInternetArchiveVideos(effectiveQuery),
-        fetchNasaVideos(effectiveQuery),
-        fetchOpenverseImages(effectiveQuery),
-        fetchSmithsonianImages(effectiveQuery),
-        fetchPrelingerVideos(effectiveQuery),
-        fetchOpenLibraryArticles(effectiveQuery),
-        fetchHathiTrustArticles(effectiveQuery),
-        fetchFlickrImages(effectiveQuery),
-        fetchBritishPatheVideos(effectiveQuery),
-        fetchCSpanVideos(effectiveQuery),
-        fetchLocFilms(effectiveQuery),
-        fetchDplaVideos(effectiveQuery),
-        fetchEuropeanFilmGateway(effectiveQuery),
-        fetchWikimediaVideos(effectiveQuery),
-        fetchYouTubeArchivedVideos(effectiveQuery),
-        fetchArchiveFeatureFilms(effectiveQuery),
-        fetchArchiveOpenSourceMovies(effectiveQuery),
-        fetchVimeoCC(effectiveQuery),
-        fetchArchiveAnimation(effectiveQuery),
-        fetchArchiveEducation(effectiveQuery),
-        fetchArchiveNews(effectiveQuery),
-        fetchArxivArticles(effectiveQuery),
-        fetchCrossRefArticles(effectiveQuery),
-        fetchDoajArticles(effectiveQuery),
-        fetchArtInstituteImages(effectiveQuery),
-        fetchClevelandMuseumImages(effectiveQuery),
-        fetchDplaImages(effectiveQuery),
-        fetchRijksmuseumImages(effectiveQuery),
-        fetchPbsVideos(effectiveQuery),
-        fetchNfbVideos(effectiveQuery),
-        fetchUcBerkeleyVideos(effectiveQuery),
-        fetchDemocracyNowVideos(effectiveQuery),
-        fetchClassicTvVideos(effectiveQuery),
-        fetchClassicCartoonsVideos(effectiveQuery),
-        fetchSciFiHorrorVideos(effectiveQuery),
-        fetchMitOcwVideos(effectiveQuery),
-        fetchTedTalksVideos(effectiveQuery),
-        fetchNewsPublicAffairsVideos(effectiveQuery),
-        fetchArchiveAmericanLibraries(effectiveQuery),
-        fetchArchiveBiodiversity(effectiveQuery),
-        fetchArchiveFolkscanomy(effectiveQuery),
-        fetchArchiveUniversalLibrary(effectiveQuery),
-        fetchArchiveOpenLibraryTexts(effectiveQuery),
-        fetchArchiveTorontoTexts(effectiveQuery),
-        fetchArchiveSportsVideos(effectiveQuery),
-        fetchArchiveGovernment(effectiveQuery),
-        fetchArchiveComputerChronicles(effectiveQuery),
-        fetchArchivePublicAffairs(effectiveQuery),
-        fetchArchiveHomeMovies(effectiveQuery),
-        fetchOpenAlexArticles(effectiveQuery),
-        fetchSemanticScholarArticles(effectiveQuery),
-        fetchEuropePMCArticles(effectiveQuery),
-        fetchPixabayImages(effectiveQuery),
-        fetchAudioEtree(effectiveQuery),
-        fetchAudioLibriVox(effectiveQuery),
-        fetchAudioArchive(effectiveQuery),
-        fetchAudioOTR(effectiveQuery),
-        fetchAudio78rpm(effectiveQuery),
-        fetchAudioBroad(effectiveQuery),
-        fetchAudioMusic(effectiveQuery),
-        fetchAudioFolk(effectiveQuery),
-        fetchAudioPodcast(effectiveQuery),
-        fetchAudioRadio(effectiveQuery),
-        fetchAudioGeorge(effectiveQuery),
-        fetchAudioTech(effectiveQuery),
-        fetchAudioNews(effectiveQuery),
-        fetchAudioWorldMusic(effectiveQuery),
-        fetchDeviantArtImages(effectiveQuery),
-        fetchRedditImages(effectiveQuery),
+        fetchInternetArchiveArticles(query),
+        fetchGutenbergArticles(query),
+        fetchPubMedArticles(query),
+        fetchNsfArticles(query),
+        fetchNihArticles(query),
+        fetchNasaImages(query),
+        fetchMetMuseumImages(query),
+        fetchLocImages(query),
+        fetchEuropeanaImages(query),
+        fetchInternetArchiveVideos(query),
+        fetchNasaVideos(query),
+        fetchOpenverseImages(query),
+        fetchSmithsonianImages(query),
+        fetchPrelingerVideos(query),
+        fetchOpenLibraryArticles(query),
+        fetchHathiTrustArticles(query),
+        fetchFlickrImages(query),
+        fetchBritishPatheVideos(query),
+        fetchCSpanVideos(query),
+        fetchLocFilms(query),
+        fetchDplaVideos(query),
+        fetchEuropeanFilmGateway(query),
+        fetchWikimediaVideos(query),
+        fetchYouTubeArchivedVideos(query),
+        fetchArchiveFeatureFilms(query),
+        fetchArchiveOpenSourceMovies(query),
+        fetchVimeoCC(query),
+        fetchArchiveAnimation(query),
+        fetchArchiveEducation(query),
+        fetchArchiveNews(query),
+        fetchArxivArticles(query),
+        fetchCrossRefArticles(query),
+        fetchDoajArticles(query),
+        fetchArtInstituteImages(query),
+        fetchClevelandMuseumImages(query),
+        fetchDplaImages(query),
+        fetchRijksmuseumImages(query),
+        fetchPbsVideos(query),
+        fetchNfbVideos(query),
+        fetchUcBerkeleyVideos(query),
+        fetchDemocracyNowVideos(query),
+        fetchClassicTvVideos(query),
+        fetchClassicCartoonsVideos(query),
+        fetchSciFiHorrorVideos(query),
+        fetchMitOcwVideos(query),
+        fetchTedTalksVideos(query),
+        fetchNewsPublicAffairsVideos(query),
+        fetchArchiveAmericanLibraries(query),
+        fetchArchiveBiodiversity(query),
+        fetchArchiveFolkscanomy(query),
+        fetchArchiveUniversalLibrary(query),
+        fetchArchiveOpenLibraryTexts(query),
+        fetchArchiveTorontoTexts(query),
+        fetchArchiveSportsVideos(query),
+        fetchArchiveGovernment(query),
+        fetchArchiveComputerChronicles(query),
+        fetchArchivePublicAffairs(query),
+        fetchArchiveHomeMovies(query),
+        fetchOpenAlexArticles(query),
+        fetchSemanticScholarArticles(query),
+        fetchEuropePMCArticles(query),
+        fetchPixabayImages(query),
+        fetchAudioEtree(query),
+        fetchAudioLibriVox(query),
+        fetchAudioArchive(query),
+        fetchAudioOTR(query),
+        fetchAudio78rpm(query),
+        fetchAudioBroad(query),
+        fetchAudioMusic(query),
+        fetchAudioFolk(query),
+        fetchAudioPodcast(query),
+        fetchAudioRadio(query),
+        fetchAudioGeorge(query),
+        fetchAudioTech(query),
+        fetchAudioNews(query),
+        fetchAudioWorldMusic(query),
+        fetchDeviantArtImages(query),
+        fetchRedditImages(query),
+        fetchImgurImages(query),
+        fetchCustomDomainAudio(query),
       ]);
 
       let articles: WikiArticle[] = [
@@ -470,6 +443,7 @@ export function useResearch() {
         ...extra(pixabayR),
         ...extra(deviantArtImgR),
         ...extra(redditImgR),
+        ...extra(imgurImgR),
       ];
 
       let videos: WikiVideo[] = [
@@ -530,6 +504,7 @@ export function useResearch() {
         ...extra(techAudioR),
         ...extra(newsAudioR),
         ...extra(worldMusicR),
+        ...extra(customDomainAudioR),
       ];
       const seenAudioIds = new Set<string>();
       const audio: AudioResult[] = allAudio.filter((a) => {
@@ -544,8 +519,8 @@ export function useResearch() {
       let fuzzyActivated = false;
 
       if (needsFuzzyImages || needsFuzzyVideos) {
-        const broadQ = broadenQuery(effectiveQuery);
-        if (broadQ !== effectiveQuery) {
+        const broadQ = broadenQuery(query);
+        if (broadQ !== query) {
           const fuzzyFetches: Promise<any>[] = [];
           if (needsFuzzyImages)
             fuzzyFetches.push(
@@ -593,11 +568,6 @@ export function useResearch() {
           }
           if (fuzzyActivated) setFuzzyUsed(true);
         }
-      }
-
-      if (activeSourceFilter) {
-        images = images.filter((i) => i.source === activeSourceFilter);
-        videos = videos.filter((v) => v.source === activeSourceFilter);
       }
 
       const finalResults: SearchResults = {

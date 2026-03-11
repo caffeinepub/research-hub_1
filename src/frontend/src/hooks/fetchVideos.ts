@@ -266,10 +266,19 @@ export function searchYouTubePublicDomain(query: string): WikiVideo[] {
 function archiveVideo(collection: string, source: string, baseId: number) {
   return async (query: string): Promise<WikiVideo[]> => {
     try {
-      const q = collection
-        ? `${encodeURIComponent(query)}+AND+collection:${collection}+AND+mediatype:movies`
-        : `${encodeURIComponent(query)}+AND+mediatype:movies`;
-      const url = `https://archive.org/advancedsearch.php?q=${q}&fl[]=identifier,title,description&rows=50&output=json&sort[]=downloads+desc`;
+      const queryStr = collection
+        ? `${query} AND collection:${collection} AND mediatype:movies`
+        : `${query} AND mediatype:movies`;
+      const params = new URLSearchParams({
+        q: queryStr,
+        output: "json",
+        rows: "50",
+      });
+      params.append("fl[]", "identifier");
+      params.append("fl[]", "title");
+      params.append("fl[]", "description");
+      params.append("sort[]", "downloads desc");
+      const url = `https://archive.org/advancedsearch.php?${params.toString()}`;
       const res = await fetch(url);
       if (!res.ok) return [];
       const data = await res.json();
@@ -497,25 +506,23 @@ export async function fetchEuropeanFilmGateway(
     const res = await fetch(url);
     if (!res.ok) return [];
     const data = await res.json();
-    const DIRECT_PLAYABLE = /\.(mp4|webm|ogg)$/i;
+    const EMBEDDABLE = /\.(mp4|webm|ogg)$/i;
     const results: WikiVideo[] = [];
     for (const item of data?.items ?? []) {
       const directUrl: string = item.edmIsShownBy?.[0] ?? "";
-      const pageUrl: string = item.guid ?? item.edmIsShownAt?.[0] ?? "";
-      if (!directUrl && !pageUrl) continue;
-      // embedUrl only if directly playable or contains /embed or /player
-      const canEmbed =
-        DIRECT_PLAYABLE.test(directUrl) ||
-        directUrl.includes("/embed") ||
-        directUrl.includes("/player");
+      const pageUrl: string = item.edmIsShownAt?.[0] ?? "";
+      const videoUrl = directUrl || pageUrl;
+      if (!videoUrl) continue;
+      const isEmbeddable =
+        EMBEDDABLE.test(videoUrl) || videoUrl.includes("player");
       results.push({
         pageid: 2200000 + results.length,
         title: item.title?.[0] ?? "European Film",
-        url: pageUrl || directUrl,
+        url: videoUrl,
         mime: "video/mp4" as const,
         thumbUrl: item.edmPreview?.[0] ?? undefined,
         description: item.dcDescription?.[0] ?? "",
-        embedUrl: canEmbed ? directUrl : undefined,
+        embedUrl: isEmbeddable ? videoUrl : undefined,
         source: "European Film Gateway",
       });
     }

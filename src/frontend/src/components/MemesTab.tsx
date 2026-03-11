@@ -139,13 +139,22 @@ async function fetchImgflip(): Promise<MemeItem[]> {
 
 async function fetchArchiveMemes(q: string, page = 1): Promise<MemeItem[]> {
   try {
-    const r = await fetch(
-      `https://archive.org/advancedsearch.php?q=${encodeURIComponent(q)}+AND+mediatype:image&fl[]=identifier,title,format&output=json&rows=50&page=${page}`,
-    );
+    const params = new URLSearchParams({
+      q: `${q} AND (collection:GIFs OR collection:memes OR subject:memes OR subject:gif) AND mediatype:image`,
+      output: "json",
+      rows: "30",
+      page: String(page),
+    });
+    params.append("fl[]", "identifier");
+    params.append("fl[]", "title");
+    params.append("sort[]", "downloads desc");
+    const url = `https://archive.org/advancedsearch.php?${params.toString()}`;
+    const r = await fetch(url);
+    if (!r.ok) return [];
     const data = await r.json();
-    return (data.response?.docs || []).map((d: any) => ({
-      id: `archive-${d.identifier}`,
-      url: `https://archive.org/download/${d.identifier}/${d.identifier}.jpg`,
+    return (data?.response?.docs ?? []).map((d: any, idx: number) => ({
+      id: `archive-${d.identifier}-${idx}`,
+      url: `https://archive.org/services/img/${d.identifier}`,
       previewUrl: `https://archive.org/services/img/${d.identifier}`,
       title: d.title || d.identifier,
       source: "Archive" as const,

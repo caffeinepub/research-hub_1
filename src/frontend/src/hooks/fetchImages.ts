@@ -236,10 +236,19 @@ export async function fetchClevelandMuseumImages(
   }
 }
 
-// Replaced DPLA (requires paid API key) with Archive.org image search
+// Archive.org image search with proper URLSearchParams
 export async function fetchArchiveImages(query: string): Promise<WikiImage[]> {
   try {
-    const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+AND+mediatype:image&fl[]=identifier,title,description&output=json&rows=50&sort[]=downloads+desc`;
+    const params = new URLSearchParams({
+      q: `${query} AND mediatype:image`,
+      output: "json",
+      rows: "50",
+    });
+    params.append("fl[]", "identifier");
+    params.append("fl[]", "title");
+    params.append("fl[]", "description");
+    params.append("sort[]", "downloads desc");
+    const url = `https://archive.org/advancedsearch.php?${params.toString()}`;
     const res = await fetch(url);
     if (!res.ok) return [];
     const data = await res.json();
@@ -313,19 +322,44 @@ export async function fetchDeviantArtImages(
   query: string,
 ): Promise<WikiImage[]> {
   try {
-    const url = `https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&source=deviantart&page_size=20`;
-    const res = await fetch(url);
-    if (!res.ok) return [];
-    const data = await res.json();
-    return (data?.results ?? [])
-      .filter((item: any) => item.url)
-      .map((item: any, idx: number) => ({
+    // Try Openverse with unstable deviantart source param
+    const url = `https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&license_type=commercial,modification&page_size=20&unstable__source=deviantart`;
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (res.ok) {
+      const data = await res.json();
+      const results = data?.results ?? [];
+      if (results.length > 0) {
+        return results.map((item: any, idx: number) => ({
+          pageid: 9000000 + idx,
+          title: item.title ?? "DeviantArt Image",
+          url: item.url,
+          thumbUrl: item.thumbnail ?? item.url,
+          description: item.attribution ?? "",
+          author: item.creator ?? undefined,
+          source: "DeviantArt",
+        }));
+      }
+    }
+    // Fallback: Wikimedia Commons artwork search
+    const wikiUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(query)}+artwork&prop=imageinfo&iiprop=url|mime&format=json&origin=*&gsrlimit=20`;
+    const wikiRes = await fetch(wikiUrl);
+    if (!wikiRes.ok) return [];
+    const wikiData = await wikiRes.json();
+    const pages = wikiData?.query?.pages
+      ? Object.values(wikiData.query.pages)
+      : [];
+    return (pages as any[])
+      .filter(
+        (p: any) =>
+          p.imageinfo?.[0]?.url &&
+          /\.(jpg|jpeg|png|gif|webp)$/i.test(p.imageinfo[0].url),
+      )
+      .map((p: any, idx: number) => ({
         pageid: 9000000 + idx,
-        title: item.title ?? "DeviantArt Image",
-        url: item.url,
-        thumbUrl: item.thumbnail ?? item.url,
-        description: item.attribution ?? "",
-        author: item.creator ?? undefined,
+        title: (p.title ?? "Artwork").replace(/^File:/, ""),
+        url: p.imageinfo[0].url,
+        thumbUrl: p.imageinfo[0].url,
+        description: "",
         source: "DeviantArt",
       }));
   } catch {
@@ -335,36 +369,66 @@ export async function fetchDeviantArtImages(
 
 export async function fetchRedditImages(query: string): Promise<WikiImage[]> {
   try {
-    const url = `https://www.reddit.com/search.json?q=${encodeURIComponent(query)}&type=link&limit=25&restrict_sr=false`;
-    const res = await fetch(url, {
-      headers: { "User-Agent": "ResearchHub/1.0" },
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    const posts = data?.data?.children ?? [];
-    const IMAGE_EXT = /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i;
-    return posts
-      .filter((p: any) => {
-        const hint = p.data?.post_hint;
-        const purl = p.data?.url ?? "";
-        return hint === "image" || IMAGE_EXT.test(purl);
-      })
-      .map((p: any, idx: number) => {
+    const subreddits = [
+      "pics",
+      "EarthPorn",
+      "Art",
+      "itookapicture",
+      "photographs",
+    ];
+    const results: WikiImage[] = [];
+    const responses = await Promise.allSettled(
+      subreddits.map((sub) =>
+        fetch(
+          `https://www.reddit.com/r/${sub}/search.json?q=${encodeURIComponent(query)}&restrict_sr=1&limit=10&sort=relevance&t=all`,
+          { headers: { Accept: "application/json" } },
+        ).then((r) => r.json()),
+      ),
+    );
+    responses.forEach((res, subIdx) => {
+      if (res.status !== "fulfilled") return;
+      const posts = res.value?.data?.children ?? [];
+      posts.forEach((p: any, idx: number) => {
         const d = p.data;
-        const imgUrl = d.url ?? "";
+        const imgUrl = d.url_overridden_by_dest || d.url;
+        if (!imgUrl || !/\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(imgUrl)) return;
         const thumb =
-          d.thumbnail && d.thumbnail !== "self" && d.thumbnail !== "default"
+          d.thumbnail &&
+          d.thumbnail !== "self" &&
+          d.thumbnail !== "default" &&
+          d.thumbnail !== "nsfw"
             ? d.thumbnail
             : imgUrl;
-        return {
-          pageid: 11000000 + idx,
-          title: d.title ?? "Reddit Image",
+        results.push({
+          pageid: 7000000 + subIdx * 1000 + idx,
+          title: d.title || "Reddit Image",
           url: imgUrl,
           thumbUrl: thumb,
-          description: d.subreddit_name_prefixed ?? "",
+          description: `r/${d.subreddit}`,
           source: "Reddit",
-        };
+        });
       });
+    });
+    return results;
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchImgurImages(query: string): Promise<WikiImage[]> {
+  try {
+    const url = `https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&source=flickr&page_size=20&license_type=cc0,pdm`;
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data?.results ?? []).map((item: any, idx: number) => ({
+      pageid: 7500000 + idx,
+      title: item.title ?? "Image",
+      url: item.url,
+      thumbUrl: item.thumbnail ?? item.url,
+      description: item.description ?? "",
+      source: "Imgur",
+    }));
   } catch {
     return [];
   }
