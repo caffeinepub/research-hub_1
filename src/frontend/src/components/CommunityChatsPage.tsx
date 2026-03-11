@@ -530,11 +530,14 @@ export function CommunityChatsPage() {
   return (
     <div
       data-ocid="chat.section"
-      className="flex overflow-hidden rounded-2xl"
+      className="flex rounded-2xl"
       style={{
-        height: "calc(100vh - 152px)",
+        height: "calc(100dvh - 160px)",
+        minHeight: "400px",
         background: "oklch(0.13 0.03 260)",
         border: "1px solid oklch(0.25 0.05 260)",
+        overflow: "hidden",
+        position: "relative",
       }}
     >
       {/* Sidebar */}
@@ -1195,7 +1198,7 @@ export function CommunityChatsPage() {
                     ? `Message #${selectedRoom.name}...`
                     : "Select a room to chat..."
                 }
-                disabled={!selectedRoom || sending}
+                disabled={sending}
                 className="flex-1 h-9 text-sm"
                 style={{ color: "oklch(0.95 0.02 240)" }}
               />

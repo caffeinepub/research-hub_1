@@ -3,12 +3,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  BarChart3,
   BookImage,
   BookOpen,
   BookType,
   Clapperboard,
   Compass,
   Film,
+  FlaskConical,
   Globe,
   Globe2,
   Image,
@@ -17,6 +19,7 @@ import {
   MessageSquare,
   Microscope,
   Music,
+  Newspaper,
   Search,
   Settings,
   ShieldAlert,
@@ -34,12 +37,15 @@ import { AudioTab } from "./components/AudioTab";
 import { BrowserPage } from "./components/BrowserPage";
 import { ComicsTab } from "./components/ComicsTab";
 import { CommunityChatsPage } from "./components/CommunityChatsPage";
+import { DatasetsTab } from "./components/DatasetsTab";
 import { DictionaryTab } from "./components/DictionaryTab";
 import { DiscoverPage } from "./components/DiscoverPage";
 import { FilmsTab } from "./components/FilmsTab";
 import { ImagesTab } from "./components/ImagesTab";
+import { InteractiveToolsTab } from "./components/InteractiveToolsTab";
 import { MemesTab } from "./components/MemesTab";
 import { MessagesPage } from "./components/MessagesPage";
+import { NewsTab } from "./components/NewsTab";
 import { ProfilePage } from "./components/ProfilePage";
 import { SettingsPage } from "./components/SettingsPage";
 import { VideosTab } from "./components/VideosTab";
@@ -126,7 +132,10 @@ type NavKey =
   | "comics"
   | "admin"
   | "settings"
-  | "messages";
+  | "messages"
+  | "news"
+  | "datasets"
+  | "tools";
 
 export default function App() {
   const [query, setQuery] = useState("");
@@ -321,8 +330,13 @@ export default function App() {
           activeNav={bottomNav}
           onNav={handleBottomNav}
         />
-        <main className="flex-1 container mx-auto px-4 py-4 max-w-6xl pb-24 overflow-hidden">
-          <CommunityChatsPage />
+        <main
+          className="flex-1 flex flex-col overflow-hidden"
+          style={{ paddingBottom: "56px" }}
+        >
+          <div className="flex-1 overflow-hidden px-4 py-4">
+            <CommunityChatsPage />
+          </div>
         </main>
         <BottomNav current={bottomNav} onChange={handleBottomNav} />
       </div>
@@ -443,6 +457,66 @@ export default function App() {
         />
         <main className="flex-1 container mx-auto px-4 py-4 max-w-5xl pb-24 overflow-auto">
           <MessagesPage />
+        </main>
+        <BottomNav current={bottomNav} onChange={handleBottomNav} />
+      </div>
+    );
+  }
+
+  // News view
+  if (view === "news") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <ArchiveHeader
+          query={query}
+          setQuery={setQuery}
+          onSearch={handleSearch}
+          isLoading={isLoading}
+          activeNav={bottomNav}
+          onNav={handleBottomNav}
+        />
+        <main className="flex-1 container mx-auto px-4 py-4 max-w-6xl pb-24 overflow-auto">
+          <NewsTab />
+        </main>
+        <BottomNav current={bottomNav} onChange={handleBottomNav} />
+      </div>
+    );
+  }
+
+  // Datasets view
+  if (view === "datasets") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <ArchiveHeader
+          query={query}
+          setQuery={setQuery}
+          onSearch={handleSearch}
+          isLoading={isLoading}
+          activeNav={bottomNav}
+          onNav={handleBottomNav}
+        />
+        <main className="flex-1 container mx-auto px-4 py-4 max-w-6xl pb-24 overflow-auto">
+          <DatasetsTab />
+        </main>
+        <BottomNav current={bottomNav} onChange={handleBottomNav} />
+      </div>
+    );
+  }
+
+  // Interactive Tools view
+  if (view === "tools") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <ArchiveHeader
+          query={query}
+          setQuery={setQuery}
+          onSearch={handleSearch}
+          isLoading={isLoading}
+          activeNav={bottomNav}
+          onNav={handleBottomNav}
+        />
+        <main className="flex-1 container mx-auto px-4 py-4 max-w-6xl pb-24 overflow-auto">
+          <InteractiveToolsTab />
         </main>
         <BottomNav current={bottomNav} onChange={handleBottomNav} />
       </div>
@@ -962,6 +1036,9 @@ function BottomNav({
     { key: "dictionary", icon: BookType, label: "Dict." },
     { key: "profile", icon: User, label: "Profile" },
     { key: "comics", icon: BookImage, label: "Comics" },
+    { key: "news", icon: Newspaper, label: "News" },
+    { key: "datasets", icon: BarChart3, label: "Datasets" },
+    { key: "tools", icon: FlaskConical, label: "Tools" },
     { key: "messages", icon: Mail, label: "Messages" },
     { key: "settings", icon: Settings, label: "Settings" },
     { key: "admin", icon: ShieldAlert, label: "Admin" },
