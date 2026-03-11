@@ -250,7 +250,7 @@ export default function App() {
           showBrowser={showBrowser}
           onToggleBrowser={() => setShowBrowser((b) => !b)}
         />
-        <main className="flex-1 pb-16">
+        <main className="flex-1 pb-20 overflow-y-auto">
           <DiscoverPage
             results={results}
             lastQuery={lastQuery}
@@ -295,7 +295,10 @@ export default function App() {
             AI Research Chat
           </span>
         </div>
-        <main className="flex-1 overflow-hidden">
+        <main
+          className="flex-1 overflow-hidden"
+          style={{ paddingBottom: "56px" }}
+        >
           <AIChatPage
             onSearchMore={(q) => {
               setQuery(q);
@@ -328,7 +331,7 @@ export default function App() {
           className="flex-1 flex flex-col overflow-hidden"
           style={{ paddingBottom: "56px" }}
         >
-          <div className="flex-1 overflow-hidden px-4 py-4">
+          <div className="flex-1 flex flex-col min-h-0">
             <CommunityChatsPage />
           </div>
         </main>
@@ -766,7 +769,7 @@ export default function App() {
       )}
 
       {/* Main content */}
-      <main className="flex-1 container mx-auto px-4 py-6 max-w-6xl pb-24">
+      <main className="flex-1 container mx-auto px-4 py-6 max-w-6xl pb-24 overflow-y-auto">
         {/* Idle / home state — Archive.org-style collection tiles */}
         {status === "idle" && (
           <motion.div

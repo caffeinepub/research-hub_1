@@ -451,7 +451,7 @@ export function AIChatPage({ onSearchMore }: AIChatPageProps) {
     mode === "study" ? STUDY_QUESTIONS : RESEARCH_QUESTIONS;
 
   return (
-    <div className="flex flex-col" style={{ height: "calc(100vh - 128px)" }}>
+    <div className="flex flex-col" style={{ height: "100%" }}>
       {/* Mode toggle */}
       <div
         className="flex-shrink-0 flex justify-center pt-3 px-4"
