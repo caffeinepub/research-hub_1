@@ -1,30 +1,38 @@
 # Research Hub
 
 ## Current State
-A comprehensive research platform with Articles, Images, Videos, Films, Audio, Discover, AI Search, and Browser tabs. Bottom nav has Search, Discover, and Browser. No user accounts, no community features, no memes/GIFs tab.
+- Full-featured research platform with Articles, Images, Audio, Videos, Films, GIFs/Memes, Discover, Browser, Community Chat, and Profile tabs
+- BrowserPage uses an iframe to load URLs; works for open-access sites but blocked by many major sites
+- Bottom nav has: Search, Discover, Browser, Chat (Community Chats), Profile
+- No AI Research Chat component exists yet
+- Community Chat page exists (CommunityChatsPage.tsx)
+- Chat nav item currently routes to CommunityChatsPage
 
 ## Requested Changes (Diff)
 
 ### Add
-- **Memes/GIFs/Stickers tab**: A new tab accessible from the main search area and bottom nav. Sources: Giphy (GIFs via public beta API), Tenor (GIFs), Imgflip (meme templates), Archive.org meme collections. Search by keyword. Click to copy URL or share into chat.
-- **Community Chats page**: Accessible from bottom nav. Default public rooms: Science, History, Technology, Art, Nature, Space. Users can create custom rooms. Posts support text, images (file upload + URL paste), and GIF/meme links.
-- **Login & Profiles**: Simple username + password authentication via backend. Profile shows username, avatar (initials-based), bio, research interests, and post history.
-- **Bottom nav expansion**: Add "Chat" and "Profile" nav items.
+- New `AIChatPage` component: conversational research assistant UI
+  - Chat input bar at bottom
+  - Messages list showing user questions and AI responses
+  - AI responses show curated results from all databases (articles, images, videos, audio) fetched using the existing `useResearch` hook
+  - Each response includes a text summary + result cards (articles, images, etc.)
+  - Suggested follow-up topic chips after each response
+  - Bot avatar / user avatar differentiation
+- New bottom nav item "AI" (replacing or alongside Chat) using a Sparkles/Bot icon
+- Browser improvements:
+  - When a site blocks embedding, show a clear error/fallback UI with "Open in New Tab" button
+  - Add a search engine selector (DuckDuckGo, Wikipedia, Archive.org)
+  - Search bar in browser is also connected: typing a query in browser searches via DuckDuckGo in the iframe
 
 ### Modify
-- **Bottom nav**: Extend from 3 items (Search, Discover, Browser) to 5 items (Search, Discover, Browser, Chat, Profile).
-- **App.tsx routing**: Add routes/views for Chat, Profile pages.
+- `App.tsx`: add `ai` as a NavKey, add AIChatPage view rendering, update BottomNav to include AI tab
+- `BrowserPage.tsx`: add iframe error detection (onError), show fallback card when sites block embedding
+- Bottom nav: replace or relabel Chat to show both Community and AI options, or add 6th item
 
 ### Remove
-- Nothing removed.
+- Nothing removed
 
 ## Implementation Plan
-1. Select `authorization` component for user auth.
-2. Generate Motoko backend: user profiles, chat rooms, chat messages.
-3. Build frontend:
-   - `MemesTab.tsx`: keyword search across Giphy, Tenor, Imgflip, Archive.org meme collections. Grid display with copy/share button.
-   - `CommunityChatsPage.tsx`: room list sidebar + message thread. Support text, image URLs, file uploads, GIF embeds.
-   - `ProfilePage.tsx`: view/edit profile (username, bio, research interests). Show own posts.
-   - Auth modal (login/register) triggered when unauthenticated user tries to post or view profile.
-   - Update `App.tsx` bottom nav to include Chat and Profile tabs.
-   - Add Memes tab to the main results Tabs in search view.
+1. Create `src/frontend/src/components/AIChatPage.tsx` — full conversational AI research assistant
+2. Update `App.tsx` — add `ai` NavKey, render AIChatPage, add AI to BottomNav
+3. Update `BrowserPage.tsx` — add iframe load error fallback UI with open-in-new-tab, add quick search engine shortcuts

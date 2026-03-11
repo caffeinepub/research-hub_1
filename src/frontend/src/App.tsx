@@ -17,10 +17,12 @@ import {
   Music,
   Search,
   Smile,
+  Sparkles,
   User,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useRef, useState } from "react";
+import { AIChatPage } from "./components/AIChatPage";
 import { ArticleDetailPage } from "./components/ArticleDetailPage";
 import { ArticlesTab } from "./components/ArticlesTab";
 import { AudioTab } from "./components/AudioTab";
@@ -44,7 +46,7 @@ const TOPIC_CHIPS = [
   { label: "Art & Culture", query: "art culture renaissance" },
 ];
 
-type NavKey = "search" | "discover" | "browser" | "chat" | "profile";
+type NavKey = "search" | "discover" | "browser" | "ai" | "chat" | "profile";
 
 export default function App() {
   const [query, setQuery] = useState("");
@@ -141,6 +143,40 @@ export default function App() {
           }}
           onSelectArticle={handleSelectArticle}
         />
+        <BottomNav current={bottomNav} onChange={handleBottomNav} />
+      </div>
+    );
+  }
+
+  // AI Chat view
+  if (view === "ai") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <header className="px-4 py-3 border-b border-border/60 flex items-center gap-3">
+          <div
+            className="p-1.5 rounded-lg"
+            style={{
+              background: "oklch(0.72 0.18 150 / 0.15)",
+              border: "1px solid oklch(0.72 0.18 150 / 0.3)",
+            }}
+          >
+            <Sparkles
+              className="w-5 h-5"
+              style={{ color: "oklch(0.72 0.18 150)" }}
+            />
+          </div>
+          <h1 className="font-display text-xl font-bold">AI Research Chat</h1>
+        </header>
+        <main className="flex-1 overflow-hidden">
+          <AIChatPage
+            onSearchMore={(q) => {
+              setQuery(q);
+              search(q);
+              setBottomNav("search");
+              setView("search");
+            }}
+          />
+        </main>
         <BottomNav current={bottomNav} onChange={handleBottomNav} />
       </div>
     );
@@ -664,6 +700,7 @@ function BottomNav({
     { key: "search", icon: Search, label: "Search" },
     { key: "discover", icon: Compass, label: "Discover" },
     { key: "browser", icon: Globe2, label: "Browser" },
+    { key: "ai", icon: Sparkles, label: "AI Chat" },
     { key: "chat", icon: MessageSquare, label: "Chat" },
     { key: "profile", icon: User, label: "Profile" },
   ];

@@ -3,13 +3,13 @@ import Array "mo:core/Array";
 import Iter "mo:core/Iter";
 import Nat "mo:core/Nat";
 import Time "mo:core/Time";
-import Migration "migration";
+
 import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
 
-(with migration = Migration.run)
+
 actor {
   // Authorization system state
   let accessControlState = AccessControl.initState();
