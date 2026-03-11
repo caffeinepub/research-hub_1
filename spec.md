@@ -1,38 +1,34 @@
 # Research Hub
 
 ## Current State
-- Full-featured research platform with Articles, Images, Audio, Videos, Films, GIFs/Memes, Discover, Browser, Community Chat, and Profile tabs
-- BrowserPage uses an iframe to load URLs; works for open-access sites but blocked by many major sites
-- Bottom nav has: Search, Discover, Browser, Chat (Community Chats), Profile
-- No AI Research Chat component exists yet
-- Community Chat page exists (CommunityChatsPage.tsx)
-- Chat nav item currently routes to CommunityChatsPage
+- AIChatPage.tsx: fetches all sources in parallel then renders all at once; input bar overlaps bottom nav causing scroll cutoff
+- MemesTab.tsx: has Load More button but no infinite scroll; Giphy/Tenor return limited results
+- ImagesTab.tsx: has Load More button but no infinite scroll; limited results per source
+- VideosTab.tsx: fetches fixed small page sizes from Archive.org and other sources; Archive.org embed URLs may not be correct format for playback
+- All tabs: fetch logic is inline in each component
 
 ## Requested Changes (Diff)
 
 ### Add
-- New `AIChatPage` component: conversational research assistant UI
-  - Chat input bar at bottom
-  - Messages list showing user questions and AI responses
-  - AI responses show curated results from all databases (articles, images, videos, audio) fetched using the existing `useResearch` hook
-  - Each response includes a text summary + result cards (articles, images, etc.)
-  - Suggested follow-up topic chips after each response
-  - Bot avatar / user avatar differentiation
-- New bottom nav item "AI" (replacing or alongside Chat) using a Sparkles/Bot icon
-- Browser improvements:
-  - When a site blocks embedding, show a clear error/fallback UI with "Open in New Tab" button
-  - Add a search engine selector (DuckDuckGo, Wikipedia, Archive.org)
-  - Search bar in browser is also connected: typing a query in browser searches via DuckDuckGo in the iframe
+- Infinite scroll to GIFs/Memes tab (IntersectionObserver at bottom sentinel, auto-fetch next page)
+- Infinite scroll to Images tab (same pattern)
+- Infinite scroll to Videos tab with much higher result counts per page
+- Streaming/progressive result rendering in AIChatPage (show each source's results as they arrive, not all at once)
+- Archive.org video playback fix: use correct embed URL format `https://archive.org/embed/{identifier}` with proper iframe allow attributes
 
 ### Modify
-- `App.tsx`: add `ai` as a NavKey, add AIChatPage view rendering, update BottomNav to include AI tab
-- `BrowserPage.tsx`: add iframe error detection (onError), show fallback card when sites block embedding
-- Bottom nav: replace or relabel Chat to show both Community and AI options, or add 6th item
+- AIChatPage: fix input bar positioning so it is always visible and reachable (sticky bottom, proper padding above nav bar); render results progressively as each fetch resolves
+- MemesTab: replace Load More button with IntersectionObserver infinite scroll; increase page size to 50 per source; bump Giphy/Tenor limits
+- ImagesTab: replace Load More button with IntersectionObserver infinite scroll; increase page size and result counts
+- VideosTab: increase Archive.org rows param to 50+, add infinite scroll, fix embed URL to use `https://archive.org/embed/{identifier}` format
+- All Archive.org video/audio embeds: ensure iframe sandbox allows scripts and same-origin, add `allowfullscreen`
 
 ### Remove
-- Nothing removed
+- Load More buttons in MemesTab and ImagesTab (replaced by infinite scroll)
 
 ## Implementation Plan
-1. Create `src/frontend/src/components/AIChatPage.tsx` — full conversational AI research assistant
-2. Update `App.tsx` — add `ai` NavKey, render AIChatPage, add AI to BottomNav
-3. Update `BrowserPage.tsx` — add iframe load error fallback UI with open-in-new-tab, add quick search engine shortcuts
+1. Fix AIChatPage: sticky input bar above nav (pb-20 or similar), progressive rendering using Promise-based streaming (render each resolved promise immediately)
+2. Fix VideosTab: increase Archive.org fetch rows to 50, fix embed URL format to `https://archive.org/embed/{identifier}`, add infinite scroll sentinel
+3. Fix ImagesTab: add IntersectionObserver infinite scroll, remove Load More button, increase per-source limits
+4. Fix MemesTab: add IntersectionObserver infinite scroll, remove Load More button, increase Giphy/Tenor/Imgflip limits
+5. Ensure all Archive.org iframes have correct sandbox and allow attributes for playback

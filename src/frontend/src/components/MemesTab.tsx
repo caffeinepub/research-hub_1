@@ -3,14 +3,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Copy, ExternalLink, Search, Smile } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 interface MemeItem {
   id: string;
   url: string;
   title: string;
-  source: "Giphy" | "Tenor" | "Imgflip" | "Archive";
+  source: "Giphy" | "Tenor" | "Imgflip" | "Archive" | "Reddit";
   previewUrl?: string;
   pageUrl?: string;
 }
@@ -20,12 +20,50 @@ const SOURCE_COLORS: Record<string, string> = {
   Tenor: "oklch(0.65 0.18 160)",
   Imgflip: "oklch(0.65 0.18 55)",
   Archive: "oklch(0.65 0.14 240)",
+  Reddit: "oklch(0.65 0.18 25)",
 };
 
-async function fetchGiphy(q: string): Promise<MemeItem[]> {
+async function fetchRedditMemes(q: string, after = ""): Promise<MemeItem[]> {
+  try {
+    const subreddits = ["memes", "funny", "dankmemes", "reactiongifs"];
+    const sub = subreddits[Math.floor(Math.random() * subreddits.length)];
+    const afterParam = after ? `&after=${after}` : "";
+    const r = await fetch(
+      `https://www.reddit.com/r/${sub}/search.json?q=${encodeURIComponent(q)}&restrict_sr=1&limit=25&sort=relevance&t=all${afterParam}`,
+      { headers: { Accept: "application/json" } },
+    );
+    const data = await r.json();
+    const posts = data?.data?.children ?? [];
+    return posts
+      .filter(
+        (p: any) =>
+          p.data?.url &&
+          (p.data.url.endsWith(".gif") ||
+            p.data.url.endsWith(".jpg") ||
+            p.data.url.endsWith(".png") ||
+            p.data.url.includes("i.redd.it") ||
+            p.data.url.includes("imgur.com")),
+      )
+      .map((p: any) => ({
+        id: `reddit-${p.data.id}`,
+        url: p.data.url,
+        previewUrl:
+          p.data.thumbnail !== "self" && p.data.thumbnail !== "default"
+            ? p.data.thumbnail
+            : p.data.url,
+        title: p.data.title || "Reddit Meme",
+        source: "Reddit" as const,
+        pageUrl: `https://reddit.com${p.data.permalink}`,
+      }));
+  } catch {
+    return [];
+  }
+}
+
+async function fetchGiphy(q: string, offset = 0): Promise<MemeItem[]> {
   try {
     const r = await fetch(
-      `https://api.giphy.com/v1/gifs/search?api_key=dc6zaTOxFJmzC&q=${encodeURIComponent(q)}&limit=20&rating=g`,
+      `https://api.giphy.com/v1/gifs/search?api_key=dc6zaTOxFJmzC&q=${encodeURIComponent(q)}&limit=50&offset=${offset}&rating=g`,
     );
     const data = await r.json();
     return (data.data || []).map((g: any) => ({
@@ -42,10 +80,11 @@ async function fetchGiphy(q: string): Promise<MemeItem[]> {
   }
 }
 
-async function fetchTenor(q: string): Promise<MemeItem[]> {
+async function fetchTenor(q: string, pos = ""): Promise<MemeItem[]> {
   try {
+    const posParam = pos ? `&pos=${pos}` : "";
     const r = await fetch(
-      `https://tenor.googleapis.com/v2/search?key=AIzaSyAyimkuYQYF_FXVALexPzkcsvZiClL7blc&q=${encodeURIComponent(q)}&limit=20`,
+      `https://tenor.googleapis.com/v2/search?key=AIzaSyAyimkuYQYF_FXVALexPzkcsvZiClL7blc&q=${encodeURIComponent(q)}&limit=50${posParam}`,
     );
     const data = await r.json();
     return (data.results || []).map((g: any) => ({
@@ -62,16 +101,12 @@ async function fetchTenor(q: string): Promise<MemeItem[]> {
   }
 }
 
-async function fetchImgflip(q: string): Promise<MemeItem[]> {
+async function fetchImgflip(): Promise<MemeItem[]> {
   try {
     const r = await fetch("https://api.imgflip.com/get_memes");
     const data = await r.json();
     const memes: any[] = data.data?.memes || [];
-    const lower = q.toLowerCase();
-    const filtered = memes
-      .filter((m) => m.name.toLowerCase().includes(lower) || lower.length < 3)
-      .slice(0, 20);
-    return filtered.map((m) => ({
+    return memes.slice(0, 100).map((m) => ({
       id: `imgflip-${m.id}`,
       url: m.url,
       previewUrl: m.url,
@@ -84,10 +119,10 @@ async function fetchImgflip(q: string): Promise<MemeItem[]> {
   }
 }
 
-async function fetchArchiveMemes(q: string): Promise<MemeItem[]> {
+async function fetchArchiveMemes(q: string, page = 1): Promise<MemeItem[]> {
   try {
     const r = await fetch(
-      `https://archive.org/advancedsearch.php?q=${encodeURIComponent(q)}+AND+mediatype:image&fl[]=identifier,title,format&output=json&rows=16`,
+      `https://archive.org/advancedsearch.php?q=${encodeURIComponent(q)}+AND+mediatype:image&fl[]=identifier,title,format&output=json&rows=50&page=${page}`,
     );
     const data = await r.json();
     return (data.response?.docs || []).map((d: any) => ({
@@ -103,47 +138,101 @@ async function fetchArchiveMemes(q: string): Promise<MemeItem[]> {
   }
 }
 
+function interleave(arrays: MemeItem[][]): MemeItem[] {
+  const merged: MemeItem[] = [];
+  const max = Math.max(...arrays.map((a) => a.length));
+  for (let i = 0; i < max; i++) {
+    for (const arr of arrays) {
+      if (arr[i]) merged.push(arr[i]);
+    }
+  }
+  return merged;
+}
+
 interface MemesTabProps {
   onSendToChat?: (item: MemeItem) => void;
 }
 
 export function MemesTab({ onSendToChat }: MemesTabProps) {
   const [query, setQuery] = useState("funny");
-  const [items, setItems] = useState<MemeItem[]>([]);
+  const [allItems, setAllItems] = useState<MemeItem[]>([]);
+  const [visibleCount, setVisibleCount] = useState(30);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [page, setPage] = useState(1);
+  const [giphyOffset, setGiphyOffset] = useState(0);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const currentQueryRef = useRef("");
 
   const doSearch = useCallback(async (q: string) => {
     if (!q.trim()) return;
     setLoading(true);
     setSearched(true);
-    const [giphy, tenor, imgflip, archive] = await Promise.all([
-      fetchGiphy(q),
-      fetchTenor(q),
-      fetchImgflip(q),
-      fetchArchiveMemes(q),
+    setPage(1);
+    setGiphyOffset(0);
+    currentQueryRef.current = q;
+    const [giphy, tenor, imgflip, archive, reddit] = await Promise.all([
+      fetchGiphy(q, 0),
+      fetchTenor(q, ""),
+      fetchImgflip(),
+      fetchArchiveMemes(q, 1),
+      fetchRedditMemes(q, ""),
     ]);
-    // Interleave sources
-    const merged: MemeItem[] = [];
-    const max = Math.max(
-      giphy.length,
-      tenor.length,
-      imgflip.length,
-      archive.length,
-    );
-    for (let i = 0; i < max; i++) {
-      if (giphy[i]) merged.push(giphy[i]);
-      if (tenor[i]) merged.push(tenor[i]);
-      if (imgflip[i]) merged.push(imgflip[i]);
-      if (archive[i]) merged.push(archive[i]);
-    }
-    setItems(merged);
+    setAllItems(interleave([giphy, tenor, imgflip, archive, reddit]));
+    setVisibleCount(30);
     setLoading(false);
   }, []);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !currentQueryRef.current) return;
+    setLoadingMore(true);
+    const nextPage = page + 1;
+    const nextOffset = giphyOffset + 50;
+    const q = currentQueryRef.current;
+    const [giphy, archive, reddit] = await Promise.all([
+      fetchGiphy(q, nextOffset),
+      fetchArchiveMemes(q, nextPage),
+      fetchRedditMemes(q, ""),
+    ]);
+    const newItems = interleave([giphy, archive, reddit]);
+    if (newItems.length > 0) {
+      setAllItems((prev) => {
+        const existingIds = new Set(prev.map((i) => i.id));
+        const unique = newItems.filter((i) => !existingIds.has(i.id));
+        return [...prev, ...unique];
+      });
+      setPage(nextPage);
+      setGiphyOffset(nextOffset);
+    }
+    setLoadingMore(false);
+  }, [loadingMore, page, giphyOffset]);
 
   useEffect(() => {
     doSearch("funny meme");
   }, [doSearch]);
+
+  // Infinite scroll via IntersectionObserver
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          if (visibleCount < allItems.length) {
+            // Show more already-fetched items first
+            setVisibleCount((c) => c + 30);
+          } else if (!loadingMore) {
+            // Fetch next page from APIs
+            loadMore();
+          }
+        }
+      },
+      { rootMargin: "300px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [visibleCount, allItems.length, loadingMore, loadMore]);
 
   const copyLink = (url: string) => {
     navigator.clipboard
@@ -275,7 +364,7 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
       )}
 
       {/* Empty state */}
-      {!loading && searched && items.length === 0 && (
+      {!loading && searched && allItems.length === 0 && (
         <div
           data-ocid="memes.empty_state"
           className="flex flex-col items-center justify-center py-16 text-center"
@@ -291,9 +380,9 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
       )}
 
       {/* Masonry grid */}
-      {!loading && items.length > 0 && (
+      {!loading && allItems.length > 0 && (
         <div className="columns-2 sm:columns-3 md:columns-4 gap-3">
-          {items.map((item, idx) => (
+          {allItems.slice(0, visibleCount).map((item, idx) => (
             <MemeCard
               key={item.id}
               item={item}
@@ -302,6 +391,24 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
               onSendToChat={onSendToChat ? () => onSendToChat(item) : undefined}
             />
           ))}
+        </div>
+      )}
+
+      {/* Infinite scroll sentinel */}
+      {!loading && (
+        <div ref={sentinelRef} className="h-10" aria-hidden="true" />
+      )}
+
+      {/* Loading more indicator */}
+      {loadingMore && (
+        <div
+          className="flex justify-center py-4"
+          data-ocid="memes.loading_state"
+        >
+          <span
+            className="animate-spin inline-block w-6 h-6 border-2 border-current border-t-transparent rounded-full"
+            style={{ color: "oklch(0.65 0.14 240)" }}
+          />
         </div>
       )}
     </div>

@@ -31,9 +31,15 @@ import {
 import {
   fetchAudio78rpm,
   fetchAudioArchive,
+  fetchAudioBroad,
   fetchAudioEtree,
+  fetchAudioFolk,
+  fetchAudioGeorge,
   fetchAudioLibriVox,
+  fetchAudioMusic,
   fetchAudioOTR,
+  fetchAudioPodcast,
+  fetchAudioRadio,
 } from "./fetchAudio";
 import {
   fetchArtInstituteImages,
@@ -295,6 +301,12 @@ export function useResearch() {
         archAudioR,
         otrR,
         rpmlR,
+        broadR,
+        musicR,
+        folkAudioR,
+        podcastR,
+        radioR,
+        georgeR,
       ] = await Promise.allSettled([
         fetchInternetArchiveArticles(query),
         fetchGutenbergArticles(query),
@@ -363,6 +375,12 @@ export function useResearch() {
         fetchAudioArchive(query),
         fetchAudioOTR(query),
         fetchAudio78rpm(query),
+        fetchAudioBroad(query),
+        fetchAudioMusic(query),
+        fetchAudioFolk(query),
+        fetchAudioPodcast(query),
+        fetchAudioRadio(query),
+        fetchAudioGeorge(query),
       ]);
 
       let articles: WikiArticle[] = [
@@ -447,13 +465,25 @@ export function useResearch() {
         ...extra(scifiR),
       ];
 
-      const audio: AudioResult[] = [
+      const allAudio: AudioResult[] = [
         ...extra(etreeR),
         ...extra(librivoxR),
         ...extra(archAudioR),
         ...extra(otrR),
         ...extra(rpmlR),
+        ...extra(broadR),
+        ...extra(musicR),
+        ...extra(folkAudioR),
+        ...extra(podcastR),
+        ...extra(radioR),
+        ...extra(georgeR),
       ];
+      const seenAudioIds = new Set<string>();
+      const audio: AudioResult[] = allAudio.filter((a) => {
+        if (seenAudioIds.has(a.id)) return false;
+        seenAudioIds.add(a.id);
+        return true;
+      });
 
       // Fuzzy fallback
       const needsFuzzyImages = images.length < 3;

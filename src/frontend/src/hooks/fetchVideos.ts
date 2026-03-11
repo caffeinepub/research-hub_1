@@ -268,7 +268,7 @@ function archiveVideo(collection: string, source: string, baseId: number) {
     const q = collection
       ? `${encodeURIComponent(query)}+AND+collection:${collection}+AND+mediatype:movies`
       : `${encodeURIComponent(query)}+AND+mediatype:movies`;
-    const url = `https://archive.org/advancedsearch.php?q=${q}&fl[]=identifier,title,description&rows=8&output=json`;
+    const url = `https://archive.org/advancedsearch.php?q=${q}&fl[]=identifier,title,description&rows=50&output=json`;
     const res = await fetch(url);
     const data = await res.json();
     return (data?.response?.docs ?? []).map((doc: any, idx: number) => ({

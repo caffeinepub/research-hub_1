@@ -1,7 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { ExternalLink, Loader2, Send, Sparkles, User } from "lucide-react";
+import {
+  ExternalLink,
+  Loader2,
+  Search,
+  Send,
+  Sparkles,
+  User,
+} from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { useResearch } from "../hooks/useResearch";
@@ -203,11 +209,13 @@ export function AIChatPage({ onSearchMore }: AIChatPageProps) {
     }
   }, [status, results]);
 
+  // Auto-scroll to bottom when messages update
+  // biome-ignore lint/correctness/useExhaustiveDependencies: messages triggers scroll
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, []);
+  }, [messages]);
 
   const handleSend = (q?: string) => {
     const query = (q ?? input).trim();
@@ -233,8 +241,8 @@ export function AIChatPage({ onSearchMore }: AIChatPageProps) {
   const isEmpty = messages.length === 0;
 
   return (
-    <div className="flex flex-col" style={{ height: "calc(100vh - 64px)" }}>
-      {/* Messages area */}
+    <div className="flex flex-col" style={{ height: "calc(100vh - 128px)" }}>
+      {/* Messages scroll area */}
       <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto px-4 py-4 space-y-4"
@@ -246,41 +254,33 @@ export function AIChatPage({ onSearchMore }: AIChatPageProps) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="flex flex-col items-center justify-center h-full gap-8 pb-8"
+            className="flex flex-col items-center gap-6 pt-10 px-2"
             data-ocid="ai.empty_state"
           >
+            {/* Google-style heading */}
             <div className="text-center">
-              <div
-                className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
-                style={{
-                  background: "oklch(0.72 0.18 150 / 0.15)",
-                  border: "1px solid oklch(0.72 0.18 150 / 0.3)",
-                }}
-              >
+              <div className="flex items-center justify-center gap-2 mb-1">
                 <Sparkles
-                  className="w-8 h-8"
+                  className="w-6 h-6"
                   style={{ color: "oklch(0.72 0.18 150)" }}
                 />
+                <h2
+                  className="font-display text-2xl font-bold"
+                  style={{ color: "oklch(0.95 0.01 240)" }}
+                >
+                  Research Hub AI
+                </h2>
               </div>
-              <h2
-                className="font-display text-2xl font-bold mb-2"
-                style={{ color: "oklch(0.95 0.01 240)" }}
-              >
-                AI Research Assistant
-              </h2>
-              <p
-                className="text-sm max-w-sm"
-                style={{ color: "oklch(0.60 0.05 240)" }}
-              >
-                Ask me anything and I'll search across all research databases to
-                bring you articles, images, videos, and audio.
+              <p className="text-sm" style={{ color: "oklch(0.55 0.05 240)" }}>
+                Search across millions of articles, videos, audio &amp; more
               </p>
             </div>
 
+            {/* Example chips */}
             <div className="w-full max-w-lg">
               <p
-                className="text-xs font-semibold uppercase tracking-widest mb-3 text-center"
-                style={{ color: "oklch(0.50 0.06 240)" }}
+                className="text-xs font-semibold uppercase tracking-widest mb-2 text-center"
+                style={{ color: "oklch(0.45 0.06 240)" }}
               >
                 Try asking
               </p>
@@ -291,23 +291,11 @@ export function AIChatPage({ onSearchMore }: AIChatPageProps) {
                     type="button"
                     data-ocid="ai.secondary_button"
                     onClick={() => handleSend(q)}
-                    className="text-left px-4 py-3 rounded-xl text-sm transition-all duration-200"
+                    className="text-left px-4 py-3 rounded-xl text-sm transition-all"
                     style={{
-                      background: "oklch(0.16 0.05 260 / 0.8)",
-                      border: "1px solid oklch(0.28 0.06 255 / 0.5)",
-                      color: "oklch(0.82 0.05 240)",
-                    }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.background =
-                        "oklch(0.22 0.08 255 / 0.9)";
-                      (e.currentTarget as HTMLButtonElement).style.borderColor =
-                        "oklch(0.72 0.18 150 / 0.5)";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.background =
-                        "oklch(0.16 0.05 260 / 0.8)";
-                      (e.currentTarget as HTMLButtonElement).style.borderColor =
-                        "oklch(0.28 0.06 255 / 0.5)";
+                      background: "oklch(0.18 0.05 260 / 0.8)",
+                      border: "1px solid oklch(0.3 0.06 255 / 0.5)",
+                      color: "oklch(0.78 0.06 240)",
                     }}
                   >
                     {q}
@@ -534,12 +522,12 @@ export function AIChatPage({ onSearchMore }: AIChatPageProps) {
         )}
       </div>
 
-      {/* Input bar */}
+      {/* Input bar — always visible above bottom nav */}
       <div
-        className="px-4 py-3 border-t border-border/60"
+        className="flex-shrink-0 px-4 py-3"
         style={{
-          background: "oklch(0.13 0.05 265 / 0.95)",
-          backdropFilter: "blur(12px)",
+          background: "oklch(0.10 0.04 265)",
+          borderTop: "1px solid oklch(0.22 0.05 260)",
         }}
       >
         <form
@@ -547,26 +535,31 @@ export function AIChatPage({ onSearchMore }: AIChatPageProps) {
             e.preventDefault();
             handleSend();
           }}
-          className="flex gap-2 items-center"
+          className="flex items-center gap-0 rounded-full overflow-hidden max-w-2xl mx-auto"
+          style={{
+            background: "oklch(0.96 0.01 240)",
+            boxShadow: "0 2px 12px oklch(0 0 0 / 0.3)",
+          }}
         >
+          <Search
+            className="ml-4 w-5 h-5 flex-shrink-0"
+            style={{ color: "oklch(0.45 0.06 240)" }}
+          />
           <Input
             ref={inputRef}
             data-ocid="ai.input"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask anything... e.g. What is quantum physics?"
-            className="flex-1 h-11 rounded-xl border-0 text-sm"
-            style={{
-              background: "oklch(0.20 0.06 260 / 0.8)",
-              color: "oklch(0.93 0.02 240)",
-            }}
+            className="flex-1 h-12 border-0 bg-transparent text-sm shadow-none focus-visible:ring-0 px-3"
+            style={{ color: "oklch(0.20 0.04 260)" }}
             disabled={status === "loading"}
           />
           <Button
             type="submit"
             data-ocid="ai.submit_button"
             disabled={!input.trim() || status === "loading"}
-            className="h-11 w-11 p-0 rounded-xl flex-shrink-0"
+            className="h-12 w-12 p-0 rounded-full flex-shrink-0 mr-0"
             style={{
               background:
                 input.trim() && status !== "loading"

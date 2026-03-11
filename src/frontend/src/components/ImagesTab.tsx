@@ -1,5 +1,4 @@
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ChevronLeft,
@@ -11,7 +10,7 @@ import {
   ZoomIn,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { WikiImage } from "../types/research";
 
 interface Props {
@@ -20,7 +19,7 @@ interface Props {
   fuzzyUsed?: boolean;
 }
 
-const PAGE_SIZE = 12;
+const PAGE_SIZE = 30;
 
 const SKELETON_IDS = [
   "sk-a",
@@ -56,11 +55,28 @@ const SOURCE_COLORS: Record<string, string> = {
 export function ImagesTab({ images, loading, fuzzyUsed }: Props) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset on new search
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
   }, [images]);
+
+  // Infinite scroll via IntersectionObserver
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && visibleCount < images.length) {
+          setVisibleCount((c) => Math.min(c + PAGE_SIZE, images.length));
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [visibleCount, images.length]);
 
   useEffect(() => {
     if (lightboxIndex === null) return;
@@ -130,7 +146,7 @@ export function ImagesTab({ images, loading, fuzzyUsed }: Props) {
             data-ocid={`images.item.${idx + 1}`}
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: idx * 0.03, duration: 0.25 }}
+            transition={{ delay: Math.min(idx * 0.02, 0.4), duration: 0.25 }}
             className="group cursor-pointer"
             onClick={() => setLightboxIndex(idx)}
             // biome-ignore lint/a11y/useSemanticElements: motion.div used for animation
@@ -180,23 +196,8 @@ export function ImagesTab({ images, loading, fuzzyUsed }: Props) {
         ))}
       </div>
 
-      {/* Load More */}
-      {visibleCount < images.length && (
-        <div className="flex justify-center pt-6">
-          <Button
-            type="button"
-            variant="outline"
-            data-ocid="images.pagination_next"
-            onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
-            className="min-w-[140px]"
-          >
-            Load More
-            <span className="ml-2 text-xs text-muted-foreground">
-              ({images.length - visibleCount} remaining)
-            </span>
-          </Button>
-        </div>
-      )}
+      {/* Infinite scroll sentinel */}
+      <div ref={sentinelRef} className="h-10" aria-hidden="true" />
 
       {/* Lightbox */}
       <AnimatePresence>

@@ -1,9 +1,8 @@
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Archive, Play, Video, Youtube } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { WikiVideo } from "../types/research";
 
 interface Props {
@@ -12,7 +11,7 @@ interface Props {
   fuzzyUsed?: boolean;
 }
 
-const PAGE_SIZE = 12;
+const PAGE_SIZE = 24;
 const SKELETON_IDS = ["sk-a", "sk-b", "sk-c", "sk-d", "sk-e", "sk-f"];
 
 const SOURCE_COLORS: Record<string, string> = {
@@ -126,7 +125,7 @@ function VideoCard({
       data-ocid={`${ocidPrefix}.item.${index}`}
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.04 }}
+      transition={{ delay: Math.min(index * 0.04, 0.6) }}
       className={`video-thumb bg-card border border-border/60 rounded-xl p-3 flex gap-3 items-start cursor-pointer ${
         isActive ? "active" : ""
       }`}
@@ -203,11 +202,28 @@ export function VideosTab({ videos, loading, fuzzyUsed }: Props) {
     new Set(),
   );
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset on new search
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
   }, [videos]);
+
+  // Infinite scroll via IntersectionObserver
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleCount((c) => c + PAGE_SIZE);
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, []);
 
   const allSources = useMemo(
     () => Array.from(new Set(videos.map((v) => v.source))).sort(),
@@ -241,6 +257,7 @@ export function VideosTab({ videos, loading, fuzzyUsed }: Props) {
   );
 
   const visibleRegular = regularVideos.slice(0, visibleCount);
+  const hasMore = visibleCount < regularVideos.length;
 
   const allFiltered = [
     ...ytPublicDomainVideos,
@@ -477,21 +494,9 @@ export function VideosTab({ videos, loading, fuzzyUsed }: Props) {
             ))}
           </div>
 
-          {visibleCount < regularVideos.length && (
-            <div className="flex justify-center">
-              <Button
-                type="button"
-                variant="outline"
-                data-ocid="videos.pagination_next"
-                onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
-                className="min-w-[140px]"
-              >
-                Load More
-                <span className="ml-2 text-xs text-muted-foreground">
-                  ({regularVideos.length - visibleCount} remaining)
-                </span>
-              </Button>
-            </div>
+          {/* Infinite scroll sentinel */}
+          {hasMore && (
+            <div ref={sentinelRef} className="h-10" aria-hidden="true" />
           )}
         </div>
       )}
