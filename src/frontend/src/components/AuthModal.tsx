@@ -49,19 +49,37 @@ export function AuthModal({ open, onClose, onSuccess }: AuthModalProps) {
   };
 
   const handleSaveProfile = async () => {
-    if (!actor) return;
     if (!username.trim()) {
       toast.error("Username is required");
       return;
     }
     setSaving(true);
     try {
-      await actor.saveCallerUserProfile(
-        username.trim(),
-        bio.trim(),
-        interests.trim(),
-        selectedColor,
-      );
+      // Save to backend if actor available
+      if (actor) {
+        try {
+          await actor.saveCallerUserProfile(
+            username.trim(),
+            bio.trim(),
+            interests.trim(),
+            selectedColor,
+          );
+        } catch {
+          // backend save optional, continue
+        }
+      }
+      // Always save to localStorage for community features
+      const userObj = {
+        username: username.trim(),
+        avatar: selectedColor,
+        isAdmin: false,
+        credits: 10,
+        joinedDate: new Date().toISOString(),
+        bio: bio.trim(),
+        interests: interests.trim(),
+        principal: identity?.getPrincipal().toString() ?? "",
+      };
+      localStorage.setItem("researchHubUser", JSON.stringify(userObj));
       toast.success("Profile created!");
       onSuccess?.();
       onClose();
@@ -194,6 +212,7 @@ export function AuthModal({ open, onClose, onSuccess }: AuthModalProps) {
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Your display name"
                 maxLength={32}
+                style={{ color: "oklch(0.92 0.01 240)" }}
               />
             </div>
 
@@ -210,6 +229,7 @@ export function AuthModal({ open, onClose, onSuccess }: AuthModalProps) {
                 className="resize-none"
                 rows={2}
                 maxLength={200}
+                style={{ color: "oklch(0.92 0.01 240)" }}
               />
             </div>
 
@@ -223,6 +243,7 @@ export function AuthModal({ open, onClose, onSuccess }: AuthModalProps) {
                 onChange={(e) => setInterests(e.target.value)}
                 placeholder="History, science, astronomy..."
                 maxLength={100}
+                style={{ color: "oklch(0.92 0.01 240)" }}
               />
             </div>
 

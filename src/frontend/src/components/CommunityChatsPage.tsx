@@ -1,3 +1,4 @@
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -6,1225 +7,1179 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Hash,
-  Link,
-  Loader2,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  ArrowBigDown,
+  ArrowBigUp,
+  ArrowLeft,
+  ChevronUp,
+  Clock,
+  Edit3,
+  Flame,
+  Lock,
+  MessageCircle,
   Plus,
   Search,
-  Send,
-  Smile,
-  Trash2,
-  UserPlus,
-  Users,
-  X,
+  Share2,
+  Star,
+  TrendingUp,
+  User,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import type { ChatRoom, Message } from "../backend.d";
-import { useActor } from "../hooks/useActor";
-import { useInternetIdentity } from "../hooks/useInternetIdentity";
-import { MemesTab } from "./MemesTab";
 
-// Local message type for when backend is unavailable
-interface LocalMessage {
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+interface CurrentUser {
+  username: string;
+  avatar: string;
+  isAdmin: boolean;
+}
+
+interface BanEntry {
+  username: string;
+  type: "ban" | "mute";
+  until: string; // ISO string or "permanent"
+  reason: string;
+}
+
+interface ForumReply {
   id: number;
-  text: string;
-  image: string | null;
-  gif: string | null;
+  body: string;
   author: string;
+  upvotes: number;
   createdAt: number;
+  upvotedBy: string[];
 }
 
-function localToMessage(lm: LocalMessage): Message {
-  return {
-    id: BigInt(lm.id),
-    text: lm.text,
-    image: lm.image ?? undefined,
-    gif: lm.gif ?? undefined,
-    author: { toString: () => lm.author } as any,
-    createdAt: BigInt(lm.createdAt) * BigInt(1_000_000),
-    room: BigInt(0),
-  };
+interface ForumPost {
+  id: number;
+  title: string;
+  body: string;
+  category: string;
+  author: string;
+  upvotes: number;
+  upvotedBy: string[];
+  replies: ForumReply[];
+  createdAt: number;
+  locked?: boolean;
+  imageUrl?: string;
 }
 
-const DEFAULT_ROOMS = [
-  { name: "Science", topic: "science" },
-  { name: "History", topic: "history" },
-  { name: "Technology", topic: "technology" },
-  { name: "Art", topic: "art" },
-  { name: "Nature", topic: "nature" },
-  { name: "Space", topic: "space" },
+// ─── Storage helpers ─────────────────────────────────────────────────────────
+
+const POSTS_KEY = "communityPosts";
+const BANS_KEY = "bannedUsers";
+
+function loadPosts(): ForumPost[] {
+  try {
+    return JSON.parse(localStorage.getItem(POSTS_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function savePosts(posts: ForumPost[]) {
+  localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
+}
+
+function loadBans(): BanEntry[] {
+  try {
+    return JSON.parse(localStorage.getItem(BANS_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function getUserStatus(username: string): {
+  banned: boolean;
+  muted: boolean;
+  until?: string;
+} {
+  const bans = loadBans();
+  const entry = bans.find((b) => b.username === username);
+  if (!entry) return { banned: false, muted: false };
+  if (entry.until === "permanent") return { banned: true, muted: false };
+  const expiry = new Date(entry.until);
+  if (expiry <= new Date()) return { banned: false, muted: false }; // expired
+  if (entry.type === "ban")
+    return { banned: true, muted: false, until: entry.until };
+  return { banned: false, muted: true, until: entry.until };
+}
+
+function formatTime(ts: number): string {
+  const diff = Math.floor((Date.now() - ts) / 1000);
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
+const SEED_POSTS: ForumPost[] = [
+  {
+    id: 1,
+    title:
+      "James Webb Space Telescope discovers potential biosignatures on K2-18b",
+    body: "The James Webb Space Telescope has detected dimethyl sulfide (DMS) in the atmosphere of K2-18b, a molecule on Earth only produced by living organisms. While scientists are cautious, this could be one of the most significant discoveries in the search for extraterrestrial life.",
+    category: "Space",
+    author: "AstroResearcher",
+    upvotes: 847,
+    upvotedBy: [],
+    replies: [
+      {
+        id: 101,
+        body: "This is incredible! DMS detection would be a massive step. Still need more data but the implications are huge.",
+        author: "CosmosExplorer",
+        upvotes: 234,
+        createdAt: Date.now() - 3600000,
+        upvotedBy: [],
+      },
+      {
+        id: 102,
+        body: "Let's not get ahead of ourselves – DMS can potentially have abiotic origins too. Exciting but cautious optimism needed.",
+        author: "SkepticalScientist",
+        upvotes: 189,
+        createdAt: Date.now() - 1800000,
+        upvotedBy: [],
+      },
+    ],
+    createdAt: Date.now() - 7200000,
+  },
+  {
+    id: 2,
+    title: "How do you organize your research notes? Share your system!",
+    body: "I've been struggling with keeping my research organized across different topics. Currently using a combination of Obsidian and physical notebooks but looking for better ways. What systems work for you?",
+    category: "Research",
+    author: "KnowledgeSeeker42",
+    upvotes: 312,
+    upvotedBy: [],
+    replies: [
+      {
+        id: 201,
+        body: "Zettelkasten method changed my life. Each note is atomic and linked. Takes getting used to but so worth it.",
+        author: "NoteTaker99",
+        upvotes: 156,
+        createdAt: Date.now() - 86400000,
+        upvotedBy: [],
+      },
+    ],
+    createdAt: Date.now() - 172800000,
+  },
+  {
+    id: 3,
+    title:
+      "Newly digitized collection: 10,000 pages of Tesla's personal notes now on Archive.org",
+    body: "The Nikola Tesla Museum has just completed digitizing 10,000+ pages of Tesla's handwritten notes and correspondence. Everything from his AC motor experiments to his Wardenclyffe Tower plans. Completely free to browse.",
+    category: "Science",
+    author: "ArchiveDigger",
+    upvotes: 1204,
+    upvotedBy: [],
+    replies: [],
+    createdAt: Date.now() - 259200000,
+  },
+  {
+    id: 4,
+    title: "Best public domain illustrated books for art history research?",
+    body: "Working on a paper about Art Nouveau and looking for high-quality digitized illustrated books, particularly from 1890-1920. Any recommendations from Archive.org, Europeana, or other open sources?",
+    category: "Art",
+    author: "ArtHistoryNerd",
+    upvotes: 145,
+    upvotedBy: [],
+    replies: [
+      {
+        id: 401,
+        body: "Europeana has fantastic Art Nouveau collections, especially from Austrian and Czech museums. Also check the Met's digital library.",
+        author: "EuropaMuseumFan",
+        upvotes: 78,
+        createdAt: Date.now() - 43200000,
+        upvotedBy: [],
+      },
+    ],
+    createdAt: Date.now() - 432000000,
+  },
+  {
+    id: 5,
+    title:
+      "Breaking: Researchers decode 3,000-year-old Ugaritic tablet with AI assistance",
+    body: "A team at MIT has used large language models trained on ancient Near Eastern languages to successfully decode a previously untranslatable Ugaritic administrative tablet from 1200 BCE. The tablet appears to be a merchant's ledger listing trade goods between Canaan and Egypt.",
+    category: "History",
+    author: "AncientWorldsProf",
+    upvotes: 967,
+    upvotedBy: [],
+    replies: [],
+    createdAt: Date.now() - 518400000,
+  },
 ];
 
-const ROOM_TOPIC_COLORS: Record<string, string> = {
-  science: "oklch(0.65 0.18 200)",
-  history: "oklch(0.65 0.14 55)",
-  technology: "oklch(0.52 0.18 220)",
-  art: "oklch(0.65 0.18 320)",
-  nature: "oklch(0.65 0.18 140)",
-  space: "oklch(0.72 0.18 280)",
+const CATEGORIES = [
+  "All",
+  "Science",
+  "History",
+  "Technology",
+  "Art",
+  "Space",
+  "Gaming",
+  "Music",
+  "Books",
+  "Research",
+];
+
+const CATEGORY_COLORS: Record<string, string> = {
+  Science: "oklch(0.65 0.18 180)",
+  History: "oklch(0.65 0.18 50)",
+  Technology: "oklch(0.65 0.18 260)",
+  Art: "oklch(0.65 0.18 320)",
+  Space: "oklch(0.65 0.18 240)",
+  Gaming: "oklch(0.65 0.18 150)",
+  Music: "oklch(0.65 0.18 290)",
+  Books: "oklch(0.65 0.18 30)",
+  Research: "oklch(0.65 0.18 210)",
 };
 
-function getRoomColor(topic: string): string {
-  return ROOM_TOPIC_COLORS[topic.toLowerCase()] || "oklch(0.65 0.10 260)";
+function getInitials(name: string) {
+  return name.slice(0, 2).toUpperCase();
 }
 
-function formatTime(ts: bigint): string {
-  const ms = Number(ts) / 1_000_000;
-  const d = new Date(ms);
-  const now = new Date();
-  const diffMin = Math.floor((now.getTime() - d.getTime()) / 60000);
-  if (diffMin < 1) return "just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
-  if (diffMin < 1440) return `${Math.floor(diffMin / 60)}h ago`;
-  return d.toLocaleDateString();
+function getAvatarColor(name: string) {
+  const colors = [
+    "oklch(0.52 0.18 220)",
+    "oklch(0.55 0.18 160)",
+    "oklch(0.55 0.18 320)",
+    "oklch(0.55 0.18 50)",
+    "oklch(0.55 0.18 280)",
+    "oklch(0.55 0.18 120)",
+  ];
+  let hash = 0;
+  for (const c of name) hash = (hash * 31 + c.charCodeAt(0)) % colors.length;
+  return colors[Math.abs(hash) % colors.length];
 }
 
-// Friends helpers
-function getFriends(): string[] {
-  try {
-    return JSON.parse(localStorage.getItem("community_friends") || "[]");
-  } catch {
-    return [];
-  }
-}
+// ─── Post Card ────────────────────────────────────────────────────────────────
 
-function saveFriends(friends: string[]): void {
-  localStorage.setItem("community_friends", JSON.stringify(friends));
-}
-
-function getPendingRequests(): string[] {
-  try {
-    return JSON.parse(
-      localStorage.getItem("community_friend_requests") || "[]",
-    );
-  } catch {
-    return [];
-  }
-}
-
-function savePendingRequests(requests: string[]): void {
-  localStorage.setItem("community_friend_requests", JSON.stringify(requests));
-}
-
-// Get all known users from localStorage
-function getKnownUsers(): string[] {
-  try {
-    return JSON.parse(localStorage.getItem("community_known_users") || "[]");
-  } catch {
-    return [];
-  }
-}
-
-function registerUser(username: string): void {
-  const known = getKnownUsers();
-  if (!known.includes(username)) {
-    known.push(username);
-    localStorage.setItem("community_known_users", JSON.stringify(known));
-  }
-}
-
-function MessageBubble({
-  message,
-  index,
-  isOwn,
-  onDelete,
-  isAdmin: isAdm,
+function PostCard({
+  post,
+  currentUser,
+  onOpen,
+  onUpvote,
 }: {
-  message: Message;
-  index: number;
-  isOwn: boolean;
-  onDelete: () => void;
-  isAdmin: boolean;
+  post: ForumPost;
+  currentUser: CurrentUser | null;
+  onOpen: () => void;
+  onUpvote: () => void;
 }) {
-  const author = message.author.toString();
-  const initials = author.slice(0, 2).toUpperCase();
+  const hasUpvoted = currentUser
+    ? post.upvotedBy.includes(currentUser.username)
+    : false;
+
   return (
     <div
-      data-ocid={`chat.item.${index}`}
-      className={`flex gap-3 ${isOwn ? "flex-row-reverse" : ""}`}
+      className="rounded-lg border cursor-pointer transition-all hover:border-opacity-60"
+      style={{
+        background: "oklch(0.13 0.03 260)",
+        borderColor: "oklch(0.22 0.04 260)",
+      }}
     >
-      <div
-        className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold"
-        style={{
-          background: isOwn
-            ? "oklch(0.52 0.18 220 / 0.3)"
-            : "oklch(0.30 0.08 260)",
-          color: "oklch(0.90 0.04 240)",
-        }}
-      >
-        {initials}
-      </div>
-      <div
-        className={`flex flex-col gap-1 max-w-[75%] ${
-          isOwn ? "items-end" : "items-start"
-        }`}
-      >
-        <div className="flex items-center gap-2">
-          <span
-            className="text-xs font-medium"
-            style={{
-              color: isOwn ? "oklch(0.65 0.15 220)" : "oklch(0.70 0.08 240)",
-            }}
-          >
-            {author.length > 20
-              ? `${author.slice(0, 8)}...${author.slice(-4)}`
-              : author}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {formatTime(message.createdAt)}
-          </span>
-        </div>
+      {/* Votes sidebar */}
+      <div className="flex">
         <div
-          className="px-3 py-2 rounded-2xl text-sm"
-          style={{
-            background: isOwn ? "oklch(0.38 0.12 220)" : "oklch(0.20 0.04 260)",
-            color: "oklch(0.93 0.02 240)",
-          }}
+          className="flex flex-col items-center gap-1 p-3 rounded-l-lg"
+          style={{ background: "oklch(0.10 0.03 260)" }}
         >
-          {message.text}
-        </div>
-        {message.gif && (
-          <img
-            src={message.gif}
-            alt="GIF"
-            className="max-w-[200px] rounded-lg"
-          />
-        )}
-        {message.image && (
-          <img
-            src={message.image}
-            alt="Attachment"
-            className="max-w-[200px] rounded-lg"
-          />
-        )}
-        {(isOwn || isAdm) && (
           <button
             type="button"
-            data-ocid={`chat.delete_button.${index}`}
-            onClick={onDelete}
-            className="text-muted-foreground/40 hover:text-red-400 transition-colors"
+            data-ocid="community.post.toggle"
+            onClick={(e) => {
+              e.stopPropagation();
+              onUpvote();
+            }}
+            className="transition-colors rounded p-0.5"
+            style={{
+              color: hasUpvoted
+                ? "oklch(0.72 0.18 40)"
+                : "oklch(0.45 0.04 240)",
+            }}
           >
-            <Trash2 className="w-3 h-3" />
+            <ChevronUp className="w-5 h-5" />
           </button>
-        )}
+          <span
+            className="text-xs font-bold"
+            style={{
+              color: hasUpvoted
+                ? "oklch(0.72 0.18 40)"
+                : "oklch(0.65 0.04 240)",
+            }}
+          >
+            {post.upvotes}
+          </span>
+        </div>
+
+        {/* Post content */}
+        <button
+          type="button"
+          className="flex-1 p-3 text-left cursor-pointer"
+          onClick={onOpen}
+        >
+          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+            <Badge
+              className="text-xs px-1.5 py-0 border-0"
+              style={{
+                background: `${CATEGORY_COLORS[post.category] ?? "oklch(0.55 0.12 240)"}/0.15`,
+                color: CATEGORY_COLORS[post.category] ?? "oklch(0.72 0.12 240)",
+              }}
+            >
+              {post.category}
+            </Badge>
+            {post.locked && (
+              <Badge
+                className="text-xs px-1.5 py-0 border-0"
+                style={{
+                  background: "oklch(0.55 0.18 40)/0.15",
+                  color: "oklch(0.72 0.18 40)",
+                }}
+              >
+                <Lock className="w-2.5 h-2.5 mr-1" />
+                Locked
+              </Badge>
+            )}
+          </div>
+          <h3
+            className="text-sm font-semibold mb-1 leading-snug"
+            style={{ color: "oklch(0.92 0.02 240)" }}
+          >
+            {post.title}
+          </h3>
+          <p
+            className="text-xs line-clamp-2 mb-2"
+            style={{ color: "oklch(0.58 0.04 240)" }}
+          >
+            {post.body}
+          </p>
+          <div
+            className="flex items-center gap-3 text-xs"
+            style={{ color: "oklch(0.45 0.04 240)" }}
+          >
+            <span className="flex items-center gap-1">
+              <Avatar className="w-4 h-4">
+                <AvatarFallback
+                  className="text-[8px]"
+                  style={{
+                    background: getAvatarColor(post.author),
+                    color: "white",
+                  }}
+                >
+                  {getInitials(post.author)}
+                </AvatarFallback>
+              </Avatar>
+              {post.author}
+            </span>
+            <span className="flex items-center gap-1">
+              <MessageCircle className="w-3 h-3" />
+              {post.replies.length} comments
+            </span>
+            <span className="flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              {formatTime(post.createdAt)}
+            </span>
+          </div>
+        </button>
       </div>
     </div>
   );
 }
 
-export function CommunityChatsPage() {
-  const { identity } = useInternetIdentity();
-  const { actor, isFetching } = useActor();
-  const isLoggedIn = !!identity;
+// ─── Thread View ──────────────────────────────────────────────────────────────
 
-  const [localUsername, setLocalUsername] = useState<string>(
-    () => localStorage.getItem("chat_username") || "",
-  );
-  const [pendingUsername, setPendingUsername] = useState("");
-  const [rooms, setRooms] = useState<ChatRoom[]>([]);
-  const [loadingRooms, setLoadingRooms] = useState(false);
-  const [selectedRoom, setSelectedRoom] = useState<ChatRoom | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [loadingMessages, setLoadingMessages] = useState(false);
-  const [messageText, setMessageText] = useState("");
-  const [messageImage, setMessageImage] = useState("");
-  const [messageGif, setMessageGif] = useState("");
-  const [sending, setSending] = useState(false);
-  const [showGifPicker, setShowGifPicker] = useState(false);
-  const [showImageInput, setShowImageInput] = useState(false);
-  const [showCreateRoom, setShowCreateRoom] = useState(false);
-  const [newRoomName, setNewRoomName] = useState("");
-  const [newRoomTopic, setNewRoomTopic] = useState("");
-  const [creatingRoom, setCreatingRoom] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+function ThreadView({
+  post,
+  currentUser,
+  onBack,
+  onPostUpdate,
+}: {
+  post: ForumPost;
+  currentUser: CurrentUser | null;
+  onBack: () => void;
+  onPostUpdate: (updated: ForumPost) => void;
+}) {
+  const [replyText, setReplyText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  // User search & friends
-  const [activePanel, setActivePanel] = useState<"chat" | "friends" | "search">(
-    "chat",
-  );
-  const [userSearchQuery, setUserSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<string[]>([]);
-  const [friends, setFriends] = useState<string[]>(() => getFriends());
-  const [pendingRequests, setPendingRequests] = useState<string[]>(() =>
-    getPendingRequests(),
-  );
+  const status = currentUser ? getUserStatus(currentUser.username) : null;
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const myPrincipal = identity?.getPrincipal().toString();
-  const myUsername = myPrincipal || localUsername;
-
-  // Register user when they set a username
-  useEffect(() => {
-    if (localUsername) registerUser(localUsername);
-  }, [localUsername]);
-
-  const handleUserSearch = (q: string) => {
-    setUserSearchQuery(q);
-    if (!q.trim()) {
-      setSearchResults([]);
+  const handleUpvotePost = () => {
+    if (!currentUser) {
+      toast.error("Login to upvote");
       return;
     }
-    const known = getKnownUsers();
-    const results = known.filter(
-      (u) => u.toLowerCase().includes(q.toLowerCase()) && u !== myUsername,
-    );
-    setSearchResults(results);
+    const already = post.upvotedBy.includes(currentUser.username);
+    const updated = {
+      ...post,
+      upvotes: already ? post.upvotes - 1 : post.upvotes + 1,
+      upvotedBy: already
+        ? post.upvotedBy.filter((u) => u !== currentUser.username)
+        : [...post.upvotedBy, currentUser.username],
+    };
+    onPostUpdate(updated);
   };
 
-  const handleSendFriendRequest = (username: string) => {
-    if (friends.includes(username)) {
-      toast.error("Already friends!");
+  const handleUpvoteReply = (replyId: number) => {
+    if (!currentUser) {
+      toast.error("Login to upvote");
       return;
     }
-    if (pendingRequests.includes(username)) {
-      toast.error("Request already sent");
-      return;
-    }
-    const updated = [...pendingRequests, username];
-    setPendingRequests(updated);
-    savePendingRequests(updated);
-    toast.success(`Friend request sent to ${username}!`);
-  };
-
-  const handleAcceptFriend = (username: string) => {
-    const updatedFriends = [...friends, username];
-    const updatedRequests = pendingRequests.filter((r) => r !== username);
-    setFriends(updatedFriends);
-    setPendingRequests(updatedRequests);
-    saveFriends(updatedFriends);
-    savePendingRequests(updatedRequests);
-    toast.success(`${username} is now your friend!`);
-  };
-
-  const handleRemoveFriend = (username: string) => {
-    const updated = friends.filter((f) => f !== username);
-    setFriends(updated);
-    saveFriends(updated);
-    toast.success("Friend removed");
-  };
-
-  const loadLocalMessages = useCallback((room: ChatRoom) => {
-    const key = `chat_messages_${room.id}`;
-    try {
-      const stored = localStorage.getItem(key);
-      if (stored) {
-        const parsed: LocalMessage[] = JSON.parse(stored);
-        setMessages(parsed.map(localToMessage));
-      } else {
-        setMessages([]);
-      }
-    } catch {
-      setMessages([]);
-    }
-  }, []);
-
-  const loadMessages = useCallback(
-    async (room: ChatRoom) => {
-      if (!actor) {
-        loadLocalMessages(room);
-        return;
-      }
-      setLoadingMessages(true);
-      try {
-        const msgs = await actor.getMessages(room.id, BigInt(0), BigInt(50));
-        setMessages(msgs);
-        setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-        }, 100);
-      } catch {
-        loadLocalMessages(room);
-      } finally {
-        setLoadingMessages(false);
-      }
-    },
-    [actor, loadLocalMessages],
-  );
-
-  const loadRooms = useCallback(async () => {
-    if (!actor || isFetching) return;
-    setLoadingRooms(true);
-    try {
-      const fetched = await actor.getAllRooms();
-      if (fetched.length === 0 && isLoggedIn) {
-        for (const r of DEFAULT_ROOMS) {
-          try {
-            await actor.addRoom(r.name, r.topic);
-          } catch {
-            /* ignore */
-          }
-        }
-        const seeded = await actor.getAllRooms();
-        setRooms(seeded);
-        if (seeded.length > 0) setSelectedRoom(seeded[0]);
-      } else {
-        setRooms(fetched);
-        if (fetched.length > 0) setSelectedRoom((prev) => prev ?? fetched[0]);
-      }
-    } catch {
-      const fallback: ChatRoom[] = DEFAULT_ROOMS.map((r, i) => ({
-        id: BigInt(i + 1),
-        name: r.name,
-        topic: r.topic,
-        createdAt: BigInt(Date.now()) * BigInt(1_000_000),
-      }));
-      setRooms(fallback);
-      setSelectedRoom(fallback[0]);
-    } finally {
-      setLoadingRooms(false);
-    }
-  }, [actor, isFetching, isLoggedIn]);
-
-  // Load rooms when actor available, or fallback to defaults
-  useEffect(() => {
-    if (actor && !isFetching) {
-      loadRooms();
-    } else if (!actor && !isFetching) {
-      const fallback: ChatRoom[] = DEFAULT_ROOMS.map((r, i) => ({
-        id: BigInt(i + 1),
-        name: r.name,
-        topic: r.topic,
-        createdAt: BigInt(Date.now()) * BigInt(1_000_000),
-      }));
-      setRooms(fallback);
-      setSelectedRoom((prev) => prev ?? fallback[0]);
-      setLoadingRooms(false);
-    }
-  }, [actor, isFetching, loadRooms]);
-
-  // Load messages when room changes
-  useEffect(() => {
-    if (selectedRoom) {
-      loadMessages(selectedRoom);
-    }
-  }, [selectedRoom, loadMessages]);
-
-  const handleSend = async () => {
-    if (!selectedRoom || (!messageText.trim() && !messageImage && !messageGif))
-      return;
-    setSending(true);
-    try {
-      if (actor && isLoggedIn) {
-        await actor.addMessage(
-          selectedRoom.id,
-          messageText.trim(),
-          messageImage || null,
-          messageGif || null,
-        );
-        setMessageText("");
-        setMessageImage("");
-        setMessageGif("");
-        setShowImageInput(false);
-        setShowGifPicker(false);
-        await loadMessages(selectedRoom);
-      } else {
-        // Local mode: store in localStorage
-        const username = localUsername || "Anonymous";
-        const newMsg: LocalMessage = {
-          id: Date.now(),
-          text: messageText.trim(),
-          image: messageImage || null,
-          gif: messageGif || null,
-          author: username,
-          createdAt: Date.now(),
+    const updated = {
+      ...post,
+      replies: post.replies.map((r) => {
+        if (r.id !== replyId) return r;
+        const already = r.upvotedBy.includes(currentUser.username);
+        return {
+          ...r,
+          upvotes: already ? r.upvotes - 1 : r.upvotes + 1,
+          upvotedBy: already
+            ? r.upvotedBy.filter((u) => u !== currentUser.username)
+            : [...r.upvotedBy, currentUser.username],
         };
-        const key = `chat_messages_${selectedRoom.id}`;
-        const existing: LocalMessage[] = (() => {
-          try {
-            return JSON.parse(localStorage.getItem(key) || "[]");
-          } catch {
-            return [];
-          }
-        })();
-        const updated = [...existing, newMsg];
-        localStorage.setItem(key, JSON.stringify(updated));
-        setMessages(updated.map(localToMessage));
-        setMessageText("");
-        setMessageImage("");
-        setMessageGif("");
-        setShowImageInput(false);
-        setShowGifPicker(false);
-        setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-        }, 100);
-      }
-    } catch {
-      toast.error("Failed to send message");
-    } finally {
-      setSending(false);
-    }
+      }),
+    };
+    onPostUpdate(updated);
   };
 
-  const handleDelete = async (msgId: bigint) => {
-    if (!actor) {
-      if (!selectedRoom) return;
-      const key = `chat_messages_${selectedRoom.id}`;
-      const existing: LocalMessage[] = (() => {
-        try {
-          return JSON.parse(localStorage.getItem(key) || "[]");
-        } catch {
-          return [];
-        }
-      })();
-      const updated = existing.filter((m) => BigInt(m.id) !== msgId);
-      localStorage.setItem(key, JSON.stringify(updated));
-      setMessages(updated.map(localToMessage));
-      return;
-    }
-    try {
-      await actor.deleteMessage(msgId);
-      setMessages((prev) => prev.filter((m) => m.id !== msgId));
-      toast.success("Message deleted");
-    } catch {
-      toast.error("Could not delete message");
-    }
+  const handleSubmitReply = () => {
+    if (!replyText.trim() || !currentUser) return;
+    setSubmitting(true);
+    const newReply: ForumReply = {
+      id: Date.now(),
+      body: replyText.trim(),
+      author: currentUser.username,
+      upvotes: 0,
+      createdAt: Date.now(),
+      upvotedBy: [],
+    };
+    const updated = { ...post, replies: [...post.replies, newReply] };
+    onPostUpdate(updated);
+    setReplyText("");
+    setSubmitting(false);
+    toast.success("Reply posted!");
   };
 
-  const handleCreateRoom = async () => {
-    if (!newRoomName.trim()) return;
-    setCreatingRoom(true);
-    try {
-      if (actor) {
-        await actor.addRoom(
-          newRoomName.trim(),
-          newRoomTopic.trim() || "general",
-        );
-        await loadRooms();
-      } else {
-        const newRoom: ChatRoom = {
-          id: BigInt(Date.now()),
-          name: newRoomName.trim(),
-          topic: newRoomTopic.trim() || "general",
-          createdAt: BigInt(Date.now()) * BigInt(1_000_000),
-        };
-        setRooms((prev) => [...prev, newRoom]);
-      }
-      setShowCreateRoom(false);
-      setNewRoomName("");
-      setNewRoomTopic("");
-      toast.success(`Room "${newRoomName}" created!`);
-    } catch {
-      toast.error("Failed to create room");
-    } finally {
-      setCreatingRoom(false);
-    }
-  };
-
-  const handleSelectRoom = (room: ChatRoom) => {
-    setSelectedRoom(room);
-    setSidebarOpen(false);
-    setActivePanel("chat");
-  };
-
-  // Determine if user can send messages
-  const canSend = isLoggedIn || !!localUsername;
+  const postUpvoted = currentUser
+    ? post.upvotedBy.includes(currentUser.username)
+    : false;
 
   return (
-    <div
-      data-ocid="chat.section"
-      className="flex rounded-2xl"
-      style={{
-        height: "calc(100dvh - 160px)",
-        minHeight: "400px",
-        background: "oklch(0.13 0.03 260)",
-        border: "1px solid oklch(0.25 0.05 260)",
-        overflow: "hidden",
-        position: "relative",
-      }}
-    >
-      {/* Sidebar */}
-      <aside
-        className={`${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-        } fixed md:relative z-30 inset-y-0 left-0 w-60 flex flex-col transition-transform duration-200`}
-        style={{
-          background: "oklch(0.11 0.03 260)",
-          borderRight: "1px solid oklch(0.22 0.05 260)",
-        }}
+    <div className="flex flex-col h-full">
+      {/* Back */}
+      <div
+        className="p-3 border-b"
+        style={{ borderColor: "oklch(0.20 0.04 260)" }}
       >
-        <div
-          className="p-3 border-b"
-          style={{ borderColor: "oklch(0.22 0.05 260)" }}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onBack}
+          data-ocid="community.back.button"
+          className="gap-1.5 text-sm"
+          style={{ color: "oklch(0.65 0.10 220)" }}
         >
-          <div className="flex items-center justify-between mb-2">
-            <h3
-              className="font-display font-bold text-sm"
-              style={{ color: "oklch(0.90 0.03 240)" }}
-            >
-              Community
-            </h3>
-            <Dialog open={showCreateRoom} onOpenChange={setShowCreateRoom}>
-              <DialogTrigger asChild>
-                <Button
-                  data-ocid="chat.open_modal_button"
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7"
-                >
-                  <Plus className="w-4 h-4" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent
-                data-ocid="chat.dialog"
+          <ArrowLeft className="w-4 h-4" /> Back to Community
+        </Button>
+      </div>
+
+      <ScrollArea className="flex-1">
+        <div className="p-4 max-w-3xl mx-auto space-y-4">
+          {/* Post */}
+          <div
+            className="rounded-xl border p-4"
+            style={{
+              background: "oklch(0.13 0.03 260)",
+              borderColor: "oklch(0.22 0.04 260)",
+            }}
+          >
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <Badge
+                className="text-xs px-2 py-0.5 border-0"
                 style={{
-                  background: "oklch(0.14 0.04 260)",
-                  border: "1px solid oklch(0.28 0.06 260)",
+                  background: `${CATEGORY_COLORS[post.category] ?? "oklch(0.55 0.12 240)"}/0.15`,
+                  color:
+                    CATEGORY_COLORS[post.category] ?? "oklch(0.72 0.12 240)",
                 }}
               >
-                <DialogHeader>
-                  <DialogTitle>Create New Room</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-3 py-2">
-                  <div className="space-y-1">
-                    <Label htmlFor="room-name">Room Name</Label>
-                    <Input
-                      id="room-name"
-                      data-ocid="chat.input"
-                      value={newRoomName}
-                      onChange={(e) => setNewRoomName(e.target.value)}
-                      placeholder="e.g. Philosophy"
-                      maxLength={40}
-                      style={{ color: "white" }}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="room-topic">Topic (optional)</Label>
-                    <Input
-                      id="room-topic"
-                      value={newRoomTopic}
-                      onChange={(e) => setNewRoomTopic(e.target.value)}
-                      placeholder="e.g. philosophy"
-                      maxLength={30}
-                      style={{ color: "white" }}
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button
-                    data-ocid="chat.cancel_button"
-                    variant="outline"
-                    onClick={() => setShowCreateRoom(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    data-ocid="chat.confirm_button"
-                    style={{ background: "oklch(0.52 0.18 220)" }}
-                    onClick={handleCreateRoom}
-                    disabled={creatingRoom || !newRoomName.trim()}
-                  >
-                    {creatingRoom ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      "Create Room"
-                    )}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-
-          {/* Sidebar tabs */}
-          <div className="flex gap-1">
-            <button
-              type="button"
-              data-ocid="chat.tab"
-              onClick={() => setActivePanel("chat")}
-              className="flex-1 py-1 rounded text-xs font-medium transition-colors"
-              style={{
-                background:
-                  activePanel === "chat"
-                    ? "oklch(0.52 0.18 220 / 0.2)"
-                    : "transparent",
-                color:
-                  activePanel === "chat"
-                    ? "oklch(0.72 0.15 220)"
-                    : "oklch(0.55 0.05 240)",
-              }}
+                {post.category}
+              </Badge>
+              {post.locked && (
+                <Badge
+                  className="text-xs px-2 py-0.5 border-0"
+                  style={{
+                    background: "oklch(0.55 0.18 40)/0.15",
+                    color: "oklch(0.72 0.18 40)",
+                  }}
+                >
+                  <Lock className="w-3 h-3 mr-1" />
+                  Locked – no new replies
+                </Badge>
+              )}
+            </div>
+            <h2
+              className="text-lg font-bold mb-2"
+              style={{ color: "oklch(0.92 0.02 240)" }}
             >
-              Chats
-            </button>
-            <button
-              type="button"
-              data-ocid="chat.tab"
-              onClick={() => setActivePanel("friends")}
-              className="flex-1 py-1 rounded text-xs font-medium transition-colors"
-              style={{
-                background:
-                  activePanel === "friends"
-                    ? "oklch(0.52 0.18 220 / 0.2)"
-                    : "transparent",
-                color:
-                  activePanel === "friends"
-                    ? "oklch(0.72 0.15 220)"
-                    : "oklch(0.55 0.05 240)",
-              }}
+              {post.title}
+            </h2>
+            <p
+              className="text-sm leading-relaxed mb-3"
+              style={{ color: "oklch(0.72 0.03 240)" }}
             >
-              Friends
-            </button>
-            <button
-              type="button"
-              data-ocid="chat.tab"
-              onClick={() => setActivePanel("search")}
-              className="flex-1 py-1 rounded text-xs font-medium transition-colors"
-              style={{
-                background:
-                  activePanel === "search"
-                    ? "oklch(0.52 0.18 220 / 0.2)"
-                    : "transparent",
-                color:
-                  activePanel === "search"
-                    ? "oklch(0.72 0.15 220)"
-                    : "oklch(0.55 0.05 240)",
-              }}
+              {post.body}
+            </p>
+            {post.imageUrl && (
+              <img
+                src={post.imageUrl}
+                alt="post"
+                className="rounded-lg max-h-96 object-cover mb-3"
+              />
+            )}
+            <div
+              className="flex items-center gap-4"
+              style={{ color: "oklch(0.45 0.04 240)" }}
             >
-              Find
-            </button>
-          </div>
-        </div>
-
-        {/* Panel: Rooms */}
-        {activePanel === "chat" && (
-          <ScrollArea className="flex-1">
-            <div className="p-2 space-y-1">
-              {loadingRooms ? (
-                <div className="space-y-2 p-2">
-                  {["r1", "r2", "r3"].map((k) => (
-                    <Skeleton key={k} className="h-10 rounded-lg" />
-                  ))}
-                </div>
-              ) : (
-                rooms.map((room) => (
-                  <button
-                    key={room.id.toString()}
-                    type="button"
-                    data-ocid="chat.button"
-                    onClick={() => handleSelectRoom(room)}
-                    className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-left transition-colors"
+              <button
+                type="button"
+                onClick={handleUpvotePost}
+                className="flex items-center gap-1.5 text-sm transition-colors hover:opacity-80"
+                style={{
+                  color: postUpvoted
+                    ? "oklch(0.72 0.18 40)"
+                    : "oklch(0.50 0.05 240)",
+                }}
+                data-ocid="community.post.toggle"
+              >
+                <ArrowBigUp className="w-5 h-5" />
+                <span className="font-bold">{post.upvotes}</span> upvotes
+              </button>
+              <span className="flex items-center gap-1 text-sm">
+                <MessageCircle className="w-4 h-4" />
+                {post.replies.length} comments
+              </span>
+              <span className="flex items-center gap-1 text-sm">
+                <Avatar className="w-4 h-4">
+                  <AvatarFallback
+                    className="text-[8px]"
                     style={{
-                      background:
-                        selectedRoom?.id === room.id
-                          ? "oklch(0.52 0.18 220 / 0.15)"
-                          : "transparent",
-                      color: "oklch(0.88 0.03 240)",
+                      background: getAvatarColor(post.author),
+                      color: "white",
                     }}
                   >
-                    <Hash
-                      className="w-3.5 h-3.5 flex-shrink-0"
-                      style={{ color: getRoomColor(room.topic) }}
-                    />
-                    <span className="text-sm font-medium truncate">
-                      {room.name}
-                    </span>
-                  </button>
-                ))
-              )}
+                    {getInitials(post.author)}
+                  </AvatarFallback>
+                </Avatar>
+                {post.author} · {formatTime(post.createdAt)}
+              </span>
             </div>
-          </ScrollArea>
-        )}
+          </div>
 
-        {/* Panel: Friends */}
-        {activePanel === "friends" && (
-          <ScrollArea className="flex-1">
-            <div className="p-3 space-y-2">
-              <p className="text-xs text-muted-foreground mb-2">
-                {friends.length === 0
-                  ? "No friends yet. Use Find to search for users."
-                  : `${friends.length} friend${friends.length !== 1 ? "s" : ""}`}
-              </p>
-              {pendingRequests.length > 0 && (
-                <div className="mb-3">
-                  <p
-                    className="text-xs font-medium mb-1"
-                    style={{ color: "oklch(0.72 0.12 220)" }}
-                  >
-                    Pending Requests
-                  </p>
-                  {pendingRequests.map((username, pi) => (
-                    <div
-                      key={username}
-                      className="flex items-center justify-between py-1.5 px-2 rounded-lg"
-                      style={{ background: "oklch(0.18 0.04 260)" }}
-                    >
-                      <span
-                        className="text-xs"
-                        style={{ color: "oklch(0.85 0.03 240)" }}
-                      >
-                        {username}
-                      </span>
-                      <button
-                        type="button"
-                        data-ocid={`chat.confirm_button.${pi + 1}`}
-                        onClick={() => handleAcceptFriend(username)}
-                        className="text-xs px-2 py-0.5 rounded"
-                        style={{
-                          background: "oklch(0.52 0.18 220 / 0.2)",
-                          color: "oklch(0.72 0.15 220)",
-                        }}
-                      >
-                        Accept
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {friends.map((username, fi) => (
-                <div
-                  key={username}
-                  data-ocid={`chat.item.${fi + 1}`}
-                  className="flex items-center justify-between py-1.5 px-2 rounded-lg"
-                  style={{ background: "oklch(0.18 0.04 260)" }}
+          {/* Reply input */}
+          {!post.locked && (
+            <div
+              className="rounded-xl border p-4"
+              style={{
+                background: "oklch(0.11 0.03 260)",
+                borderColor: "oklch(0.22 0.04 260)",
+              }}
+            >
+              {!currentUser ? (
+                <p
+                  className="text-sm text-center py-2"
+                  style={{ color: "oklch(0.55 0.04 240)" }}
                 >
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold"
+                  <User className="w-4 h-4 inline mr-1" />
+                  Login to post a reply
+                </p>
+              ) : status?.banned ? (
+                <p
+                  className="text-sm text-center py-2"
+                  style={{ color: "oklch(0.65 0.18 30)" }}
+                >
+                  🚫 You are banned from posting
+                  {status.until
+                    ? ` until ${new Date(status.until).toLocaleString()}`
+                    : " permanently"}
+                  .
+                </p>
+              ) : status?.muted ? (
+                <p
+                  className="text-sm text-center py-2"
+                  style={{ color: "oklch(0.65 0.18 50)" }}
+                >
+                  🔇 You are muted until{" "}
+                  {new Date(status.until!).toLocaleString()}.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  <Label
+                    className="text-xs"
+                    style={{ color: "oklch(0.60 0.04 240)" }}
+                  >
+                    Reply as {currentUser.username}
+                  </Label>
+                  <Textarea
+                    data-ocid="community.reply.textarea"
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    placeholder="Write your reply..."
+                    className="text-sm min-h-[80px] resize-none"
+                    style={{
+                      background: "oklch(0.16 0.03 260)",
+                      borderColor: "oklch(0.26 0.05 260)",
+                      color: "oklch(0.92 0.01 240)",
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && e.ctrlKey) handleSubmitReply();
+                    }}
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      data-ocid="community.reply.submit_button"
+                      size="sm"
+                      onClick={handleSubmitReply}
+                      disabled={!replyText.trim() || submitting}
                       style={{
-                        background: "oklch(0.52 0.18 220 / 0.3)",
-                        color: "oklch(0.90 0.04 240)",
+                        background: "oklch(0.60 0.18 220)",
+                        color: "white",
                       }}
                     >
-                      {username.slice(0, 2).toUpperCase()}
-                    </div>
-                    <span
-                      className="text-xs"
-                      style={{ color: "oklch(0.85 0.03 240)" }}
-                    >
-                      {username}
-                    </span>
+                      Post Reply
+                    </Button>
                   </div>
-                  <button
-                    type="button"
-                    data-ocid={`chat.delete_button.${fi + 1}`}
-                    onClick={() => handleRemoveFriend(username)}
-                    className="text-muted-foreground/40 hover:text-red-400"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
                 </div>
-              ))}
+              )}
             </div>
-          </ScrollArea>
-        )}
-
-        {/* Panel: User Search */}
-        {activePanel === "search" && (
-          <div className="flex flex-col flex-1 overflow-hidden">
-            <div className="p-3">
-              <div className="relative">
-                <Search
-                  className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none"
-                  style={{ color: "oklch(0.55 0.06 240)" }}
-                />
-                <Input
-                  data-ocid="chat.search_input"
-                  value={userSearchQuery}
-                  onChange={(e) => handleUserSearch(e.target.value)}
-                  placeholder="Search users..."
-                  className="pl-8 h-8 text-xs"
-                  style={{ color: "white" }}
-                />
-              </div>
-            </div>
-            <ScrollArea className="flex-1">
-              <div className="px-3 space-y-1">
-                {userSearchQuery && searchResults.length === 0 && (
-                  <p className="text-xs text-muted-foreground py-4 text-center">
-                    No users found
-                  </p>
-                )}
-                {searchResults.map((username, si) => (
-                  <div
-                    key={username}
-                    className="flex items-center justify-between py-2 px-2 rounded-lg"
-                    style={{ background: "oklch(0.18 0.04 260)" }}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold"
-                        style={{
-                          background: "oklch(0.30 0.08 260)",
-                          color: "oklch(0.90 0.04 240)",
-                        }}
-                      >
-                        {username.slice(0, 2).toUpperCase()}
-                      </div>
-                      <span
-                        className="text-xs"
-                        style={{ color: "oklch(0.85 0.03 240)" }}
-                      >
-                        {username}
-                      </span>
-                    </div>
-                    {friends.includes(username) ? (
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] py-0 px-1.5"
-                      >
-                        Friends
-                      </Badge>
-                    ) : (
-                      <button
-                        type="button"
-                        data-ocid={`chat.primary_button.${si + 1}`}
-                        onClick={() => handleSendFriendRequest(username)}
-                        className="p-1 rounded transition-colors"
-                        style={{ color: "oklch(0.65 0.15 220)" }}
-                        title="Send friend request"
-                      >
-                        <UserPlus className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                {!userSearchQuery && (
-                  <p className="text-xs text-muted-foreground text-center py-4">
-                    Type a username to search
-                  </p>
-                )}
-              </div>
-            </ScrollArea>
-          </div>
-        )}
-      </aside>
-
-      {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-20 md:hidden"
-          style={{ background: "oklch(0.08 0.03 260 / 0.6)" }}
-          onClick={() => setSidebarOpen(false)}
-          onKeyDown={(e) => e.key === "Enter" && setSidebarOpen(false)}
-          role="button"
-          tabIndex={0}
-        />
-      )}
-
-      {/* Main chat area */}
-      <div className="flex flex-col flex-1 min-w-0">
-        {/* Chat header */}
-        <div
-          className="px-4 py-3 border-b flex items-center gap-3 flex-shrink-0"
-          style={{ borderColor: "oklch(0.22 0.05 260)" }}
-        >
-          <button
-            type="button"
-            data-ocid="chat.toggle"
-            className="md:hidden p-1.5 rounded-lg"
-            onClick={() => setSidebarOpen(true)}
-          >
-            <Hash className="w-4 h-4" />
-          </button>
-          {selectedRoom ? (
-            <>
-              <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center"
-                style={{
-                  background: getRoomColor(selectedRoom.topic).replace(
-                    ")",
-                    " / 0.15)",
-                  ),
-                }}
-              >
-                <Hash
-                  className="w-4 h-4"
-                  style={{ color: getRoomColor(selectedRoom.topic) }}
-                />
-              </div>
-              <div>
-                <h2
-                  className="font-display font-bold text-sm"
-                  style={{ color: "oklch(0.92 0.02 240)" }}
-                >
-                  {selectedRoom.name}
-                </h2>
-                <p className="text-xs text-muted-foreground">
-                  {selectedRoom.topic}
-                </p>
-              </div>
-              <Badge
-                variant="outline"
-                className="ml-auto text-xs"
-                style={{
-                  borderColor: getRoomColor(selectedRoom.topic).replace(
-                    ")",
-                    " / 0.4)",
-                  ),
-                  color: getRoomColor(selectedRoom.topic),
-                }}
-              >
-                {selectedRoom.topic}
-              </Badge>
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">Select a room</p>
           )}
-        </div>
 
-        {/* Messages */}
-        <ScrollArea className="flex-1 px-4">
-          <div className="py-4 space-y-4">
-            {loadingMessages ? (
-              <div data-ocid="chat.loading_state" className="space-y-3">
-                {["ma", "mb", "mc", "md", "me"].map((k) => (
-                  <div key={k} className="flex gap-3">
-                    <Skeleton className="w-8 h-8 rounded-full flex-shrink-0" />
-                    <div className="space-y-1.5 flex-1">
-                      <Skeleton className="h-3 w-24" />
-                      <Skeleton className="h-4 w-full" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : messages.length === 0 ? (
+          {/* Replies */}
+          <div className="space-y-3">
+            {post.replies.length === 0 ? (
               <div
-                data-ocid="chat.empty_state"
-                className="flex flex-col items-center justify-center py-12 text-center"
+                data-ocid="community.replies.empty_state"
+                className="text-center py-8"
+                style={{ color: "oklch(0.45 0.04 240)" }}
               >
-                <div className="text-4xl mb-3">💬</div>
-                <p className="text-muted-foreground text-sm">
-                  No messages yet. Be the first to post!
+                <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">
+                  No replies yet. Be the first to comment!
                 </p>
               </div>
             ) : (
-              messages.map((msg, idx) => (
-                <MessageBubble
-                  key={msg.id.toString()}
-                  message={msg}
-                  index={idx + 1}
-                  isOwn={
-                    msg.author.toString() === myPrincipal ||
-                    msg.author.toString() === localUsername
-                  }
-                  onDelete={() => handleDelete(msg.id)}
-                  isAdmin={localStorage.getItem("adminUnlocked") === "true"}
-                />
-              ))
+              post.replies.map((reply, idx) => {
+                const replyUpvoted = currentUser
+                  ? reply.upvotedBy.includes(currentUser.username)
+                  : false;
+                return (
+                  <div
+                    key={reply.id}
+                    data-ocid={`community.reply.item.${idx + 1}`}
+                    className="rounded-lg border p-3"
+                    style={{
+                      background: "oklch(0.13 0.03 260)",
+                      borderColor: "oklch(0.20 0.04 260)",
+                    }}
+                  >
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <Avatar className="w-6 h-6">
+                        <AvatarFallback
+                          className="text-[9px]"
+                          style={{
+                            background: getAvatarColor(reply.author),
+                            color: "white",
+                          }}
+                        >
+                          {getInitials(reply.author)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span
+                        className="text-xs font-semibold"
+                        style={{ color: "oklch(0.78 0.04 240)" }}
+                      >
+                        {reply.author}
+                      </span>
+                      <span
+                        className="text-xs"
+                        style={{ color: "oklch(0.42 0.04 240)" }}
+                      >
+                        {formatTime(reply.createdAt)}
+                      </span>
+                    </div>
+                    <p
+                      className="text-sm mb-2"
+                      style={{ color: "oklch(0.78 0.02 240)" }}
+                    >
+                      {reply.body}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleUpvoteReply(reply.id)}
+                      className="flex items-center gap-1 text-xs transition-colors"
+                      style={{
+                        color: replyUpvoted
+                          ? "oklch(0.72 0.18 40)"
+                          : "oklch(0.45 0.04 240)",
+                      }}
+                    >
+                      <ArrowBigUp className="w-3.5 h-3.5" />
+                      {reply.upvotes}
+                    </button>
+                  </div>
+                );
+              })
             )}
-            <div ref={messagesEndRef} />
           </div>
-        </ScrollArea>
+        </div>
+      </ScrollArea>
+    </div>
+  );
+}
 
-        {/* Input area */}
-        {!canSend ? (
-          <div
-            className="px-4 py-3 border-t flex items-center gap-2 flex-shrink-0"
-            style={{ borderColor: "oklch(0.22 0.05 260)" }}
-          >
-            <Input
-              data-ocid="chat.input"
-              value={pendingUsername}
-              onChange={(e) => setPendingUsername(e.target.value)}
-              placeholder="Enter a display name to chat..."
-              className="flex-1 h-9 text-sm"
-              style={{ color: "oklch(0.95 0.02 240)" }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && pendingUsername.trim()) {
-                  const name = pendingUsername.trim();
-                  localStorage.setItem("chat_username", name);
-                  setLocalUsername(name);
-                  registerUser(name);
-                }
-              }}
-            />
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+export function CommunityChatsPage() {
+  const [posts, setPosts] = useState<ForumPost[]>(() => {
+    const stored = loadPosts();
+    if (stored.length === 0) {
+      savePosts(SEED_POSTS);
+      return SEED_POSTS;
+    }
+    return stored;
+  });
+
+  const [currentUser] = useState<CurrentUser | null>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("researchHubUser") || "null");
+    } catch {
+      return null;
+    }
+  });
+
+  const [sort, setSort] = useState<"hot" | "new" | "top">("hot");
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [openPost, setOpenPost] = useState<ForumPost | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+
+  // Create post form state
+  const [newTitle, setNewTitle] = useState("");
+  const [newBody, setNewBody] = useState("");
+  const [newCategory, setNewCategory] = useState("Research");
+  const [newImageUrl, setNewImageUrl] = useState("");
+
+  const status = currentUser ? getUserStatus(currentUser.username) : null;
+  const canCreatePost = currentUser && !status?.banned && !status?.muted;
+
+  const updatePost = (updated: ForumPost) => {
+    const next = posts.map((p) => (p.id === updated.id ? updated : p));
+    setPosts(next);
+    savePosts(next);
+    if (openPost?.id === updated.id) setOpenPost(updated);
+  };
+
+  const handleUpvote = (postId: number) => {
+    if (!currentUser) {
+      toast.error("Login to upvote");
+      return;
+    }
+    const post = posts.find((p) => p.id === postId);
+    if (!post) return;
+    const already = post.upvotedBy.includes(currentUser.username);
+    updatePost({
+      ...post,
+      upvotes: already ? post.upvotes - 1 : post.upvotes + 1,
+      upvotedBy: already
+        ? post.upvotedBy.filter((u) => u !== currentUser.username)
+        : [...post.upvotedBy, currentUser.username],
+    });
+  };
+
+  const handleCreatePost = () => {
+    if (!newTitle.trim() || !newBody.trim()) {
+      toast.error("Title and body are required");
+      return;
+    }
+    if (!currentUser) {
+      toast.error("Login required");
+      return;
+    }
+    const newPost: ForumPost = {
+      id: Date.now(),
+      title: newTitle.trim(),
+      body: newBody.trim(),
+      category: newCategory,
+      author: currentUser.username,
+      upvotes: 1,
+      upvotedBy: [currentUser.username],
+      replies: [],
+      createdAt: Date.now(),
+      imageUrl: newImageUrl.trim() || undefined,
+    };
+    const next = [newPost, ...posts];
+    setPosts(next);
+    savePosts(next);
+    setNewTitle("");
+    setNewBody("");
+    setNewCategory("Research");
+    setNewImageUrl("");
+    setShowCreateModal(false);
+    toast.success("Post created!");
+  };
+
+  // Sort and filter
+  let filtered = posts.filter((p) => {
+    const matchCat =
+      selectedCategory === "All" || p.category === selectedCategory;
+    const matchSearch =
+      !searchQuery ||
+      p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.body.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchCat && matchSearch;
+  });
+
+  if (sort === "new")
+    filtered = [...filtered].sort((a, b) => b.createdAt - a.createdAt);
+  else if (sort === "top")
+    filtered = [...filtered].sort((a, b) => b.upvotes - a.upvotes);
+  else {
+    // hot: weighted by upvotes and recency
+    filtered = [...filtered].sort((a, b) => {
+      const scoreA =
+        a.upvotes + a.replies.length * 2 - (Date.now() - a.createdAt) / 3600000;
+      const scoreB =
+        b.upvotes + b.replies.length * 2 - (Date.now() - b.createdAt) / 3600000;
+      return scoreB - scoreA;
+    });
+  }
+
+  if (openPost) {
+    return (
+      <ThreadView
+        post={openPost}
+        currentUser={currentUser}
+        onBack={() => setOpenPost(null)}
+        onPostUpdate={updatePost}
+      />
+    );
+  }
+
+  return (
+    <div
+      className="flex flex-col h-full"
+      style={{ background: "oklch(0.10 0.02 260)" }}
+    >
+      {/* Header */}
+      <div
+        className="p-3 border-b"
+        style={{
+          borderColor: "oklch(0.20 0.04 260)",
+          background: "oklch(0.12 0.03 260)",
+        }}
+      >
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <h2
+              className="font-bold text-base"
+              style={{ color: "oklch(0.92 0.02 240)" }}
+            >
+              Community
+            </h2>
+            <p className="text-xs" style={{ color: "oklch(0.50 0.04 240)" }}>
+              {posts.length} posts ·{" "}
+              {posts.reduce((s, p) => s + p.replies.length, 0)} comments
+            </p>
+          </div>
+          {!currentUser ? (
             <Button
-              type="button"
-              data-ocid="chat.submit_button"
               size="sm"
-              style={{ background: "oklch(0.52 0.18 220)" }}
-              disabled={!pendingUsername.trim()}
-              onClick={() => {
-                const name = pendingUsername.trim();
-                localStorage.setItem("chat_username", name);
-                setLocalUsername(name);
-                registerUser(name);
+              variant="outline"
+              data-ocid="community.login.button"
+              className="text-xs gap-1"
+              style={{
+                borderColor: "oklch(0.30 0.05 260)",
+                color: "oklch(0.72 0.04 240)",
               }}
             >
-              Join
+              <User className="w-3.5 h-3.5" /> Login to post
             </Button>
-          </div>
-        ) : (
-          <div
-            className="border-t flex-shrink-0"
-            style={{ borderColor: "oklch(0.22 0.05 260)" }}
+          ) : canCreatePost ? (
+            <Button
+              size="sm"
+              data-ocid="community.create.primary_button"
+              className="gap-1.5 text-xs"
+              style={{ background: "oklch(0.60 0.18 220)", color: "white" }}
+              onClick={() => setShowCreateModal(true)}
+            >
+              <Plus className="w-3.5 h-3.5" /> Create Post
+            </Button>
+          ) : (
+            <Badge
+              className="text-xs px-2 border-0"
+              style={{
+                background: "oklch(0.55 0.18 30)/0.15",
+                color: "oklch(0.72 0.18 30)",
+              }}
+            >
+              {status?.banned ? "Banned" : "Muted"}
+            </Badge>
+          )}
+        </div>
+
+        {/* Search */}
+        <div className="relative mb-2">
+          <Search
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none"
+            style={{ color: "oklch(0.45 0.04 240)" }}
+          />
+          <Input
+            data-ocid="community.search.search_input"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search posts..."
+            className="pl-8 h-8 text-xs"
+            style={{
+              background: "oklch(0.15 0.03 260)",
+              borderColor: "oklch(0.24 0.05 260)",
+              color: "oklch(0.92 0.01 240)",
+            }}
+          />
+        </div>
+
+        {/* Sort */}
+        <div className="flex items-center gap-1">
+          {(["hot", "new", "top"] as const).map((s) => (
+            <button
+              key={s}
+              type="button"
+              data-ocid={`community.sort.${s}.tab`}
+              onClick={() => setSort(s)}
+              className="flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium transition-colors"
+              style={{
+                background:
+                  sort === s ? "oklch(0.60 0.18 220 / 0.15)" : "transparent",
+                color:
+                  sort === s ? "oklch(0.72 0.18 220)" : "oklch(0.50 0.04 240)",
+              }}
+            >
+              {s === "hot" && <Flame className="w-3 h-3" />}
+              {s === "new" && <Clock className="w-3 h-3" />}
+              {s === "top" && <TrendingUp className="w-3 h-3" />}
+              {s.charAt(0).toUpperCase() + s.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Category pills */}
+      <div
+        className="flex gap-1.5 p-2 overflow-x-auto border-b"
+        style={{ borderColor: "oklch(0.20 0.04 260)", scrollbarWidth: "none" }}
+      >
+        {CATEGORIES.map((cat) => (
+          <button
+            key={cat}
+            type="button"
+            data-ocid={`community.category.${cat.toLowerCase()}.tab`}
+            onClick={() => setSelectedCategory(cat)}
+            className="flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-medium transition-colors"
+            style={{
+              background:
+                selectedCategory === cat
+                  ? `${CATEGORY_COLORS[cat] ?? "oklch(0.60 0.18 220)"}/0.2`
+                  : "oklch(0.15 0.03 260)",
+              color:
+                selectedCategory === cat
+                  ? (CATEGORY_COLORS[cat] ?? "oklch(0.72 0.18 220)")
+                  : "oklch(0.55 0.04 240)",
+              border: `1px solid ${selectedCategory === cat ? `${CATEGORY_COLORS[cat] ?? "oklch(0.60 0.18 220)"}/0.4` : "oklch(0.22 0.04 260)"}`,
+            }}
           >
-            {/* GIF picker overlay */}
-            {showGifPicker && (
-              <div
-                className="border-b p-3"
-                style={{
-                  borderColor: "oklch(0.22 0.05 260)",
-                  background: "oklch(0.11 0.03 260)",
-                  maxHeight: "320px",
-                  overflowY: "auto",
-                }}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-muted-foreground">
-                    Pick a GIF / Meme
-                  </span>
-                  <button type="button" onClick={() => setShowGifPicker(false)}>
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-                <MemesTab
-                  onSendToChat={(item) => {
-                    setMessageGif(item.url);
-                    setShowGifPicker(false);
-                  }}
+            {cat}
+          </button>
+        ))}
+      </div>
+
+      {/* Feed */}
+      <ScrollArea className="flex-1">
+        <div className="p-3 space-y-2 max-w-3xl mx-auto">
+          {filtered.length === 0 ? (
+            <div
+              data-ocid="community.posts.empty_state"
+              className="text-center py-16"
+              style={{ color: "oklch(0.45 0.04 240)" }}
+            >
+              <Edit3 className="w-10 h-10 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">No posts found.</p>
+              {currentUser && canCreatePost && (
+                <Button
+                  size="sm"
+                  className="mt-3"
+                  style={{ background: "oklch(0.60 0.18 220)", color: "white" }}
+                  onClick={() => setShowCreateModal(true)}
+                >
+                  Create the first post
+                </Button>
+              )}
+            </div>
+          ) : (
+            filtered.map((post, idx) => (
+              <div key={post.id} data-ocid={`community.posts.item.${idx + 1}`}>
+                <PostCard
+                  post={post}
+                  currentUser={currentUser}
+                  onOpen={() => setOpenPost(post)}
+                  onUpvote={() => handleUpvote(post.id)}
                 />
               </div>
-            )}
+            ))
+          )}
+        </div>
+      </ScrollArea>
 
-            {/* Image URL input */}
-            {showImageInput && (
-              <div
-                className="flex gap-2 px-3 py-2 border-b"
-                style={{ borderColor: "oklch(0.22 0.05 260)" }}
+      {/* Create Post Modal */}
+      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+        <DialogContent
+          data-ocid="community.create.dialog"
+          style={{
+            background: "oklch(0.13 0.03 260)",
+            borderColor: "oklch(0.22 0.04 260)",
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle style={{ color: "oklch(0.92 0.02 240)" }}>
+              Create a Post
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label
+                className="text-xs mb-1 block"
+                style={{ color: "oklch(0.65 0.04 240)" }}
               >
-                <Input
-                  data-ocid="chat.search_input"
-                  value={messageImage}
-                  onChange={(e) => setMessageImage(e.target.value)}
-                  placeholder="Paste image URL..."
-                  className="h-8 text-sm"
-                  style={{ color: "white" }}
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 w-8 p-0"
-                  onClick={() => {
-                    setMessageImage("");
-                    setShowImageInput(false);
+                Title *
+              </Label>
+              <Input
+                data-ocid="community.create.input"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder="An interesting title..."
+                style={{
+                  background: "oklch(0.16 0.03 260)",
+                  borderColor: "oklch(0.26 0.05 260)",
+                  color: "oklch(0.92 0.01 240)",
+                }}
+              />
+            </div>
+            <div>
+              <Label
+                className="text-xs mb-1 block"
+                style={{ color: "oklch(0.65 0.04 240)" }}
+              >
+                Category
+              </Label>
+              <Select value={newCategory} onValueChange={setNewCategory}>
+                <SelectTrigger
+                  data-ocid="community.create.select"
+                  style={{
+                    background: "oklch(0.16 0.03 260)",
+                    borderColor: "oklch(0.26 0.05 260)",
+                    color: "oklch(0.92 0.01 240)",
                   }}
                 >
-                  <X className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            )}
-
-            {/* Previews */}
-            {(messageGif || messageImage) && (
-              <div className="flex gap-2 px-3 py-2">
-                {messageGif && (
-                  <div className="relative">
-                    <img
-                      src={messageGif}
-                      alt="Selected GIF"
-                      className="h-16 rounded-lg object-cover"
-                    />
-                    <button
-                      type="button"
-                      className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center"
-                      style={{ background: "oklch(0.5 0.18 20)" }}
-                      onClick={() => setMessageGif("")}
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent
+                  style={{
+                    background: "oklch(0.15 0.03 260)",
+                    borderColor: "oklch(0.24 0.05 260)",
+                  }}
+                >
+                  {CATEGORIES.filter((c) => c !== "All").map((c) => (
+                    <SelectItem
+                      key={c}
+                      value={c}
+                      style={{ color: "oklch(0.85 0.02 240)" }}
                     >
-                      <X className="w-2.5 h-2.5" />
-                    </button>
-                  </div>
-                )}
-                {messageImage && (
-                  <div className="relative">
-                    <img
-                      src={messageImage}
-                      alt="Attachment preview"
-                      className="h-16 rounded-lg object-cover"
-                    />
-                    <button
-                      type="button"
-                      className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center"
-                      style={{ background: "oklch(0.5 0.18 20)" }}
-                      onClick={() => setMessageImage("")}
-                    >
-                      <X className="w-2.5 h-2.5" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Text input row */}
-            <div className="flex items-center gap-2 px-3 py-2">
-              <button
-                type="button"
-                data-ocid="chat.toggle"
-                title="Attach image"
-                className="p-2 rounded-lg transition-colors flex-shrink-0"
-                style={{
-                  color: showImageInput
-                    ? "oklch(0.72 0.15 220)"
-                    : "oklch(0.50 0.05 240)",
-                }}
-                onClick={() => setShowImageInput((v) => !v)}
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label
+                className="text-xs mb-1 block"
+                style={{ color: "oklch(0.65 0.04 240)" }}
               >
-                <Link className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                data-ocid="chat.toggle"
-                title="Add GIF"
-                className="p-2 rounded-lg transition-colors flex-shrink-0"
+                Body *
+              </Label>
+              <Textarea
+                data-ocid="community.create.textarea"
+                value={newBody}
+                onChange={(e) => setNewBody(e.target.value)}
+                placeholder="What's on your mind?"
+                className="min-h-[100px] resize-none text-sm"
                 style={{
-                  color: showGifPicker
-                    ? "oklch(0.72 0.15 220)"
-                    : "oklch(0.50 0.05 240)",
+                  background: "oklch(0.16 0.03 260)",
+                  borderColor: "oklch(0.26 0.05 260)",
+                  color: "oklch(0.92 0.01 240)",
                 }}
-                onClick={() => setShowGifPicker((v) => !v)}
-              >
-                <Smile className="w-4 h-4" />
-              </button>
-              <Input
-                ref={inputRef}
-                data-ocid="chat.input"
-                value={messageText}
-                onChange={(e) => setMessageText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend();
-                  }
-                }}
-                placeholder={
-                  selectedRoom
-                    ? `Message #${selectedRoom.name}...`
-                    : "Select a room to chat..."
-                }
-                disabled={sending}
-                className="flex-1 h-9 text-sm"
-                style={{ color: "oklch(0.95 0.02 240)" }}
               />
-              <Button
-                type="button"
-                data-ocid="chat.submit_button"
-                size="icon"
-                className="h-9 w-9 flex-shrink-0"
-                style={{ background: "oklch(0.52 0.18 220)" }}
-                onClick={handleSend}
-                disabled={
-                  sending ||
-                  !selectedRoom ||
-                  (!messageText.trim() && !messageImage && !messageGif)
-                }
+            </div>
+            <div>
+              <Label
+                className="text-xs mb-1 block"
+                style={{ color: "oklch(0.65 0.04 240)" }}
               >
-                {sending ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4" />
-                )}
-              </Button>
+                Image URL (optional)
+              </Label>
+              <Input
+                data-ocid="community.create.image.input"
+                value={newImageUrl}
+                onChange={(e) => setNewImageUrl(e.target.value)}
+                placeholder="https://..."
+                style={{
+                  background: "oklch(0.16 0.03 260)",
+                  borderColor: "oklch(0.26 0.05 260)",
+                  color: "oklch(0.92 0.01 240)",
+                }}
+              />
             </div>
           </div>
-        )}
-      </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              data-ocid="community.create.cancel_button"
+              onClick={() => setShowCreateModal(false)}
+              style={{ color: "oklch(0.60 0.04 240)" }}
+            >
+              Cancel
+            </Button>
+            <Button
+              data-ocid="community.create.submit_button"
+              onClick={handleCreatePost}
+              disabled={!newTitle.trim() || !newBody.trim()}
+              style={{ background: "oklch(0.60 0.18 220)", color: "white" }}
+            >
+              Post
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

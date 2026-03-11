@@ -1,6 +1,12 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   BarChart3,
@@ -18,6 +24,7 @@ import {
   Mail,
   MessageSquare,
   Microscope,
+  MoreHorizontal,
   Music,
   Newspaper,
   Search,
@@ -26,6 +33,7 @@ import {
   Smile,
   Sparkles,
   User,
+  X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
@@ -48,6 +56,7 @@ import { MessagesPage } from "./components/MessagesPage";
 import { NewsTab } from "./components/NewsTab";
 import { ProfilePage } from "./components/ProfilePage";
 import { SettingsPage } from "./components/SettingsPage";
+import { UniversalSearchResults } from "./components/UniversalSearchResults";
 import { VideosTab } from "./components/VideosTab";
 import { useResearch } from "./hooks/useResearch";
 import type { WikiArticle } from "./types/research";
@@ -60,6 +69,7 @@ const TOPIC_CHIPS = [
   { label: "Technology", query: "technology computing innovation" },
   { label: "Nature", query: "nature wildlife environment" },
   { label: "Art", query: "art culture renaissance" },
+  { label: "Comics", query: "comics superhero batman superman" },
 ];
 
 const COLLECTION_TILES = [
@@ -146,6 +156,7 @@ export default function App() {
     null,
   );
   const [prevView, setPrevView] = useState<"search" | "discover">("search");
+  const [showUniversal, setShowUniversal] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Claim daily login reward silently on app start
@@ -167,6 +178,7 @@ export default function App() {
     if (!searchQuery.trim()) return;
     search(searchQuery);
     setActiveTab("articles");
+    setShowUniversal(true);
   };
 
   const handleChip = (topicQuery: string, label: string) => {
@@ -523,6 +535,154 @@ export default function App() {
     );
   }
 
+  // Google-style homepage when idle on search tab
+  if (status === "idle" && view === "search") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <div className="flex-1 flex flex-col items-center justify-center px-4 pb-24">
+          {/* Logo / Title */}
+          <div className="mb-10 text-center">
+            <div className="inline-flex items-center gap-3 mb-4">
+              <div
+                className="w-12 h-12 rounded-2xl flex items-center justify-center"
+                style={{
+                  background: "oklch(0.52 0.18 220 / 0.15)",
+                  border: "1px solid oklch(0.52 0.18 220 / 0.35)",
+                }}
+              >
+                <Globe
+                  className="w-6 h-6"
+                  style={{ color: "oklch(0.72 0.18 220)" }}
+                />
+              </div>
+              <h1
+                className="font-display text-4xl font-bold tracking-tight"
+                style={{ color: "white" }}
+              >
+                Research Hub
+              </h1>
+            </div>
+            <p className="text-sm" style={{ color: "oklch(0.55 0.06 240)" }}>
+              Search everything. Read everything. Discover everything.
+            </p>
+          </div>
+
+          {/* Big search bar */}
+          <form
+            className="w-full max-w-2xl mb-8"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (query.trim()) handleSearch();
+            }}
+          >
+            <div
+              className="flex items-center gap-3 px-4 py-3 rounded-3xl shadow-2xl transition-all focus-within:shadow-primary/20"
+              style={{
+                background: "oklch(0.16 0.04 260)",
+                border: "2px solid oklch(0.28 0.06 260)",
+              }}
+              onFocus={(e) => {
+                (e.currentTarget as HTMLDivElement).style.borderColor =
+                  "oklch(0.52 0.18 220 / 0.7)";
+              }}
+              onBlur={(e) => {
+                (e.currentTarget as HTMLDivElement).style.borderColor =
+                  "oklch(0.28 0.06 260)";
+              }}
+            >
+              <Search
+                className="w-5 h-5 flex-shrink-0"
+                style={{ color: "oklch(0.55 0.08 240)" }}
+              />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search articles, images, videos, comics, audio..."
+                className="flex-1 bg-transparent outline-none text-white placeholder:text-muted-foreground text-base"
+                style={{ color: "white" }}
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  className="flex-shrink-0 p-1 rounded-full transition-colors"
+                  style={{ color: "oklch(0.55 0.06 240)" }}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+              <button
+                type="submit"
+                className="flex-shrink-0 px-5 py-2 rounded-2xl text-sm font-semibold transition-all"
+                style={{ background: "oklch(0.52 0.18 220)", color: "white" }}
+              >
+                Search
+              </button>
+            </div>
+          </form>
+
+          {/* Topic chips */}
+          <div className="flex flex-wrap gap-2 justify-center max-w-xl mb-10">
+            {TOPIC_CHIPS.map((chip, i) => (
+              <button
+                key={chip.label}
+                type="button"
+                data-ocid={`topic.chip.${i + 1}`}
+                onClick={() => handleChip(chip.query, chip.label)}
+                className="chip-btn"
+                style={{ fontSize: "0.875rem", padding: "0.45rem 1.1rem" }}
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Quick nav cards */}
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 w-full max-w-xl">
+            {[
+              {
+                label: "AI Chat",
+                nav: "ai" as NavKey,
+                color: "oklch(0.72 0.18 150)",
+              },
+              {
+                label: "Browser",
+                nav: "browser" as NavKey,
+                color: "oklch(0.72 0.14 220)",
+              },
+              {
+                label: "Comics",
+                nav: "comics" as NavKey,
+                color: "oklch(0.72 0.18 30)",
+              },
+              {
+                label: "Community",
+                nav: "chat" as NavKey,
+                color: "oklch(0.72 0.14 280)",
+              },
+            ].map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                onClick={() => handleBottomNav(item.nav)}
+                className="rounded-2xl p-3 text-center text-sm font-medium transition-all hover:scale-[1.03]"
+                style={{
+                  background: "oklch(0.16 0.04 260)",
+                  border: `1px solid ${item.color.replace(")", " / 0.3)")}`,
+                  color: item.color,
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <BottomNav current={bottomNav} onChange={handleBottomNav} />
+      </div>
+    );
+  }
+
   // Main search view
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -545,19 +705,28 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
           >
-            {/* Topic quick-search chips */}
-            <div className="flex flex-wrap gap-2 mb-8">
-              {TOPIC_CHIPS.map((chip, i) => (
-                <button
-                  key={chip.label}
-                  type="button"
-                  data-ocid={`topic.chip.${i + 1}`}
-                  onClick={() => handleChip(chip.query, chip.label)}
-                  className="chip-btn"
-                >
-                  {chip.label}
-                </button>
-              ))}
+            {/* Homepage Hero — tagline + topic chips */}
+            <div className="text-center mb-10 mt-4">
+              <p
+                className="text-sm font-medium tracking-wide mb-6"
+                style={{ color: "oklch(0.55 0.06 240)" }}
+              >
+                Search everything. Read everything. Discover everything.
+              </p>
+              <div className="flex flex-wrap gap-2 justify-center">
+                {TOPIC_CHIPS.map((chip, i) => (
+                  <button
+                    key={chip.label}
+                    type="button"
+                    data-ocid={`topic.chip.${i + 1}`}
+                    onClick={() => handleChip(chip.query, chip.label)}
+                    className="chip-btn"
+                    style={{ fontSize: "0.875rem", padding: "0.5rem 1.25rem" }}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Collection tiles */}
@@ -674,17 +843,47 @@ export default function App() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
+              {/* View switcher */}
               {hasResults && (
                 <div className="flex items-center gap-3 mb-5">
-                  <p className="text-sm text-muted-foreground">
-                    Results for{" "}
-                    <span
-                      className="font-semibold"
-                      style={{ color: "oklch(0.85 0.04 240)" }}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      data-ocid="search.universal_tab"
+                      onClick={() => setShowUniversal(true)}
+                      className="px-3 py-1.5 rounded-full text-xs font-medium transition-all"
+                      style={{
+                        background: showUniversal
+                          ? "oklch(0.52 0.18 220)"
+                          : "oklch(0.15 0.03 260)",
+                        color: showUniversal ? "white" : "oklch(0.58 0.05 240)",
+                        border: showUniversal
+                          ? "none"
+                          : "1px solid oklch(0.22 0.04 260)",
+                      }}
                     >
-                      &ldquo;{lastQuery}&rdquo;
-                    </span>
-                  </p>
+                      All Results
+                    </button>
+                    <button
+                      type="button"
+                      data-ocid="search.tab_view_tab"
+                      onClick={() => setShowUniversal(false)}
+                      className="px-3 py-1.5 rounded-full text-xs font-medium transition-all"
+                      style={{
+                        background: !showUniversal
+                          ? "oklch(0.52 0.18 220)"
+                          : "oklch(0.15 0.03 260)",
+                        color: !showUniversal
+                          ? "white"
+                          : "oklch(0.58 0.05 240)",
+                        border: !showUniversal
+                          ? "none"
+                          : "1px solid oklch(0.22 0.04 260)",
+                      }}
+                    >
+                      By Tab
+                    </button>
+                  </div>
                   {fuzzyUsed && (
                     <Badge
                       variant="outline"
@@ -700,122 +899,136 @@ export default function App() {
                 </div>
               )}
 
-              <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList
-                  className="mb-5 h-auto p-1 gap-0.5 flex-wrap"
-                  style={{ background: "oklch(0.13 0.025 260)" }}
-                >
-                  {[
-                    {
-                      value: "articles",
-                      icon: BookOpen,
-                      label: "Articles",
-                      count: results.articles.length,
-                      ocid: "tabs.articles_tab",
-                    },
-                    {
-                      value: "images",
-                      icon: Image,
-                      label: "Images",
-                      count: results.images.length,
-                      ocid: "tabs.images_tab",
-                    },
-                    {
-                      value: "audio",
-                      icon: Music,
-                      label: "Audio",
-                      count: results.audio.length,
-                      ocid: "tabs.audio_tab",
-                    },
-                    {
-                      value: "videos",
-                      icon: Film,
-                      label: "Videos",
-                      count: results.videos.length,
-                      ocid: "tabs.videos_tab",
-                    },
-                    {
-                      value: "films",
-                      icon: Clapperboard,
-                      label: "Films",
-                      count: results.films.length,
-                      ocid: "tabs.films_tab",
-                    },
-                    {
-                      value: "memes",
-                      icon: Smile,
-                      label: "GIFs & Memes",
-                      count: 0,
-                      ocid: "tabs.memes_tab",
-                    },
-                  ].map(
-                    ({ value, icon: Icon, label, count, ocid }) =>
-                      (value === "memes" || isLoading || count > 0) && (
-                        <TabsTrigger
-                          key={value}
-                          data-ocid={ocid}
-                          value={value}
-                          className="flex items-center gap-1.5 px-3 py-2 text-sm"
-                        >
-                          <Icon className="w-3.5 h-3.5" />
-                          {label}
-                          {hasResults && count > 0 && (
-                            <Badge
-                              variant="secondary"
-                              className="ml-0.5 text-xs px-1.5 py-0 h-4"
-                            >
-                              {count}
-                            </Badge>
-                          )}
-                        </TabsTrigger>
-                      ),
-                  )}
-                </TabsList>
+              {/* Universal Search Results */}
+              {showUniversal ? (
+                <UniversalSearchResults
+                  results={results}
+                  isLoading={isLoading}
+                  lastQuery={lastQuery}
+                  onSelectArticle={handleSelectArticle}
+                  onGoToTab={(tab) => {
+                    setShowUniversal(false);
+                    setActiveTab(tab);
+                  }}
+                />
+              ) : (
+                <Tabs value={activeTab} onValueChange={setActiveTab}>
+                  <TabsList
+                    className="mb-5 h-auto p-1 gap-0.5 flex-wrap"
+                    style={{ background: "oklch(0.13 0.025 260)" }}
+                  >
+                    {[
+                      {
+                        value: "articles",
+                        icon: BookOpen,
+                        label: "Articles",
+                        count: results.articles.length,
+                        ocid: "tabs.articles_tab",
+                      },
+                      {
+                        value: "images",
+                        icon: Image,
+                        label: "Images",
+                        count: results.images.length,
+                        ocid: "tabs.images_tab",
+                      },
+                      {
+                        value: "audio",
+                        icon: Music,
+                        label: "Audio",
+                        count: results.audio.length,
+                        ocid: "tabs.audio_tab",
+                      },
+                      {
+                        value: "videos",
+                        icon: Film,
+                        label: "Videos",
+                        count: results.videos.length,
+                        ocid: "tabs.videos_tab",
+                      },
+                      {
+                        value: "films",
+                        icon: Clapperboard,
+                        label: "Films",
+                        count: results.films.length,
+                        ocid: "tabs.films_tab",
+                      },
+                      {
+                        value: "memes",
+                        icon: Smile,
+                        label: "GIFs & Memes",
+                        count: 0,
+                        ocid: "tabs.memes_tab",
+                      },
+                    ].map(
+                      ({ value, icon: Icon, label, count, ocid }) =>
+                        (value === "memes" || isLoading || count > 0) && (
+                          <TabsTrigger
+                            key={value}
+                            data-ocid={ocid}
+                            value={value}
+                            className="flex items-center gap-1.5 px-3 py-2 text-sm"
+                          >
+                            <Icon className="w-3.5 h-3.5" />
+                            {label}
+                            {hasResults && count > 0 && (
+                              <Badge
+                                variant="secondary"
+                                className="ml-0.5 text-xs px-1.5 py-0 h-4"
+                              >
+                                {count}
+                              </Badge>
+                            )}
+                          </TabsTrigger>
+                        ),
+                    )}
+                  </TabsList>
 
-                <TabsContent value="articles">
-                  <ArticlesTab
-                    articles={results.articles}
-                    loading={isLoading}
-                    onExpand={expandArticle}
-                    onSelect={handleSelectArticle}
-                    hasSearched={hasResults || isLoading}
-                  />
-                </TabsContent>
-                <TabsContent value="images">
-                  <ImagesTab
-                    images={results.images}
-                    loading={isLoading}
-                    fuzzyUsed={fuzzyUsed}
-                    hasSearched={hasResults || isLoading}
-                  />
-                </TabsContent>
-                <TabsContent value="audio">
-                  <AudioTab
-                    audio={results.audio}
-                    loading={isLoading}
-                    hasSearched={hasResults || isLoading}
-                  />
-                </TabsContent>
-                <TabsContent value="videos">
-                  <VideosTab
-                    videos={results.videos}
-                    loading={isLoading}
-                    fuzzyUsed={fuzzyUsed}
-                    hasSearched={hasResults || isLoading}
-                  />
-                </TabsContent>
-                <TabsContent value="films">
-                  <FilmsTab
-                    films={results.films}
-                    loading={isLoading}
-                    fuzzyUsed={fuzzyUsed}
-                    hasSearched={hasResults || isLoading}
-                  />
-                </TabsContent>
-                <TabsContent value="memes">
-                  <MemesTab />
-                </TabsContent>
-              </Tabs>
+                  <TabsContent value="articles">
+                    <ArticlesTab
+                      articles={results.articles}
+                      loading={isLoading}
+                      onExpand={expandArticle}
+                      onSelect={handleSelectArticle}
+                      hasSearched={hasResults || isLoading}
+                    />
+                  </TabsContent>
+                  <TabsContent value="images">
+                    <ImagesTab
+                      images={results.images}
+                      loading={isLoading}
+                      fuzzyUsed={fuzzyUsed}
+                      hasSearched={hasResults || isLoading}
+                    />
+                  </TabsContent>
+                  <TabsContent value="audio">
+                    <AudioTab
+                      audio={results.audio}
+                      loading={isLoading}
+                      hasSearched={hasResults || isLoading}
+                    />
+                  </TabsContent>
+                  <TabsContent value="videos">
+                    <VideosTab
+                      videos={results.videos}
+                      loading={isLoading}
+                      fuzzyUsed={fuzzyUsed}
+                      hasSearched={hasResults || isLoading}
+                    />
+                  </TabsContent>
+                  <TabsContent value="films">
+                    <FilmsTab
+                      films={results.films}
+                      loading={isLoading}
+                      fuzzyUsed={fuzzyUsed}
+                      hasSearched={hasResults || isLoading}
+                    />
+                  </TabsContent>
+                  <TabsContent value="memes">
+                    <MemesTab />
+                  </TabsContent>
+                </Tabs>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -850,6 +1063,58 @@ export default function App() {
 
       <BottomNav current={bottomNav} onChange={handleBottomNav} />
     </div>
+  );
+}
+
+// User header button showing name + admin badge
+function UserHeaderButton({
+  activeNav,
+  onNav,
+}: { activeNav: NavKey; onNav: (nav: NavKey) => void }) {
+  let currentUser: { username: string; isAdmin: boolean } | null = null;
+  try {
+    currentUser = JSON.parse(localStorage.getItem("researchHubUser") || "null");
+  } catch {
+    currentUser = null;
+  }
+
+  return (
+    <button
+      type="button"
+      data-ocid="nav.profile_tab"
+      className="flex-shrink-0 flex items-center gap-1.5 px-2 py-1.5 rounded transition-colors"
+      style={{
+        color:
+          activeNav === "profile"
+            ? "oklch(0.72 0.18 220)"
+            : "oklch(0.55 0.05 240)",
+        background:
+          activeNav === "profile"
+            ? "oklch(0.60 0.18 220 / 0.1)"
+            : "transparent",
+      }}
+      onClick={() => onNav("profile")}
+    >
+      <User className="w-5 h-5" />
+      {currentUser && (
+        <span className="hidden sm:flex items-center gap-1 text-xs">
+          <span style={{ color: "oklch(0.80 0.02 240)" }}>
+            {currentUser.username}
+          </span>
+          {currentUser.isAdmin && (
+            <span
+              className="text-[10px] font-bold px-1 py-0.5 rounded"
+              style={{
+                background: "oklch(0.60 0.18 30 / 0.2)",
+                color: "oklch(0.80 0.18 30)",
+              }}
+            >
+              ADMIN
+            </span>
+          )}
+        </span>
+      )}
+    </button>
   );
 }
 
@@ -907,7 +1172,10 @@ function ArchiveHeader({
               onSearch();
             }}
           >
-            <div className="relative flex-1">
+            <div
+              className="relative flex-1 search-glow rounded border"
+              style={{ borderColor: "oklch(0.28 0.05 260)" }}
+            >
               <Search
                 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none"
                 style={{ color: "oklch(0.50 0.06 240)" }}
@@ -944,25 +1212,8 @@ function ArchiveHeader({
             </Button>
           </form>
 
-          {/* Profile nav item */}
-          <button
-            type="button"
-            data-ocid="nav.profile_tab"
-            className="flex-shrink-0 p-2 rounded transition-colors"
-            style={{
-              color:
-                activeNav === "profile"
-                  ? "oklch(0.72 0.18 220)"
-                  : "oklch(0.55 0.05 240)",
-              background:
-                activeNav === "profile"
-                  ? "oklch(0.60 0.18 220 / 0.1)"
-                  : "transparent",
-            }}
-            onClick={() => onNav("profile")}
-          >
-            <User className="w-5 h-5" />
-          </button>
+          {/* Profile nav item with user badge */}
+          <UserHeaderButton activeNav={activeNav} onNav={onNav} />
         </div>
 
         {/* Archive-style nav tab strip */}
@@ -1027,16 +1278,25 @@ function BottomNav({
   current: NavKey;
   onChange: (nav: NavKey) => void;
 }) {
-  const items: { key: NavKey; icon: React.ElementType; label: string }[] = [
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  const primaryItems: {
+    key: NavKey;
+    icon: React.ElementType;
+    label: string;
+  }[] = [
     { key: "search", icon: Search, label: "Search" },
     { key: "discover", icon: Compass, label: "Discover" },
     { key: "browser", icon: Globe2, label: "Browser" },
-    { key: "ai", icon: Sparkles, label: "AI Chat" },
+    { key: "ai", icon: Sparkles, label: "AI" },
     { key: "chat", icon: MessageSquare, label: "Community" },
-    { key: "dictionary", icon: BookType, label: "Dict." },
-    { key: "profile", icon: User, label: "Profile" },
-    { key: "comics", icon: BookImage, label: "Comics" },
     { key: "news", icon: Newspaper, label: "News" },
+    { key: "profile", icon: User, label: "Profile" },
+  ];
+
+  const moreItems: { key: NavKey; icon: React.ElementType; label: string }[] = [
+    { key: "dictionary", icon: BookType, label: "Dictionary" },
+    { key: "comics", icon: BookImage, label: "Comics" },
     { key: "datasets", icon: BarChart3, label: "Datasets" },
     { key: "tools", icon: FlaskConical, label: "Tools" },
     { key: "messages", icon: Mail, label: "Messages" },
@@ -1044,45 +1304,116 @@ function BottomNav({
     { key: "admin", icon: ShieldAlert, label: "Admin" },
   ];
 
+  const isMoreActive = moreItems.some((i) => i.key === current);
+
   return (
-    <nav
-      className="fixed bottom-0 left-0 right-0 z-40 border-t md:hidden"
-      style={{
-        background: "oklch(0.08 0.03 260 / 0.96)",
-        backdropFilter: "blur(16px)",
-        borderColor: "oklch(0.20 0.04 260)",
-      }}
-    >
-      <div
-        className="flex items-stretch h-14 overflow-x-auto"
-        style={{ WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}
+    <>
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-40 border-t md:hidden"
+        style={{
+          background: "oklch(0.07 0.03 260 / 0.97)",
+          backdropFilter: "blur(20px)",
+          borderColor: "oklch(0.20 0.04 260)",
+        }}
       >
-        {items.map(({ key, icon: Icon, label }) => (
+        <div className="flex items-stretch h-[56px]">
+          {primaryItems.map(({ key, icon: Icon, label }) => (
+            <button
+              key={key}
+              type="button"
+              data-ocid={`nav.${key}_tab`}
+              className="flex-1 flex flex-col items-center justify-center gap-0.5 transition-all relative"
+              style={{
+                color:
+                  current === key
+                    ? "oklch(0.78 0.18 220)"
+                    : "oklch(0.48 0.05 240)",
+              }}
+              onClick={() => onChange(key)}
+            >
+              <Icon className="w-[18px] h-[18px]" />
+              <span className="text-[9px] font-medium leading-none">
+                {label}
+              </span>
+              {current === key && (
+                <motion.div
+                  layoutId="nav-indicator"
+                  className="absolute top-0 left-1/2 -translate-x-1/2 h-[2px] w-8 rounded-full"
+                  style={{ background: "oklch(0.72 0.18 220)" }}
+                />
+              )}
+            </button>
+          ))}
+          {/* More button */}
           <button
-            key={key}
             type="button"
-            data-ocid={`nav.${key}_tab`}
-            className="flex-shrink-0 min-w-[56px] flex flex-col items-center justify-center gap-0.5 transition-colors relative px-1"
+            data-ocid="nav.more_button"
+            className="flex-1 flex flex-col items-center justify-center gap-0.5 transition-all relative"
             style={{
               color:
-                current === key
-                  ? "oklch(0.72 0.18 220)"
-                  : "oklch(0.50 0.05 240)",
+                isMoreActive || moreOpen
+                  ? "oklch(0.78 0.18 220)"
+                  : "oklch(0.48 0.05 240)",
             }}
-            onClick={() => onChange(key)}
+            onClick={() => setMoreOpen(true)}
           >
-            <Icon className="w-4.5 h-4.5" />
-            <span className="text-[10px] font-medium">{label}</span>
-            {current === key && (
+            <MoreHorizontal className="w-[18px] h-[18px]" />
+            <span className="text-[9px] font-medium leading-none">More</span>
+            {isMoreActive && (
               <motion.div
                 layoutId="nav-indicator"
-                className="absolute top-0 h-0.5 w-10 rounded-full"
+                className="absolute top-0 left-1/2 -translate-x-1/2 h-[2px] w-8 rounded-full"
                 style={{ background: "oklch(0.72 0.18 220)" }}
               />
             )}
           </button>
-        ))}
-      </div>
-    </nav>
+        </div>
+      </nav>
+
+      {/* More Sheet */}
+      <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
+        <SheetContent
+          side="bottom"
+          className="rounded-t-2xl pb-8"
+          style={{
+            background: "oklch(0.10 0.025 260)",
+            border: "1px solid oklch(0.22 0.04 260)",
+          }}
+          data-ocid="nav.more_sheet"
+        >
+          <SheetHeader className="mb-4">
+            <SheetTitle className="text-white text-sm">More</SheetTitle>
+          </SheetHeader>
+          <div className="grid grid-cols-4 gap-3">
+            {moreItems.map(({ key, icon: Icon, label }) => (
+              <button
+                key={key}
+                type="button"
+                data-ocid={`nav.more_${key}_button`}
+                className="flex flex-col items-center gap-2 p-3 rounded-xl transition-all"
+                style={{
+                  background:
+                    current === key
+                      ? "oklch(0.20 0.06 220 / 0.4)"
+                      : "oklch(0.14 0.025 260)",
+                  border: `1px solid ${current === key ? "oklch(0.35 0.10 220 / 0.4)" : "oklch(0.22 0.04 260)"}`,
+                  color:
+                    current === key
+                      ? "oklch(0.78 0.18 220)"
+                      : "oklch(0.65 0.05 240)",
+                }}
+                onClick={() => {
+                  onChange(key);
+                  setMoreOpen(false);
+                }}
+              >
+                <Icon className="w-5 h-5" />
+                <span className="text-[10px] font-medium">{label}</span>
+              </button>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }
