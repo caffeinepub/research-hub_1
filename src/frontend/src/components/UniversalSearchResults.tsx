@@ -22,6 +22,7 @@ import type {
   WikiImage,
   WikiVideo,
 } from "../types/research";
+import { SensitiveContentBlur } from "./SensitiveContentBlur";
 
 interface Props {
   results: SearchResults;
@@ -116,25 +117,27 @@ function ArticleCard({
         padding: "12px",
       }}
     >
-      {article.thumbnail && (
-        <div className="w-full h-24 rounded-lg overflow-hidden mb-2">
-          <img
-            src={article.thumbnail.source}
-            alt={article.title}
-            className="w-full h-full object-cover"
-            loading="lazy"
-          />
-        </div>
-      )}
-      <p className="font-semibold text-sm text-white leading-tight line-clamp-2 mb-1">
-        {article.title}
-      </p>
-      <p
-        className="text-xs line-clamp-2"
-        style={{ color: "oklch(0.60 0.04 240)" }}
-      >
-        {article.snippet?.replace(/<[^>]+>/g, "") || ""}
-      </p>
+      <SensitiveContentBlur label={article.title}>
+        {article.thumbnail && (
+          <div className="w-full h-24 rounded-lg overflow-hidden mb-2">
+            <img
+              src={article.thumbnail.source}
+              alt={article.title}
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+          </div>
+        )}
+        <p className="font-semibold text-sm text-white leading-tight line-clamp-2 mb-1">
+          {article.title}
+        </p>
+        <p
+          className="text-xs line-clamp-2"
+          style={{ color: "oklch(0.60 0.04 240)" }}
+        >
+          {article.snippet?.replace(/<[^>]+>/g, "") || ""}
+        </p>
+      </SensitiveContentBlur>
       <span
         className="inline-block mt-2 text-[10px] font-mono px-1.5 py-0.5 rounded"
         style={{
@@ -154,15 +157,17 @@ function ImageCard({ img }: { img: WikiImage }) {
       className="flex-shrink-0 w-32 h-32 rounded-xl overflow-hidden relative group cursor-pointer"
       style={{ border: "1px solid oklch(0.22 0.04 260)" }}
     >
-      <img
-        src={img.thumbUrl || img.url}
-        alt={img.title}
-        className="w-full h-full object-cover transition-transform group-hover:scale-110"
-        loading="lazy"
-        onError={(e) => {
-          (e.target as HTMLImageElement).style.display = "none";
-        }}
-      />
+      <SensitiveContentBlur label={img.title}>
+        <img
+          src={img.thumbUrl || img.url}
+          alt={img.title}
+          className="w-full h-full object-cover transition-transform group-hover:scale-110"
+          loading="lazy"
+          onError={(e) => {
+            (e.target as HTMLImageElement).style.display = "none";
+          }}
+        />
+      </SensitiveContentBlur>
       <div
         className="absolute bottom-0 left-0 right-0 px-1.5 py-1 opacity-0 group-hover:opacity-100 transition-opacity"
         style={{ background: "oklch(0.05 0.02 260 / 0.85)" }}
@@ -216,9 +221,11 @@ function VideoCard({ video }: { video: WikiVideo }) {
         </div>
       </div>
       <div className="p-2">
-        <p className="text-xs font-semibold text-white line-clamp-2 leading-tight">
-          {video.title}
-        </p>
+        <SensitiveContentBlur label={video.title}>
+          <p className="text-xs font-semibold text-white line-clamp-2 leading-tight">
+            {video.title}
+          </p>
+        </SensitiveContentBlur>
         <span
           className="inline-block mt-1 text-[9px] font-mono px-1 py-0.5 rounded"
           style={{
@@ -248,17 +255,19 @@ function AudioCard({ track }: { track: AudioResult }) {
       >
         <Music className="w-6 h-6" style={{ color: "oklch(0.65 0.18 200)" }} />
       </div>
-      <p className="text-xs font-semibold text-white line-clamp-2 leading-tight">
-        {track.title}
-      </p>
-      {track.creator && (
-        <p
-          className="text-[10px] mt-0.5 line-clamp-1"
-          style={{ color: "oklch(0.55 0.06 240)" }}
-        >
-          {track.creator}
+      <SensitiveContentBlur label={track.title}>
+        <p className="text-xs font-semibold text-white line-clamp-2 leading-tight">
+          {track.title}
         </p>
-      )}
+        {track.creator && (
+          <p
+            className="text-[10px] mt-0.5 line-clamp-1"
+            style={{ color: "oklch(0.55 0.06 240)" }}
+          >
+            {track.creator}
+          </p>
+        )}
+      </SensitiveContentBlur>
       <span
         className="inline-block mt-1 text-[9px] font-mono px-1 py-0.5 rounded"
         style={{

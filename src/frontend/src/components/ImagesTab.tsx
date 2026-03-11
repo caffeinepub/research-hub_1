@@ -12,6 +12,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import type { WikiImage } from "../types/research";
+import { SensitiveContentBlur } from "./SensitiveContentBlur";
 
 interface Props {
   images: WikiImage[];
@@ -194,15 +195,17 @@ export function ImagesTab({ images, loading, fuzzyUsed, hasSearched }: Props) {
             style={{ background: "oklch(0.16 0.04 260)" }}
             onClick={() => setLightboxIndex(idx)}
           >
-            <img
-              src={img.thumbUrl ?? img.url}
-              alt={img.title}
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-              loading="lazy"
-            />
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-200 flex items-center justify-center">
-              <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
+            <SensitiveContentBlur label={img.title}>
+              <img
+                src={img.thumbUrl ?? img.url}
+                alt={img.title}
+                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-200 flex items-center justify-center">
+                <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+            </SensitiveContentBlur>
             {img.source && (
               <div className="absolute bottom-1 left-1">
                 <span

@@ -5,6 +5,7 @@ import { Clapperboard, Play, Youtube } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import type { WikiVideo } from "../types/research";
+import { SensitiveContentBlur } from "./SensitiveContentBlur";
 
 interface Props {
   films: WikiVideo[];
@@ -119,22 +120,27 @@ function FilmCard({
       }`}
       onClick={onClick}
     >
-      <FilmThumb film={film} />
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-foreground line-clamp-2 leading-tight">
-          {film.title}
-        </p>
-        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-          <Badge
-            variant="outline"
-            className={`text-[10px] py-0 px-1.5 border ${
-              SOURCE_COLORS[film.source] ?? "bg-muted/50 text-muted-foreground"
-            }`}
-          >
-            {film.source}
-          </Badge>
+      <SensitiveContentBlur label={film.title}>
+        <div className="flex gap-3 items-start w-full">
+          <FilmThumb film={film} />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-foreground line-clamp-2 leading-tight">
+              {film.title}
+            </p>
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+              <Badge
+                variant="outline"
+                className={`text-[10px] py-0 px-1.5 border ${
+                  SOURCE_COLORS[film.source] ??
+                  "bg-muted/50 text-muted-foreground"
+                }`}
+              >
+                {film.source}
+              </Badge>
+            </div>
+          </div>
         </div>
-      </div>
+      </SensitiveContentBlur>
     </motion.div>
   );
 }

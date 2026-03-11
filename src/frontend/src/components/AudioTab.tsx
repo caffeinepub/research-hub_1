@@ -5,6 +5,7 @@ import { Download, Music, User } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import type { AudioResult } from "../types/research";
+import { SensitiveContentBlur } from "./SensitiveContentBlur";
 
 interface Props {
   audio: AudioResult[];
@@ -134,28 +135,30 @@ export function AudioTab({ audio, loading, hasSearched }: Props) {
           >
             <div className="flex items-start justify-between gap-3 mb-3">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <h3 className="font-display font-semibold text-base text-foreground truncate">
-                    {track.title}
-                  </h3>
-                  <Badge
-                    variant="outline"
-                    className={`text-xs shrink-0 border ${
-                      SOURCE_COLORS[track.source] ??
-                      "bg-muted/50 text-muted-foreground"
-                    }`}
-                  >
-                    {track.source}
-                  </Badge>
-                </div>
-                {track.creator && (
-                  <p className="text-sm text-muted-foreground flex items-center gap-1">
-                    <User className="w-3 h-3" />
-                    {Array.isArray(track.creator)
-                      ? track.creator[0]
-                      : track.creator}
-                  </p>
-                )}
+                <SensitiveContentBlur label={track.title}>
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <h3 className="font-display font-semibold text-base text-foreground truncate">
+                      {track.title}
+                    </h3>
+                    <Badge
+                      variant="outline"
+                      className={`text-xs shrink-0 border ${
+                        SOURCE_COLORS[track.source] ??
+                        "bg-muted/50 text-muted-foreground"
+                      }`}
+                    >
+                      {track.source}
+                    </Badge>
+                  </div>
+                  {track.creator && (
+                    <p className="text-sm text-muted-foreground flex items-center gap-1">
+                      <User className="w-3 h-3" />
+                      {Array.isArray(track.creator)
+                        ? track.creator[0]
+                        : track.creator}
+                    </p>
+                  )}
+                </SensitiveContentBlur>
               </div>
               {track.downloadUrl && (
                 <a

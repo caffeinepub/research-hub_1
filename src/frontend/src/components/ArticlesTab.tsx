@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import type { WikiArticle } from "../types/research";
 import { stripHtml } from "../utils/stripHtml";
+import { SensitiveContentBlur } from "./SensitiveContentBlur";
 
 interface Props {
   articles: WikiArticle[];
@@ -160,28 +161,30 @@ export function ArticlesTab({
               </div>
             )}
             <div className="p-5">
-              <div className="flex items-start gap-2 flex-wrap mb-1">
-                <h3 className="font-display font-semibold text-lg leading-tight text-foreground flex-1">
-                  {article.title}
-                </h3>
-                <Badge
-                  variant="outline"
-                  className={`text-xs shrink-0 border ${
-                    SOURCE_COLORS[article.source] ??
-                    "bg-muted/50 text-muted-foreground"
-                  }`}
-                >
-                  {article.source}
-                </Badge>
-              </div>
-              {article.description && (
-                <p className="text-xs text-muted-foreground mb-2 font-mono uppercase tracking-wider">
-                  {article.description}
+              <SensitiveContentBlur label={article.title}>
+                <div className="flex items-start gap-2 flex-wrap mb-1">
+                  <h3 className="font-display font-semibold text-lg leading-tight text-foreground flex-1">
+                    {article.title}
+                  </h3>
+                  <Badge
+                    variant="outline"
+                    className={`text-xs shrink-0 border ${
+                      SOURCE_COLORS[article.source] ??
+                      "bg-muted/50 text-muted-foreground"
+                    }`}
+                  >
+                    {article.source}
+                  </Badge>
+                </div>
+                {article.description && (
+                  <p className="text-xs text-muted-foreground mb-2 font-mono uppercase tracking-wider">
+                    {article.description}
+                  </p>
+                )}
+                <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">
+                  {stripHtml(article.snippet)}
                 </p>
-              )}
-              <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">
-                {stripHtml(article.snippet)}
-              </p>
+              </SensitiveContentBlur>
 
               <AnimatePresence>
                 {article.expanded && article.fullSummary && (

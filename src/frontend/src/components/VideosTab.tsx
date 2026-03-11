@@ -4,6 +4,7 @@ import { Archive, Play, Video, Youtube } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { WikiVideo } from "../types/research";
+import { SensitiveContentBlur } from "./SensitiveContentBlur";
 
 interface Props {
   videos: WikiVideo[];
@@ -134,9 +135,11 @@ function VideoCard({
     >
       <VideoThumb video={video} />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-foreground line-clamp-2 leading-tight">
-          {video.title}
-        </p>
+        <SensitiveContentBlur label={video.title}>
+          <p className="text-sm font-medium text-foreground line-clamp-2 leading-tight">
+            {video.title}
+          </p>
+        </SensitiveContentBlur>
         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
           <p className="text-xs text-muted-foreground font-mono uppercase">
             {video.mime.split("/")[1]}

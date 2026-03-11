@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Copy, ExternalLink, Search, Smile } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { SensitiveContentBlur } from "./SensitiveContentBlur";
 
 interface MemeItem {
   id: string;
@@ -75,7 +76,6 @@ async function fetchGiphy(q: string, offset = 0): Promise<MemeItem[]> {
       source: "Giphy" as const,
       pageUrl: g.url,
     }));
-    // Fallback to trending if no results
     if (results.length === 0 && offset === 0) {
       const tr = await fetch(
         "https://api.giphy.com/v1/gifs/trending?api_key=dc6zaTOxFJmzC&limit=30&rating=g",
@@ -210,15 +210,19 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
   const [giphyOffset, setGiphyOffset] = useState(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const currentQueryRef = useRef("");
+  // track when loading finishes to re-observe sentinel
+  const loadingRef = useRef(false);
 
   const doSearch = useCallback(async (q: string) => {
     if (!q.trim()) return;
     setAllItems([]);
+    setVisibleCount(30);
     setLoading(true);
     setSearched(true);
     setPage(1);
     setGiphyOffset(0);
     currentQueryRef.current = q;
+    loadingRef.current = true;
     const settled = await Promise.allSettled([
       fetchGiphy(q, 0),
       fetchTenor(q, ""),
@@ -235,21 +239,24 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
       items = openverse;
     }
     setAllItems(items);
-    setVisibleCount(30);
     setLoading(false);
+    loadingRef.current = false;
   }, []);
 
   const loadMore = useCallback(async () => {
-    if (loadingMore || !currentQueryRef.current) return;
+    if (loadingMore || loadingRef.current || !currentQueryRef.current) return;
     setLoadingMore(true);
     const nextPage = page + 1;
     const nextOffset = giphyOffset + 50;
     const q = currentQueryRef.current;
-    const [giphy, archive, reddit] = await Promise.all([
+    const settled = await Promise.allSettled([
       fetchGiphy(q, nextOffset),
       fetchArchiveMemes(q, nextPage),
       fetchRedditMemes(q, ""),
     ]);
+    const [giphy, archive, reddit] = settled.map((r) =>
+      r.status === "fulfilled" ? r.value : [],
+    );
     const newItems = interleave([giphy, archive, reddit]);
     if (newItems.length > 0) {
       setAllItems((prev) => {
@@ -267,27 +274,25 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
     doSearch("funny");
   }, [doSearch]);
 
-  // Infinite scroll via IntersectionObserver
+  // Infinite scroll via IntersectionObserver — always attached
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting) {
-          if (visibleCount < allItems.length) {
-            // Show more already-fetched items first
-            setVisibleCount((c) => c + 30);
-          } else if (!loadingMore) {
-            // Fetch next page from APIs
-            loadMore();
-          }
+        if (!entries[0]?.isIntersecting) return;
+        if (loading || loadingRef.current) return;
+        if (visibleCount < allItems.length) {
+          setVisibleCount((c) => c + 30);
+        } else {
+          loadMore();
         }
       },
-      { rootMargin: "300px" },
+      { rootMargin: "400px" },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [visibleCount, allItems.length, loadingMore, loadMore]);
+  }, [visibleCount, allItems.length, loadMore, loading]);
 
   const copyLink = (url: string) => {
     navigator.clipboard
@@ -392,24 +397,7 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
           data-ocid="memes.loading_state"
           className="columns-2 sm:columns-3 md:columns-4 gap-3 space-y-3"
         >
-          {[
-            "s1",
-            "s2",
-            "s3",
-            "s4",
-            "s5",
-            "s6",
-            "s7",
-            "s8",
-            "s9",
-            "s10",
-            "s11",
-            "s12",
-            "s13",
-            "s14",
-            "s15",
-            "s16",
-          ].map((k, i) => (
+          {Array.from({ length: 16 }, (_, i) => `skel-${i}`).map((k, i) => (
             <Skeleton
               key={k}
               className="w-full rounded-xl mb-3"
@@ -433,10 +421,10 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
             className="font-display text-xl font-semibold mb-2"
             style={{ color: "oklch(0.85 0.04 240)" }}
           >
-            Search for GIFs, Memes & Stickers
+            Search for GIFs, Memes &amp; Stickers
           </p>
           <p className="text-sm text-muted-foreground mb-6">
-            Giphy, Tenor, Imgflip, Reddit & Archive.org
+            Giphy, Tenor, Imgflip, Reddit &amp; Archive.org
           </p>
         </div>
       )}
@@ -472,11 +460,6 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
         </div>
       )}
 
-      {/* Infinite scroll sentinel */}
-      {!loading && (
-        <div ref={sentinelRef} className="h-10" aria-hidden="true" />
-      )}
-
       {/* Loading more indicator */}
       {loadingMore && (
         <div
@@ -489,6 +472,9 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
           />
         </div>
       )}
+
+      {/* Infinite scroll sentinel — always rendered so observer fires */}
+      <div ref={sentinelRef} className="h-4" aria-hidden="true" />
     </div>
   );
 }
@@ -522,23 +508,25 @@ function MemeCard({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {imgError ? (
-        <div
-          className="w-full flex items-center justify-center text-xs text-muted-foreground"
-          style={{ height: "120px" }}
-        >
-          <Smile className="w-8 h-8 opacity-30" />
-        </div>
-      ) : (
-        <img
-          src={displayUrl}
-          alt={item.title}
-          className="w-full block"
-          loading="lazy"
-          onError={() => setImgError(true)}
-          style={{ display: "block" }}
-        />
-      )}
+      <SensitiveContentBlur label={item.title}>
+        {imgError ? (
+          <div
+            className="w-full flex items-center justify-center text-xs text-muted-foreground"
+            style={{ height: "120px" }}
+          >
+            <Smile className="w-8 h-8 opacity-30" />
+          </div>
+        ) : (
+          <img
+            src={displayUrl}
+            alt={item.title}
+            className="w-full block"
+            loading="lazy"
+            onError={() => setImgError(true)}
+            style={{ display: "block" }}
+          />
+        )}
+      </SensitiveContentBlur>
 
       {/* Source badge */}
       <div className="absolute top-2 left-2">

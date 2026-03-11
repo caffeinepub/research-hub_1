@@ -134,7 +134,6 @@ const COLLECTION_TILES = [
 type NavKey =
   | "search"
   | "discover"
-  | "browser"
   | "ai"
   | "chat"
   | "dictionary"
@@ -157,6 +156,7 @@ export default function App() {
   );
   const [prevView, setPrevView] = useState<"search" | "discover">("search");
   const [showUniversal, setShowUniversal] = useState(true);
+  const [showBrowser, setShowBrowser] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Claim daily login reward silently on app start
@@ -188,11 +188,7 @@ export default function App() {
 
   const handleSelectArticle = (article: WikiArticle) => {
     setPrevView(
-      bottomNav === "browser"
-        ? "search"
-        : bottomNav === "search" || bottomNav === "discover"
-          ? bottomNav
-          : "search",
+      bottomNav === "search" || bottomNav === "discover" ? bottomNav : "search",
     );
     setSelectedArticle(article);
     setView("article");
@@ -240,26 +236,6 @@ export default function App() {
     );
   }
 
-  // Browser view
-  if (view === "browser") {
-    return (
-      <div className="min-h-screen bg-background flex flex-col">
-        <ArchiveHeader
-          query={query}
-          setQuery={setQuery}
-          onSearch={handleSearch}
-          isLoading={isLoading}
-          activeNav={bottomNav}
-          onNav={handleBottomNav}
-        />
-        <main className="flex-1 overflow-hidden">
-          <BrowserPage />
-        </main>
-        <BottomNav current={bottomNav} onChange={handleBottomNav} />
-      </div>
-    );
-  }
-
   // Discover page view
   if (view === "discover") {
     return (
@@ -271,6 +247,8 @@ export default function App() {
           isLoading={isLoading}
           activeNav={bottomNav}
           onNav={handleBottomNav}
+          showBrowser={showBrowser}
+          onToggleBrowser={() => setShowBrowser((b) => !b)}
         />
         <main className="flex-1 pb-16">
           <DiscoverPage
@@ -302,6 +280,8 @@ export default function App() {
           isLoading={isLoading}
           activeNav={bottomNav}
           onNav={handleBottomNav}
+          showBrowser={showBrowser}
+          onToggleBrowser={() => setShowBrowser((b) => !b)}
         />
         <div
           className="shrink-0 px-4 py-2 flex items-center gap-2"
@@ -341,6 +321,8 @@ export default function App() {
           isLoading={isLoading}
           activeNav={bottomNav}
           onNav={handleBottomNav}
+          showBrowser={showBrowser}
+          onToggleBrowser={() => setShowBrowser((b) => !b)}
         />
         <main
           className="flex-1 flex flex-col overflow-hidden"
@@ -366,6 +348,8 @@ export default function App() {
           isLoading={isLoading}
           activeNav={bottomNav}
           onNav={handleBottomNav}
+          showBrowser={showBrowser}
+          onToggleBrowser={() => setShowBrowser((b) => !b)}
         />
         <main className="flex-1 container mx-auto px-4 max-w-3xl pb-24 overflow-auto">
           <DictionaryTab />
@@ -386,6 +370,8 @@ export default function App() {
           isLoading={isLoading}
           activeNav={bottomNav}
           onNav={handleBottomNav}
+          showBrowser={showBrowser}
+          onToggleBrowser={() => setShowBrowser((b) => !b)}
         />
         <main className="flex-1 container mx-auto max-w-6xl pb-24 overflow-auto">
           <ProfilePage />
@@ -406,6 +392,8 @@ export default function App() {
           isLoading={isLoading}
           activeNav={bottomNav}
           onNav={handleBottomNav}
+          showBrowser={showBrowser}
+          onToggleBrowser={() => setShowBrowser((b) => !b)}
         />
         <main className="flex-1 container mx-auto px-4 py-4 max-w-6xl pb-24 overflow-auto">
           <ComicsTab />
@@ -426,6 +414,8 @@ export default function App() {
           isLoading={isLoading}
           activeNav={bottomNav}
           onNav={handleBottomNav}
+          showBrowser={showBrowser}
+          onToggleBrowser={() => setShowBrowser((b) => !b)}
         />
         <main className="flex-1 container mx-auto px-4 py-4 max-w-6xl pb-24 overflow-auto">
           <AdminPage />
@@ -446,6 +436,8 @@ export default function App() {
           isLoading={isLoading}
           activeNav={bottomNav}
           onNav={handleBottomNav}
+          showBrowser={showBrowser}
+          onToggleBrowser={() => setShowBrowser((b) => !b)}
         />
         <main className="flex-1 container mx-auto px-4 py-4 max-w-4xl pb-24 overflow-auto">
           <SettingsPage />
@@ -466,6 +458,8 @@ export default function App() {
           isLoading={isLoading}
           activeNav={bottomNav}
           onNav={handleBottomNav}
+          showBrowser={showBrowser}
+          onToggleBrowser={() => setShowBrowser((b) => !b)}
         />
         <main className="flex-1 container mx-auto px-4 py-4 max-w-5xl pb-24 overflow-auto">
           <MessagesPage />
@@ -486,6 +480,8 @@ export default function App() {
           isLoading={isLoading}
           activeNav={bottomNav}
           onNav={handleBottomNav}
+          showBrowser={showBrowser}
+          onToggleBrowser={() => setShowBrowser((b) => !b)}
         />
         <main className="flex-1 container mx-auto px-4 py-4 max-w-6xl pb-24 overflow-auto">
           <NewsTab />
@@ -506,6 +502,8 @@ export default function App() {
           isLoading={isLoading}
           activeNav={bottomNav}
           onNav={handleBottomNav}
+          showBrowser={showBrowser}
+          onToggleBrowser={() => setShowBrowser((b) => !b)}
         />
         <main className="flex-1 container mx-auto px-4 py-4 max-w-6xl pb-24 overflow-auto">
           <DatasetsTab />
@@ -526,6 +524,8 @@ export default function App() {
           isLoading={isLoading}
           activeNav={bottomNav}
           onNav={handleBottomNav}
+          showBrowser={showBrowser}
+          onToggleBrowser={() => setShowBrowser((b) => !b)}
         />
         <main className="flex-1 container mx-auto px-4 py-4 max-w-6xl pb-24 overflow-auto">
           <InteractiveToolsTab />
@@ -645,27 +645,37 @@ export default function App() {
                 label: "AI Chat",
                 nav: "ai" as NavKey,
                 color: "oklch(0.72 0.18 150)",
+                action: null as null | (() => void),
               },
               {
-                label: "Browser",
-                nav: "browser" as NavKey,
+                label: "Browse Web",
+                nav: "search" as NavKey,
                 color: "oklch(0.72 0.14 220)",
+                action: () => {
+                  setShowBrowser(true);
+                  setBottomNav("search");
+                  setView("search");
+                },
               },
               {
                 label: "Comics",
                 nav: "comics" as NavKey,
                 color: "oklch(0.72 0.18 30)",
+                action: null as null | (() => void),
               },
               {
                 label: "Community",
                 nav: "chat" as NavKey,
                 color: "oklch(0.72 0.14 280)",
+                action: null as null | (() => void),
               },
             ].map((item) => (
               <button
                 key={item.label}
                 type="button"
-                onClick={() => handleBottomNav(item.nav)}
+                onClick={() =>
+                  item.action ? item.action() : handleBottomNav(item.nav)
+                }
                 className="rounded-2xl p-3 text-center text-sm font-medium transition-all hover:scale-[1.03]"
                 style={{
                   background: "oklch(0.16 0.04 260)",
@@ -677,6 +687,34 @@ export default function App() {
               </button>
             ))}
           </div>
+
+          {/* Inline browser panel */}
+          {showBrowser && (
+            <div className="w-full max-w-4xl mt-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-white">
+                  Web Browser
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowBrowser(false)}
+                  className="text-xs text-muted-foreground hover:text-white"
+                >
+                  Close
+                </button>
+              </div>
+              <div
+                style={{
+                  height: "60vh",
+                  borderRadius: "12px",
+                  overflow: "hidden",
+                  border: "1px solid oklch(0.22 0.04 260)",
+                }}
+              >
+                <BrowserPage />
+              </div>
+            </div>
+          )}
         </div>
         <BottomNav current={bottomNav} onChange={handleBottomNav} />
       </div>
@@ -693,7 +731,39 @@ export default function App() {
         isLoading={isLoading}
         activeNav={bottomNav}
         onNav={handleBottomNav}
+        showBrowser={showBrowser}
+        onToggleBrowser={() => setShowBrowser((b) => !b)}
       />
+
+      {/* Inline browser panel */}
+      {showBrowser && (
+        <div style={{ borderBottom: "1px solid oklch(0.20 0.04 260)" }}>
+          <div className="container mx-auto px-4 py-3 max-w-6xl">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-white flex items-center gap-2">
+                <Globe2 className="w-4 h-4" /> Web Browser
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowBrowser(false)}
+                className="text-xs text-muted-foreground hover:text-white flex items-center gap-1"
+              >
+                <X className="w-3 h-3" /> Close
+              </button>
+            </div>
+            <div
+              style={{
+                height: "50vh",
+                borderRadius: "10px",
+                overflow: "hidden",
+                border: "1px solid oklch(0.22 0.04 260)",
+              }}
+            >
+              <BrowserPage />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main content */}
       <main className="flex-1 container mx-auto px-4 py-6 max-w-6xl pb-24">
@@ -762,11 +832,7 @@ export default function App() {
                     <div
                       className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
                       style={{
-                        background: `${color.replace(")", " / 0.15)")}`.replace(
-                          "oklch(",
-                          "oklch(",
-                        ),
-                        // Use inline style with opacity
+                        background: color.replace(")", " / 0.15)"),
                       }}
                     >
                       <Icon className="w-5 h-5" style={{ color }} />
@@ -781,7 +847,7 @@ export default function App() {
                     </div>
                     <span
                       className="text-[10px] font-mono mt-auto"
-                      style={{ color: `${color}` }}
+                      style={{ color }}
                     >
                       {tile.count}
                     </span>
@@ -1126,6 +1192,8 @@ function ArchiveHeader({
   isLoading,
   activeNav,
   onNav,
+  showBrowser,
+  onToggleBrowser,
 }: {
   query: string;
   setQuery: (v: string) => void;
@@ -1133,6 +1201,8 @@ function ArchiveHeader({
   isLoading: boolean;
   activeNav: NavKey;
   onNav: (nav: NavKey) => void;
+  showBrowser?: boolean;
+  onToggleBrowser?: () => void;
 }) {
   return (
     <header className="archive-header sticky top-0 z-30">
@@ -1210,6 +1280,32 @@ function ArchiveHeader({
                 "Search"
               )}
             </Button>
+            {/* Browse Web toggle button */}
+            {onToggleBrowser && (
+              <button
+                type="button"
+                data-ocid="search.toggle"
+                onClick={onToggleBrowser}
+                title="Toggle Web Browser"
+                className="h-9 px-2.5 rounded text-sm flex items-center gap-1 transition-all flex-shrink-0"
+                style={{
+                  background: showBrowser
+                    ? "oklch(0.22 0.06 220 / 0.4)"
+                    : "oklch(0.14 0.03 260)",
+                  border: `1px solid ${
+                    showBrowser
+                      ? "oklch(0.40 0.12 220)"
+                      : "oklch(0.25 0.04 260)"
+                  }`,
+                  color: showBrowser
+                    ? "oklch(0.72 0.18 220)"
+                    : "oklch(0.52 0.05 240)",
+                }}
+              >
+                <Globe2 className="w-4 h-4" />
+                <span className="hidden sm:block text-xs">Browse</span>
+              </button>
+            )}
           </form>
 
           {/* Profile nav item with user badge */}
@@ -1231,7 +1327,6 @@ function ArchiveHeader({
                 icon: MessageSquare,
                 label: "Community",
               },
-              { key: "browser" as NavKey, icon: Globe2, label: "Browser" },
               {
                 key: "dictionary" as NavKey,
                 icon: BookType,
@@ -1287,10 +1382,9 @@ function BottomNav({
   }[] = [
     { key: "search", icon: Search, label: "Search" },
     { key: "discover", icon: Compass, label: "Discover" },
-    { key: "browser", icon: Globe2, label: "Browser" },
+    { key: "news", icon: Newspaper, label: "News" },
     { key: "ai", icon: Sparkles, label: "AI" },
     { key: "chat", icon: MessageSquare, label: "Community" },
-    { key: "news", icon: Newspaper, label: "News" },
     { key: "profile", icon: User, label: "Profile" },
   ];
 
@@ -1396,7 +1490,11 @@ function BottomNav({
                     current === key
                       ? "oklch(0.20 0.06 220 / 0.4)"
                       : "oklch(0.14 0.025 260)",
-                  border: `1px solid ${current === key ? "oklch(0.35 0.10 220 / 0.4)" : "oklch(0.22 0.04 260)"}`,
+                  border: `1px solid ${
+                    current === key
+                      ? "oklch(0.35 0.10 220 / 0.4)"
+                      : "oklch(0.22 0.04 260)"
+                  }`,
                   color:
                     current === key
                       ? "oklch(0.78 0.18 220)"

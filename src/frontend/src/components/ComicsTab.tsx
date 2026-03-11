@@ -18,6 +18,7 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { SensitiveContentBlur } from "./SensitiveContentBlur";
 
 interface Comic {
   id: string;
@@ -729,61 +730,63 @@ export function ComicsTab() {
                   className="cursor-pointer group text-left"
                   onClick={() => setSelectedComic(comic)}
                 >
-                  <div
-                    className="relative aspect-[2/3] rounded-xl overflow-hidden border transition-all duration-200 group-hover:border-blue-500/50"
-                    style={{
-                      background: "oklch(0.16 0.04 260)",
-                      borderColor: "oklch(0.3 0.04 260)",
-                    }}
-                  >
-                    <img
-                      src={comic.coverUrl}
-                      alt={comic.title}
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      loading="lazy"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = "none";
+                  <SensitiveContentBlur label={comic.title}>
+                    <div
+                      className="relative aspect-[2/3] rounded-xl overflow-hidden border transition-all duration-200 group-hover:border-blue-500/50"
+                      style={{
+                        background: "oklch(0.16 0.04 260)",
+                        borderColor: "oklch(0.3 0.04 260)",
                       }}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="absolute bottom-2 left-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <span
-                        className="flex-1 text-xs font-semibold px-2 py-1 rounded-full text-center"
-                        style={{
-                          background: "oklch(0.52 0.18 220 / 0.9)",
-                          color: "white",
+                    >
+                      <img
+                        src={comic.coverUrl}
+                        alt={comic.title}
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        loading="lazy"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
                         }}
-                      >
-                        Read
-                      </span>
-                      {isSaved(comic.id) && (
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className="absolute bottom-2 left-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <span
-                          className="p-1 rounded-full"
-                          style={{ background: "oklch(0.52 0.18 220 / 0.9)" }}
-                        >
-                          <BookmarkCheck className="w-3 h-3 text-white" />
-                        </span>
-                      )}
-                    </div>
-                    {comic.year && (
-                      <div className="absolute top-2 right-2">
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] py-0 px-1.5"
+                          className="flex-1 text-xs font-semibold px-2 py-1 rounded-full text-center"
                           style={{
-                            background: "oklch(0.12 0.03 260 / 0.85)",
-                            borderColor: "oklch(0.35 0.06 260)",
-                            color: "oklch(0.72 0.06 240)",
+                            background: "oklch(0.52 0.18 220 / 0.9)",
+                            color: "white",
                           }}
                         >
-                          {comic.year}
-                        </Badge>
+                          Read
+                        </span>
+                        {isSaved(comic.id) && (
+                          <span
+                            className="p-1 rounded-full"
+                            style={{ background: "oklch(0.52 0.18 220 / 0.9)" }}
+                          >
+                            <BookmarkCheck className="w-3 h-3 text-white" />
+                          </span>
+                        )}
                       </div>
-                    )}
-                  </div>
-                  <p className="mt-1.5 text-xs font-medium line-clamp-2 px-0.5 text-white">
-                    {comic.title}
-                  </p>
+                      {comic.year && (
+                        <div className="absolute top-2 right-2">
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] py-0 px-1.5"
+                            style={{
+                              background: "oklch(0.12 0.03 260 / 0.85)",
+                              borderColor: "oklch(0.35 0.06 260)",
+                              color: "oklch(0.72 0.06 240)",
+                            }}
+                          >
+                            {comic.year}
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
+                    <p className="mt-1.5 text-xs font-medium line-clamp-2 px-0.5 text-white">
+                      {comic.title}
+                    </p>
+                  </SensitiveContentBlur>
                   {comic.creator && (
                     <p
                       className="text-xs line-clamp-1 px-0.5"
@@ -856,44 +859,46 @@ export function ComicsTab() {
                     })
                   }
                 >
-                  <div
-                    className="relative aspect-[2/3] rounded-xl overflow-hidden border transition-all"
-                    style={{
-                      background: "oklch(0.16 0.04 260)",
-                      borderColor: "oklch(0.3 0.04 260)",
-                    }}
-                  >
-                    <img
-                      src={saved.coverUrl}
-                      alt={saved.title}
-                      className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                      loading="lazy"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = "none";
+                  <SensitiveContentBlur label={saved.title}>
+                    <div
+                      className="relative aspect-[2/3] rounded-xl overflow-hidden border transition-all"
+                      style={{
+                        background: "oklch(0.16 0.04 260)",
+                        borderColor: "oklch(0.3 0.04 260)",
                       }}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="absolute bottom-2 left-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <span
-                        className="block text-xs font-semibold px-2 py-1 rounded-full text-center"
-                        style={{
-                          background: "oklch(0.52 0.18 220 / 0.9)",
-                          color: "white",
+                    >
+                      <img
+                        src={saved.coverUrl}
+                        alt={saved.title}
+                        className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                        loading="lazy"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
                         }}
-                      >
-                        Read
-                      </span>
-                    </div>
-                    <div className="absolute top-2 left-2">
-                      <BookmarkCheck
-                        className="w-4 h-4"
-                        style={{ color: "oklch(0.72 0.18 220)" }}
                       />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className="absolute bottom-2 left-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span
+                          className="block text-xs font-semibold px-2 py-1 rounded-full text-center"
+                          style={{
+                            background: "oklch(0.52 0.18 220 / 0.9)",
+                            color: "white",
+                          }}
+                        >
+                          Read
+                        </span>
+                      </div>
+                      <div className="absolute top-2 left-2">
+                        <BookmarkCheck
+                          className="w-4 h-4"
+                          style={{ color: "oklch(0.72 0.18 220)" }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <p className="mt-1.5 text-xs font-medium line-clamp-2 text-white">
-                    {saved.title}
-                  </p>
+                    <p className="mt-1.5 text-xs font-medium line-clamp-2 text-white">
+                      {saved.title}
+                    </p>
+                  </SensitiveContentBlur>
                   {saved.creator && (
                     <p
                       className="text-xs line-clamp-1"
