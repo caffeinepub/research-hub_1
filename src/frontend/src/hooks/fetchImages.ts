@@ -332,3 +332,40 @@ export async function fetchDeviantArtImages(
     return [];
   }
 }
+
+export async function fetchRedditImages(query: string): Promise<WikiImage[]> {
+  try {
+    const url = `https://www.reddit.com/search.json?q=${encodeURIComponent(query)}&type=link&limit=25&restrict_sr=false`;
+    const res = await fetch(url, {
+      headers: { "User-Agent": "ResearchHub/1.0" },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const posts = data?.data?.children ?? [];
+    const IMAGE_EXT = /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i;
+    return posts
+      .filter((p: any) => {
+        const hint = p.data?.post_hint;
+        const purl = p.data?.url ?? "";
+        return hint === "image" || IMAGE_EXT.test(purl);
+      })
+      .map((p: any, idx: number) => {
+        const d = p.data;
+        const imgUrl = d.url ?? "";
+        const thumb =
+          d.thumbnail && d.thumbnail !== "self" && d.thumbnail !== "default"
+            ? d.thumbnail
+            : imgUrl;
+        return {
+          pageid: 11000000 + idx,
+          title: d.title ?? "Reddit Image",
+          url: imgUrl,
+          thumbUrl: thumb,
+          description: d.subreddit_name_prefixed ?? "",
+          source: "Reddit",
+        };
+      });
+  } catch {
+    return [];
+  }
+}

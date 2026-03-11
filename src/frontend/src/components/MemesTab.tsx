@@ -210,13 +210,16 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
     setPage(1);
     setGiphyOffset(0);
     currentQueryRef.current = q;
-    const [giphy, tenor, imgflip, archive, reddit] = await Promise.all([
+    const settled = await Promise.allSettled([
       fetchGiphy(q, 0),
       fetchTenor(q, ""),
       fetchImgflip(),
       fetchArchiveMemes(q, 1),
       fetchRedditMemes(q, ""),
     ]);
+    const [giphy, tenor, imgflip, archive, reddit] = settled.map((r) =>
+      r.status === "fulfilled" ? r.value : [],
+    );
     let items = interleave([giphy, tenor, imgflip, archive, reddit]);
     if (items.length === 0) {
       const openverse = await fetchOpenverseImages(q);
@@ -252,7 +255,7 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
   }, [loadingMore, page, giphyOffset]);
 
   useEffect(() => {
-    doSearch("funny meme");
+    doSearch("funny");
   }, [doSearch]);
 
   // Infinite scroll via IntersectionObserver
@@ -410,7 +413,26 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
         </div>
       )}
 
-      {/* Empty state */}
+      {/* Pre-search empty state */}
+      {!loading && !searched && (
+        <div
+          data-ocid="memes.empty_state"
+          className="flex flex-col items-center justify-center py-16 text-center"
+        >
+          <div className="text-5xl mb-4">😂</div>
+          <p
+            className="font-display text-xl font-semibold mb-2"
+            style={{ color: "oklch(0.85 0.04 240)" }}
+          >
+            Search for GIFs, Memes & Stickers
+          </p>
+          <p className="text-sm text-muted-foreground mb-6">
+            Giphy, Tenor, Imgflip, Reddit & Archive.org
+          </p>
+        </div>
+      )}
+
+      {/* Empty state after search */}
       {!loading && searched && allItems.length === 0 && (
         <div
           data-ocid="memes.empty_state"

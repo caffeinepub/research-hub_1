@@ -9,6 +9,7 @@ interface Props {
   videos: WikiVideo[];
   loading: boolean;
   fuzzyUsed?: boolean;
+  hasSearched?: boolean;
 }
 
 const PAGE_SIZE = 24;
@@ -57,6 +58,8 @@ function isArchiveSource(source: string) {
   );
 }
 
+const VIDEO_DIRECT = /\.(mp4|webm|ogg)(\?.*)?$/i;
+
 function VideoPlayer({ video }: { video: WikiVideo }) {
   if (video.embedUrl) {
     const noSandbox =
@@ -76,17 +79,39 @@ function VideoPlayer({ video }: { video: WikiVideo }) {
       />
     );
   }
+  if (VIDEO_DIRECT.test(video.url)) {
+    return (
+      // biome-ignore lint/a11y/useMediaCaption: public domain video source may not have captions
+      <video
+        key={video.url}
+        controls
+        className="w-full aspect-video"
+        style={{ maxHeight: "500px" }}
+      >
+        <source src={video.url} type={video.mime} />
+        Your browser does not support this video format.
+      </video>
+    );
+  }
+  // Fallback: thumbnail + external link
   return (
-    // biome-ignore lint/a11y/useMediaCaption: public domain video source may not have captions
-    <video
-      key={video.url}
-      controls
-      className="w-full aspect-video"
-      style={{ maxHeight: "500px" }}
-    >
-      <source src={video.url} type={video.mime} />
-      Your browser does not support this video format.
-    </video>
+    <div className="w-full aspect-video flex flex-col items-center justify-center bg-black/60 rounded-lg gap-3 p-4">
+      {video.thumbUrl && (
+        <img
+          src={video.thumbUrl}
+          alt={video.title}
+          className="max-h-48 max-w-full object-contain rounded opacity-80"
+        />
+      )}
+      <a
+        href={video.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-2 px-4 py-2 bg-primary/80 hover:bg-primary text-primary-foreground rounded-lg text-sm font-medium transition-colors"
+      >
+        Watch on {video.source} ↗
+      </a>
+    </div>
   );
 }
 
@@ -196,7 +221,7 @@ function SourceFilters({
   );
 }
 
-export function VideosTab({ videos, loading, fuzzyUsed }: Props) {
+export function VideosTab({ videos, loading, fuzzyUsed, hasSearched }: Props) {
   const [selected, setSelected] = useState<WikiVideo | null>(null);
   const [disabledSources, setDisabledSources] = useState<Set<string>>(
     new Set(),
@@ -277,6 +302,43 @@ export function VideosTab({ videos, loading, fuzzyUsed }: Props) {
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {SKELETON_IDS.map((id) => (
             <Skeleton key={id} className="h-20 rounded-lg" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasSearched && !loading) {
+    return (
+      <div
+        data-ocid="videos.empty_state"
+        className="flex flex-col items-center justify-center py-20 text-center"
+      >
+        <div className="text-5xl mb-4">🎬</div>
+        <p
+          className="font-display text-xl font-semibold mb-2"
+          style={{ color: "oklch(0.85 0.04 240)" }}
+        >
+          Search for Videos
+        </p>
+        <p className="text-sm text-muted-foreground mb-6">
+          Internet Archive, NASA, C-SPAN, TED Talks & more
+        </p>
+        <div className="flex flex-wrap gap-2 justify-center">
+          {["Space", "History", "Science", "Nature"].map((chip) => (
+            <button
+              key={chip}
+              type="button"
+              data-ocid="videos.tab"
+              className="px-4 py-2 rounded-full text-sm border transition-colors"
+              style={{
+                borderColor: "oklch(0.4 0.08 55)",
+                color: "oklch(0.72 0.1 55)",
+                background: "oklch(0.18 0.04 260 / 0.5)",
+              }}
+            >
+              {chip}
+            </button>
           ))}
         </div>
       </div>

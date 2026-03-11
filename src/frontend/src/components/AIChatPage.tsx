@@ -17,6 +17,77 @@ import type {
   WikiImage,
   WikiVideo,
 } from "../types/research";
+function evaluateMath(query: string): string | null {
+  const mathPattern =
+    /^[\d\s\+\-\*\/\^\(\)\.\%]+$|(\d+\s*(plus|minus|times|divided by|multiplied by|\+|\-|\*|\/|x)\s*\d+)/i;
+  if (!mathPattern.test(query.trim())) return null;
+  try {
+    const expr = query
+      .toLowerCase()
+      .replace(/plus/g, "+")
+      .replace(/minus/g, "-")
+      .replace(/times|multiplied by/g, "*")
+      .replace(/divided by/g, "/")
+      .replace(/x/g, "*")
+      .replace(/[^0-9\+\-\*\/\(\)\.\%\s]/g, "");
+    // eslint-disable-next-line
+    const result = Function(`"use strict"; return (${expr})`)();
+    if (typeof result === "number" && Number.isFinite(result)) {
+      return result % 1 === 0
+        ? result.toString()
+        : result.toFixed(6).replace(/\.?0+$/, "");
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function buildConversationalReply(
+  query: string,
+  articles: WikiArticle[],
+): string {
+  const q = query.trim();
+  const first = articles[0];
+
+  if (first?.fullSummary) {
+    const summary = first.fullSummary.slice(0, 300).trim();
+    const endsNicely = /[.!?]$/.test(summary);
+    return summary + (endsNicely ? "" : "...");
+  }
+
+  if (first?.snippet) {
+    return first.snippet
+      .replace(/<[^>]+>/g, "")
+      .trim()
+      .slice(0, 300);
+  }
+
+  const topic = q.length > 50 ? `${q.slice(0, 47)}...` : q;
+  return `Here's what I found about "${topic}". I've pulled together articles, images, and more from across the web for you.`;
+}
+
+function renderTextWithLinks(text: string) {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+  return parts.map((part, i) =>
+    urlRegex.test(part) ? (
+      <a
+        // biome-ignore lint/suspicious/noArrayIndexKey: link parts
+        key={i}
+        href={part}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline"
+        style={{ color: "oklch(0.65 0.16 220)" }}
+      >
+        {part}
+      </a>
+    ) : (
+      part
+    ),
+  );
+}
 
 interface Message {
   id: string;
@@ -30,6 +101,7 @@ interface Message {
   };
   suggestions?: string[];
   isLoading?: boolean;
+  isCalcResult?: boolean;
 }
 
 const EXAMPLE_QUESTIONS = [
@@ -69,14 +141,19 @@ function getSuggestions(query: string): string[] {
   return [`${main} history`, `${main} science`, `How does ${main} work`];
 }
 
-function ArticleCard({ article }: { article: WikiArticle }) {
+function ArticleCard({
+  article,
+  onClick,
+}: { article: WikiArticle; onClick?: () => void }) {
   return (
-    <div
-      className="rounded-xl p-3 flex gap-3 items-start"
+    <button
+      type="button"
+      className="rounded-xl p-3 flex gap-3 items-start w-full text-left cursor-pointer transition-opacity hover:opacity-90"
       style={{
         background: "oklch(0.18 0.05 260 / 0.7)",
         border: "1px solid oklch(0.3 0.06 255 / 0.4)",
       }}
+      onClick={onClick}
     >
       {article.thumbnail && (
         <img
@@ -108,18 +185,23 @@ function ArticleCard({ article }: { article: WikiArticle }) {
           {article.source}
         </span>
       </div>
-    </div>
+    </button>
   );
 }
 
-function VideoCard({ video }: { video: WikiVideo }) {
+function VideoCard({
+  video,
+  onClick,
+}: { video: WikiVideo; onClick?: () => void }) {
   return (
-    <div
-      className="rounded-xl p-3 flex gap-3 items-center"
+    <button
+      type="button"
+      className="rounded-xl p-3 flex gap-3 items-center w-full text-left cursor-pointer transition-opacity hover:opacity-90"
       style={{
         background: "oklch(0.18 0.05 260 / 0.7)",
         border: "1px solid oklch(0.3 0.06 255 / 0.4)",
       }}
+      onClick={onClick}
     >
       <div
         className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
@@ -153,7 +235,7 @@ function VideoCard({ video }: { video: WikiVideo }) {
           {video.source}
         </span>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -181,7 +263,7 @@ export function AIChatPage({ onSearchMore }: AIChatPageProps) {
             ? {
                 ...m,
                 isLoading: false,
-                text: `Here's what I found for "${q}":`,
+                text: buildConversationalReply(q, results.articles),
                 results: {
                   articles: results.articles.slice(0, 3),
                   images: results.images.slice(0, 4),
@@ -227,6 +309,22 @@ export function AIChatPage({ onSearchMore }: AIChatPageProps) {
       role: "user",
       text: query,
     };
+
+    // Check if it's a math expression
+    const mathResult = evaluateMath(query);
+    if (mathResult !== null) {
+      const calcMsg: Message = {
+        id: `a-${Date.now()}`,
+        role: "assistant",
+        text: `= ${mathResult}
+
+${query} = ${mathResult}`,
+        isCalcResult: true,
+      };
+      setMessages((prev) => [...prev, userMsg, calcMsg]);
+      return;
+    }
+
     const assistantMsg: Message = {
       id: `a-${Date.now()}`,
       role: "assistant",
@@ -380,8 +478,23 @@ export function AIChatPage({ onSearchMore }: AIChatPageProps) {
                           Researching...
                         </span>
                       </div>
+                    ) : msg.isCalcResult ? (
+                      <div>
+                        <div
+                          className="text-2xl font-bold font-mono mb-1"
+                          style={{ color: "oklch(0.72 0.18 150)" }}
+                        >
+                          {msg.text.split(String.fromCharCode(10))[0]}
+                        </div>
+                        <div
+                          className="text-xs"
+                          style={{ color: "oklch(0.55 0.05 240)" }}
+                        >
+                          {msg.text.split(String.fromCharCode(10))[2]}
+                        </div>
+                      </div>
                     ) : (
-                      msg.text
+                      <span>{renderTextWithLinks(msg.text)}</span>
                     )}
                   </div>
 
@@ -401,6 +514,7 @@ export function AIChatPage({ onSearchMore }: AIChatPageProps) {
                             <ArticleCard
                               key={`${article.pageid}-${i}`}
                               article={article}
+                              onClick={() => onSearchMore?.(article.title)}
                             />
                           ))}
                         </div>
@@ -445,6 +559,11 @@ export function AIChatPage({ onSearchMore }: AIChatPageProps) {
                             <VideoCard
                               key={`${video.pageid}-${i}`}
                               video={video}
+                              onClick={() =>
+                                video.url
+                                  ? window.open(video.url, "_blank")
+                                  : undefined
+                              }
                             />
                           ))}
                         </div>

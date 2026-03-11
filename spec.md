@@ -1,36 +1,35 @@
 # Research Hub
 
 ## Current State
-Research Hub is a multi-tab research platform with Articles, Images, Videos, Films, Audio, Discover, AI Chat, GIFs & Memes, Browser, Dictionary, Study, Community, and Profile sections. The app has a dark theme (dark navy backgrounds).
-
-Known issues:
-- Input/textarea text is nearly invisible (dark color on dark background) in AI Chat, Community chat, Homework Help, Dictionary, and Memes search bar
-- Bottom nav has 8 items crammed in a fixed-width row — items are too small and no scrolling
-- GIF/Memes tab search doesn't visually update when user types a new term — keeps showing initial load results; Archive images missing from results
-- No Comics/Books section for reading public domain comics
-- Homework Help gives generic "here are resources" responses instead of truly explaining concepts
+Version 28 is live with 28 tabs/features. Key relevant files:
+- `fetchVideos.ts` — `fetchEuropeanFilmGateway` uses Europeana API, sets `embedUrl` only for `.mp4/webm/ogg` or `player` URLs, otherwise uses page URL in `<video>` tag which fails
+- `fetchImages.ts` — `fetchDeviantArtImages` uses openverse source=deviantart; no Reddit image source exists for the Images tab
+- `fetchAudio.ts` — 14 Archive.org audio collections, all look structurally correct
+- `fetchVideos.ts` — Archive.org video fetches use correct `/advancedsearch.php` endpoint
+- `VideosTab.tsx`, `FilmsTab.tsx` — `VideoPlayer`/`FilmPlayer` renders `<iframe>` if `embedUrl`, else `<video>` tag (breaks for page URLs)
+- `ImagesTab.tsx` — has full lightbox with left/right navigation, `SOURCE_COLORS` does not include DeviantArt or Reddit entries
+- `useResearch.ts` — source-filtered search not implemented; query is passed verbatim to all sources
 
 ## Requested Changes (Diff)
 
 ### Add
-- Comics tab in bottom nav: browse and read public domain comics from Archive.org (comics collection), Digital Comic Museum, Comic Book Plus, and Marvel/DC public domain
-- Comics reader: click a comic to open an inline reader with page-by-page navigation
-- Comics search bar: search by title, character, publisher, era
+- Reddit image source in `fetchImages.ts` using Reddit's public JSON search API
+- Source-filtered search logic in `useResearch.ts`: detect source keywords (DeviantArt, Reddit, NASA, etc.) in query, strip them, run normal search but filter results to that source only
+- `DeviantArt` and `Reddit` entries in `SOURCE_COLORS` in `ImagesTab.tsx`
 
 ### Modify
-- **Input text colors**: All Input and Textarea components used in the app need explicit white/light text color (oklch ~0.95) so typed text is visible on dark backgrounds — affects AIChatPage (input at bottom), CommunityChatsPage (textarea), HomeworkHelpPage (textarea), DictionaryTab (input), MemesTab (input)
-- **Bottom nav**: Change from `flex items-stretch h-16` fixed row to `overflow-x-auto` scrollable row with `flex-shrink-0` on each button, so all 8 nav items are accessible by swiping
-- **GIF search**: Fix so that submitting a new search term clears old results and shows new ones. Add better fallback: if Giphy/Tenor return empty, fall back to Archive.org image search for the term. Improve Archive image URL construction.
-- **Homework Help / Study**: Make it act more like a real study partner — for math show step-by-step working, for other subjects give a real explanation paragraph before showing resources, use encouraging tone, break down answers clearly
+- `fetchEuropeanFilmGateway` in `fetchVideos.ts`: improve embed detection; for items where no direct playable URL exists, set `embedUrl: undefined` and add a `pageUrl` field so the player can show a "Watch on Film Gateway" fallback button
+- `FilmPlayer` in `FilmsTab.tsx`: when `film.embedUrl` is undefined AND `film.url` is not a direct video file, show a thumbnail + "Watch on European Film Gateway" button (opens in new tab) instead of a broken `<video>` tag
+- `VideoPlayer` in `VideosTab.tsx`: same fallback for non-playable page URLs (check if URL ends with video extension or contains `archive.org/embed`, `youtube-nocookie`, `vimeo`, `player`)
+- `ImagesTab.tsx` SOURCE_COLORS: add DeviantArt and Reddit entries so badges show colored labels
+- `useResearch.ts` `search()`: add source keyword parsing — if query contains a known source name (case-insensitive), strip it from the search query and after results are assembled, filter `images`/`videos`/`audio` arrays to only that source
 
 ### Remove
-- Nothing
+- Nothing removed
 
 ## Implementation Plan
-1. Fix all input/textarea text colors to `color: "oklch(0.95 0.02 240)"` in AIChatPage, CommunityChatsPage, HomeworkHelpPage, DictionaryTab, MemesTab
-2. Make bottom nav scrollable: wrap nav items in `overflow-x-auto` div, add `flex-shrink-0` to each button, use `min-w-[60px]` per item
-3. Fix GIF search: ensure `doSearch` clears `allItems` before setting new results; fix Archive image URLs to use `https://archive.org/services/img/${identifier}`; add direct image search fallback from Openverse
-4. Fix Homework Help: expand `buildAssistantText` to return real subject explanations with bullet points; for science/history/english/writing give a 3-4 sentence explanation before resources
-5. Add ComicsTab component: fetch from Archive.org comics collection (`collection:comics` or `collection:digitalcomicmuseum`), display covers in grid, click opens inline comic reader using Archive.org embed or page images
-6. Add Comics nav item to bottom nav (BookImage icon, label "Comics")
-7. Wire ComicsTab into App.tsx view routing
+1. `fetchImages.ts`: Add `fetchRedditImages(query)` using `https://www.reddit.com/search.json?q={query}&type=link&limit=25&restrict_sr=false` (Reddit's unauthenticated JSON endpoint); extract post image URLs from `url_overridden_by_dest` for image posts
+2. `fetchVideos.ts`: Fix `fetchEuropeanFilmGateway` — use `edmIsShownBy` for direct video URL, mark `embedUrl` only if it passes a strict check (ends with `.mp4`/`.webm`/`.ogg` or host includes `player`/`embed`). Add `pageUrl` field to `WikiVideo` type for fallback link.
+3. `FilmsTab.tsx` & `VideosTab.tsx`: Update `FilmPlayer`/`VideoPlayer` — if `embedUrl` exists use iframe, else if URL ends with video extension use `<video>`, else show fallback card with thumbnail and external link button
+4. `ImagesTab.tsx`: Add DeviantArt and Reddit to `SOURCE_COLORS`
+5. `useResearch.ts`: Parse source keyword from query before searching. Known source aliases: `deviantart` → "DeviantArt", `reddit` → "Reddit", `nasa` → "NASA", `wikimedia` / `commons` → "Wikimedia Commons", `archive` → "Internet Archive", `flickr` → "Flickr Commons", `smithsonian` → "Smithsonian", etc. After search, if sourceFilter is set, filter images/videos/audio to matching source. Also add `fetchRedditImages` to the search waterfall.

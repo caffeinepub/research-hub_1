@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BookOpen, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowRight, BookOpen, ChevronDown, ChevronUp } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import type { WikiArticle } from "../types/research";
@@ -12,6 +12,7 @@ interface Props {
   loading: boolean;
   onExpand: (article: WikiArticle) => void;
   onSelect?: (article: WikiArticle) => void;
+  hasSearched?: boolean;
 }
 
 const INITIAL_SIZE = 20;
@@ -34,7 +35,20 @@ const SOURCE_COLORS: Record<string, string> = {
   "Europe PMC": "bg-violet-500/10 text-violet-400 border-violet-500/20",
 };
 
-export function ArticlesTab({ articles, loading, onExpand, onSelect }: Props) {
+const TOPIC_CHIPS = [
+  { label: "Space", query: "space universe" },
+  { label: "History", query: "ancient history" },
+  { label: "Science", query: "science biology" },
+  { label: "Technology", query: "technology AI" },
+];
+
+export function ArticlesTab({
+  articles,
+  loading,
+  onExpand,
+  onSelect,
+  hasSearched,
+}: Props) {
   const [visibleCount, setVisibleCount] = useState(INITIAL_SIZE);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset on new search
@@ -59,6 +73,44 @@ export function ArticlesTab({ articles, loading, onExpand, onSelect }: Props) {
             <Skeleton className="h-8 w-24 mt-2" />
           </div>
         ))}
+      </div>
+    );
+  }
+
+  if (!hasSearched) {
+    return (
+      <div
+        data-ocid="articles.empty_state"
+        className="flex flex-col items-center justify-center py-20 text-center"
+      >
+        <div className="text-5xl mb-4">📚</div>
+        <p
+          className="font-display text-xl font-semibold mb-2"
+          style={{ color: "oklch(0.85 0.04 240)" }}
+        >
+          Search for Articles
+        </p>
+        <p className="text-sm text-muted-foreground mb-6">
+          Wikipedia, PubMed, arXiv, Internet Archive & more
+        </p>
+        <div className="flex flex-wrap gap-2 justify-center">
+          {TOPIC_CHIPS.map((chip) => (
+            <button
+              key={chip.label}
+              type="button"
+              data-ocid="articles.tab"
+              onClick={() => onSelect?.({ title: chip.query } as any)}
+              className="px-4 py-2 rounded-full text-sm border transition-colors"
+              style={{
+                borderColor: "oklch(0.4 0.08 220)",
+                color: "oklch(0.72 0.1 220)",
+                background: "oklch(0.18 0.04 260 / 0.5)",
+              }}
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
       </div>
     );
   }
@@ -195,6 +247,7 @@ export function ArticlesTab({ articles, loading, onExpand, onSelect }: Props) {
             className="min-w-[140px]"
           >
             Load More
+            <ArrowRight className="w-4 h-4 ml-2" />
             <span className="ml-2 text-xs text-muted-foreground">
               ({articles.length - visibleCount} remaining)
             </span>

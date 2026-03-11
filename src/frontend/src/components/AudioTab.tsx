@@ -9,6 +9,7 @@ import type { AudioResult } from "../types/research";
 interface Props {
   audio: AudioResult[];
   loading: boolean;
+  hasSearched?: boolean;
 }
 
 const PAGE_SIZE = 10;
@@ -29,7 +30,14 @@ const SOURCE_COLORS: Record<string, string> = {
   "Vintage Recordings": "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
 };
 
-export function AudioTab({ audio, loading }: Props) {
+const TOPIC_CHIPS = [
+  { label: "Jazz", query: "jazz" },
+  { label: "Classical", query: "classical music" },
+  { label: "Podcasts", query: "podcast" },
+  { label: "Radio", query: "radio" },
+];
+
+export function AudioTab({ audio, loading, hasSearched }: Props) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [playingId, setPlayingId] = useState<string | null>(null);
 
@@ -50,11 +58,47 @@ export function AudioTab({ audio, loading }: Props) {
             className="rounded-xl border border-border/60 p-5 space-y-3"
           >
             <Skeleton className="h-4 w-2/3" />
-            <Skeleton className="h-3 w-full" />
-            <Skeleton className="h-3 w-4/5" />
-            <Skeleton className="h-20 w-full rounded-lg" />
+            <Skeleton className="h-3 w-1/2" />
+            <Skeleton className="h-10 w-full rounded-lg" />
           </div>
         ))}
+      </div>
+    );
+  }
+
+  if (!hasSearched) {
+    return (
+      <div
+        data-ocid="audio.empty_state"
+        className="flex flex-col items-center justify-center py-20 text-center"
+      >
+        <div className="text-5xl mb-4">🎵</div>
+        <p
+          className="font-display text-xl font-semibold mb-2"
+          style={{ color: "oklch(0.85 0.04 240)" }}
+        >
+          Search for Audio & Music
+        </p>
+        <p className="text-sm text-muted-foreground mb-6">
+          Internet Archive, LibriVox, Live Concerts & more
+        </p>
+        <div className="flex flex-wrap gap-2 justify-center">
+          {TOPIC_CHIPS.map((chip) => (
+            <button
+              key={chip.label}
+              type="button"
+              data-ocid="audio.tab"
+              className="px-4 py-2 rounded-full text-sm border transition-colors"
+              style={{
+                borderColor: "oklch(0.4 0.08 160)",
+                color: "oklch(0.72 0.1 160)",
+                background: "oklch(0.18 0.04 260 / 0.5)",
+              }}
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
       </div>
     );
   }
@@ -70,7 +114,7 @@ export function AudioTab({ audio, loading }: Props) {
           No audio found
         </p>
         <p className="text-muted-foreground/60 text-sm mt-1">
-          Try searching for music, audiobooks, or radio
+          Try searching for music, podcasts, or radio
         </p>
       </div>
     );
@@ -78,106 +122,101 @@ export function AudioTab({ audio, loading }: Props) {
 
   return (
     <div className="space-y-4">
-      {visibleAudio.map((item, idx) => (
-        <AnimatePresence key={item.id} mode="wait">
+      <AnimatePresence initial={false}>
+        {visibleAudio.map((track, idx) => (
           <motion.div
+            key={`${track.id}-${idx}`}
             data-ocid={`audio.item.${idx + 1}`}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: idx * 0.04, duration: 0.3 }}
-            className="rounded-xl border border-border/60 bg-card overflow-hidden"
+            transition={{ delay: Math.min(idx * 0.04, 0.4), duration: 0.3 }}
+            className="rounded-xl border border-border/60 p-5"
           >
-            <div className="p-4">
-              <div className="flex items-start gap-3 mb-2">
-                <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
-                  style={{
-                    background: "oklch(0.55 0.18 280 / 0.15)",
-                    border: "1px solid oklch(0.55 0.18 280 / 0.3)",
-                  }}
-                >
-                  <Music
-                    className="w-5 h-5"
-                    style={{ color: "oklch(0.72 0.18 280)" }}
-                  />
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <h3 className="font-display font-semibold text-base text-foreground truncate">
+                    {track.title}
+                  </h3>
+                  <Badge
+                    variant="outline"
+                    className={`text-xs shrink-0 border ${
+                      SOURCE_COLORS[track.source] ??
+                      "bg-muted/50 text-muted-foreground"
+                    }`}
+                  >
+                    {track.source}
+                  </Badge>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start gap-2 flex-wrap">
-                    <h3 className="font-display font-semibold text-sm leading-snug text-foreground flex-1 min-w-0">
-                      {item.title}
-                    </h3>
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] shrink-0 border ${SOURCE_COLORS[item.source] ?? "bg-muted/50 text-muted-foreground"}`}
-                    >
-                      {item.source}
-                    </Badge>
-                  </div>
-                  {item.creator && (
-                    <p className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
-                      <User className="w-3 h-3" /> {item.creator}
-                      {item.year && <span className="ml-1">· {item.year}</span>}
-                    </p>
-                  )}
-                  {item.description && (
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2 leading-relaxed">
-                      {item.description}
-                    </p>
-                  )}
-                </div>
+                {track.creator && (
+                  <p className="text-sm text-muted-foreground flex items-center gap-1">
+                    <User className="w-3 h-3" />
+                    {Array.isArray(track.creator)
+                      ? track.creator[0]
+                      : track.creator}
+                  </p>
+                )}
               </div>
-
-              <div className="flex items-center gap-2 mt-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  data-ocid={`audio.toggle.${idx + 1}`}
-                  className="h-8 text-xs"
-                  onClick={() =>
-                    setPlayingId(playingId === item.id ? null : item.id)
-                  }
-                >
-                  {playingId === item.id ? "Hide Player" : "▶ Play"}
-                </Button>
+              {track.downloadUrl && (
                 <a
-                  href={item.downloadUrl}
+                  href={track.downloadUrl}
+                  download
                   target="_blank"
                   rel="noopener noreferrer"
-                  data-ocid={`audio.download_button.${idx + 1}`}
-                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg shrink-0"
+                  style={{
+                    background: "oklch(0.52 0.18 220 / 0.15)",
+                    color: "oklch(0.65 0.12 220)",
+                  }}
                 >
                   <Download className="w-3.5 h-3.5" />
-                  Download / Details
                 </a>
-              </div>
+              )}
             </div>
 
-            <AnimatePresence>
-              {playingId === item.id && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.25 }}
-                  className="overflow-hidden border-t border-border/60"
+            {playingId === track.id ? (
+              <div className="space-y-2">
+                <audio
+                  controls
+                  autoPlay
+                  className="w-full"
+                  style={{
+                    height: "40px",
+                    accentColor: "oklch(0.72 0.18 150)",
+                  }}
+                  src={track.downloadUrl ?? undefined}
                 >
-                  <iframe
-                    src={item.embedUrl}
-                    title={item.title}
-                    width="100%"
-                    height="120"
-                    frameBorder="0"
-                    allow="autoplay; fullscreen"
-                    sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-                    className="block"
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
+                  <track kind="captions" />
+                </audio>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setPlayingId(null)}
+                  className="text-xs text-muted-foreground"
+                >
+                  Close player
+                </Button>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                data-ocid={`audio.item.${idx + 1}.button`}
+                size="sm"
+                onClick={() => setPlayingId(track.id)}
+                className="w-full"
+                style={{
+                  background: "oklch(0.52 0.18 150 / 0.15)",
+                  color: "oklch(0.72 0.15 150)",
+                  border: "1px solid oklch(0.52 0.18 150 / 0.3)",
+                }}
+              >
+                <Music className="w-4 h-4 mr-2" />
+                Play
+              </Button>
+            )}
           </motion.div>
-        </AnimatePresence>
-      ))}
+        ))}
+      </AnimatePresence>
 
       {visibleCount < audio.length && (
         <div className="flex justify-center pt-2">
@@ -186,12 +225,8 @@ export function AudioTab({ audio, loading }: Props) {
             variant="outline"
             data-ocid="audio.pagination_next"
             onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
-            className="min-w-[140px]"
           >
-            Load More
-            <span className="ml-2 text-xs text-muted-foreground">
-              ({audio.length - visibleCount} remaining)
-            </span>
+            Load More ({audio.length - visibleCount} remaining)
           </Button>
         </div>
       )}

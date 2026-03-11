@@ -17,6 +17,7 @@ interface Props {
   images: WikiImage[];
   loading: boolean;
   fuzzyUsed?: boolean;
+  hasSearched?: boolean;
 }
 
 const PAGE_SIZE = 30;
@@ -50,9 +51,19 @@ const SOURCE_COLORS: Record<string, string> = {
   DPLA: "bg-purple-500/10 text-purple-400 border-purple-500/20",
   Rijksmuseum: "bg-orange-600/10 text-orange-400 border-orange-600/20",
   Pixabay: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+  DeviantArt: "bg-green-600/10 text-green-400 border-green-600/20",
+  Reddit: "bg-orange-600/10 text-orange-400 border-orange-600/20",
+  "Internet Archive": "bg-amber-500/10 text-amber-400 border-amber-500/20",
 };
 
-export function ImagesTab({ images, loading, fuzzyUsed }: Props) {
+const TOPIC_CHIPS = [
+  { label: "Space", query: "space" },
+  { label: "Nature", query: "nature" },
+  { label: "Art", query: "art" },
+  { label: "History", query: "history" },
+];
+
+export function ImagesTab({ images, loading, fuzzyUsed, hasSearched }: Props) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -101,15 +112,49 @@ export function ImagesTab({ images, loading, fuzzyUsed }: Props) {
   if (loading) {
     return (
       <div
-        data-ocid="search.loading_state"
-        className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3"
+        data-ocid="images.loading_state"
+        className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"
       >
         {SKELETON_IDS.map((id) => (
-          <div key={id} className="space-y-2">
-            <Skeleton className="aspect-square rounded-xl" />
-            <Skeleton className="h-3 w-4/5" />
-          </div>
+          <Skeleton key={id} className="aspect-square rounded-xl" />
         ))}
+      </div>
+    );
+  }
+
+  if (!hasSearched) {
+    return (
+      <div
+        data-ocid="images.empty_state"
+        className="flex flex-col items-center justify-center py-20 text-center"
+      >
+        <div className="text-5xl mb-4">🖼️</div>
+        <p
+          className="font-display text-xl font-semibold mb-2"
+          style={{ color: "oklch(0.85 0.04 240)" }}
+        >
+          Search for Images
+        </p>
+        <p className="text-sm text-muted-foreground mb-6">
+          NASA, Met Museum, Wikimedia Commons, Flickr & more
+        </p>
+        <div className="flex flex-wrap gap-2 justify-center">
+          {TOPIC_CHIPS.map((chip) => (
+            <button
+              key={chip.label}
+              type="button"
+              data-ocid="images.tab"
+              className="px-4 py-2 rounded-full text-sm border transition-colors"
+              style={{
+                borderColor: "oklch(0.4 0.08 200)",
+                color: "oklch(0.72 0.1 200)",
+                background: "oklch(0.18 0.04 260 / 0.5)",
+              }}
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
       </div>
     );
   }
@@ -132,72 +177,52 @@ export function ImagesTab({ images, loading, fuzzyUsed }: Props) {
   }
 
   return (
-    <>
+    <div className="space-y-4">
       {fuzzyUsed && (
-        <p className="text-xs text-muted-foreground/70 italic mb-3">
-          Showing related results
+        <p className="text-xs text-muted-foreground italic">
+          Showing similar results (exact match not found)
         </p>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
         {visibleImages.map((img, idx) => (
-          <motion.div
-            key={img.pageid}
+          <motion.button
+            key={`${img.pageid}-${idx}`}
+            type="button"
             data-ocid={`images.item.${idx + 1}`}
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: Math.min(idx * 0.02, 0.4), duration: 0.25 }}
-            className="group cursor-pointer"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: Math.min(idx * 0.02, 0.4) }}
+            className="group relative aspect-square rounded-xl overflow-hidden cursor-pointer"
+            style={{ background: "oklch(0.16 0.04 260)" }}
             onClick={() => setLightboxIndex(idx)}
-            // biome-ignore lint/a11y/useSemanticElements: motion.div used for animation
-            onKeyDown={(e) => e.key === "Enter" && setLightboxIndex(idx)}
-            role="button"
-            tabIndex={0}
           >
-            <div className="relative aspect-square overflow-hidden rounded-xl border border-border/60 group-hover:border-primary/40 transition-all duration-200">
-              <img
-                src={img.thumbUrl}
-                alt={img.title}
-                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                loading="lazy"
-              />
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200 flex items-center justify-center">
-                <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-              </div>
-              <div className="absolute bottom-1.5 left-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                <Badge
-                  variant="outline"
-                  className={`text-[10px] py-0 px-1.5 border backdrop-blur-sm ${
+            <img
+              src={img.thumbUrl ?? img.url}
+              alt={img.title}
+              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+              loading="lazy"
+            />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-200 flex items-center justify-center">
+              <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+            {img.source && (
+              <div className="absolute bottom-1 left-1">
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
                     SOURCE_COLORS[img.source] ??
-                    "bg-black/60 text-white border-white/20"
+                    "bg-muted/50 text-muted-foreground"
                   }`}
                 >
                   {img.source}
-                </Badge>
+                </span>
               </div>
-              {/* Download button */}
-              <a
-                href={img.url}
-                download
-                target="_blank"
-                rel="noopener noreferrer"
-                data-ocid={`images.download_button.${idx + 1}`}
-                className="absolute bottom-1.5 right-1.5 p-1.5 rounded-lg bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-black/80"
-                onClick={(e) => e.stopPropagation()}
-                title="Download image"
-              >
-                <Download className="w-3.5 h-3.5" />
-              </a>
-            </div>
-            <p className="mt-1.5 text-xs text-muted-foreground line-clamp-1 px-0.5">
-              {img.title}
-            </p>
-          </motion.div>
+            )}
+          </motion.button>
         ))}
       </div>
 
-      {/* Infinite scroll sentinel */}
-      <div ref={sentinelRef} className="h-10" aria-hidden="true" />
+      <div ref={sentinelRef} className="h-4" aria-hidden="true" />
 
       {/* Lightbox */}
       <AnimatePresence>
@@ -206,123 +231,95 @@ export function ImagesTab({ images, loading, fuzzyUsed }: Props) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            style={{ backgroundColor: "oklch(0.08 0.02 265 / 0.92)" }}
-            onClick={() => setLightboxIndex(null)}
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            style={{ background: "oklch(0.05 0.02 260 / 0.95)" }}
           >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="relative max-w-4xl w-full bg-card rounded-2xl overflow-hidden shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
+            <button
+              type="button"
+              data-ocid="images.close_button"
+              className="absolute top-4 right-4 p-2 rounded-full"
+              style={{ background: "oklch(0.22 0.05 260)" }}
+              onClick={() => setLightboxIndex(null)}
             >
-              {/* Close */}
-              <button
-                type="button"
-                data-ocid="lightbox.close_button"
-                className="absolute top-3 right-3 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
-                onClick={() => setLightboxIndex(null)}
-                aria-label="Close"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <X className="w-5 h-5" />
+            </button>
 
-              {/* Prev arrow */}
+            {lightboxIndex > 0 && (
               <button
                 type="button"
-                data-ocid="lightbox.pagination_prev"
-                className="absolute left-3 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
-                onClick={() =>
-                  setLightboxIndex(
-                    (lightboxIndex - 1 + images.length) % images.length,
-                  )
-                }
-                aria-label="Previous image"
+                data-ocid="images.pagination_prev"
+                className="absolute left-4 p-3 rounded-full"
+                style={{ background: "oklch(0.22 0.05 260 / 0.8)" }}
+                onClick={() => setLightboxIndex((i) => (i ?? 1) - 1)}
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
+            )}
 
-              {/* Next arrow */}
+            {lightboxIndex < images.length - 1 && (
               <button
                 type="button"
-                data-ocid="lightbox.pagination_next"
-                className="absolute right-14 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
-                onClick={() =>
-                  setLightboxIndex((lightboxIndex + 1) % images.length)
-                }
-                aria-label="Next image"
+                data-ocid="images.pagination_next"
+                className="absolute right-4 p-3 rounded-full"
+                style={{ background: "oklch(0.22 0.05 260 / 0.8)" }}
+                onClick={() => setLightboxIndex((i) => (i ?? 0) + 1)}
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
+            )}
 
-              <AnimatePresence mode="wait">
-                <motion.img
-                  key={lightboxImage.pageid}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.2 }}
-                  src={lightboxImage.url}
-                  alt={lightboxImage.title}
-                  className="w-full max-h-[70vh] object-contain bg-black/10"
-                />
-              </AnimatePresence>
-
-              <div className="p-4">
-                <div className="flex items-start gap-2 flex-wrap">
-                  <h3 className="font-display font-semibold text-base text-foreground flex-1">
-                    {lightboxImage.title}
-                  </h3>
+            <div className="max-w-4xl w-full px-16 flex flex-col items-center gap-4">
+              <img
+                src={lightboxImage.url}
+                alt={lightboxImage.title}
+                className="max-h-[75vh] max-w-full object-contain rounded-xl"
+              />
+              <div className="flex items-center gap-3 flex-wrap justify-center">
+                <p
+                  className="text-sm text-center"
+                  style={{ color: "oklch(0.85 0.03 240)" }}
+                >
+                  {lightboxImage.title}
+                </p>
+                {lightboxImage.source && (
                   <Badge
                     variant="outline"
-                    className={`text-xs shrink-0 border ${
-                      SOURCE_COLORS[lightboxImage.source] ??
-                      "bg-muted/50 text-muted-foreground"
-                    }`}
+                    className={SOURCE_COLORS[lightboxImage.source] ?? ""}
                   >
                     {lightboxImage.source}
                   </Badge>
-                </div>
-                {lightboxImage.description && (
-                  <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                    {lightboxImage.description}
-                  </p>
                 )}
-                <div className="flex items-center gap-3 mt-2 flex-wrap">
-                  {lightboxImage.author && (
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <User className="w-3 h-3" /> {lightboxImage.author}
-                    </span>
-                  )}
-                  {lightboxImage.license && (
-                    <Badge variant="secondary" className="text-xs">
-                      <Scale className="w-3 h-3 mr-1" />
-                      {lightboxImage.license}
-                    </Badge>
-                  )}
-                  <a
-                    href={lightboxImage.url}
-                    download
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    data-ocid="lightbox.download_button"
-                    className="ml-auto inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-primary/15 text-primary hover:bg-primary/25 transition-colors"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    Download
-                  </a>
-                  <span className="text-xs text-muted-foreground font-mono">
-                    {lightboxIndex + 1} / {images.length}
+                {lightboxImage.license && (
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Scale className="w-3 h-3" />
+                    {lightboxImage.license}
                   </span>
-                </div>
+                )}
+                {lightboxImage.author && (
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <User className="w-3 h-3" />
+                    {lightboxImage.author}
+                  </span>
+                )}
+                <a
+                  href={lightboxImage.url}
+                  download
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg"
+                  style={{
+                    background: "oklch(0.52 0.18 220 / 0.2)",
+                    color: "oklch(0.72 0.12 220)",
+                  }}
+                >
+                  <Download className="w-3 h-3" />
+                  Download
+                </a>
               </div>
-            </motion.div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
-    </>
+    </div>
   );
 }

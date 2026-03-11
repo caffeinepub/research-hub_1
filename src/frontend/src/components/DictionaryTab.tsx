@@ -204,6 +204,44 @@ export function DictionaryTab() {
         </div>
       )}
 
+      {/* Pre-search empty state */}
+      {!loading && !searched && !notFound && entries.length === 0 && (
+        <div
+          data-ocid="dictionary.empty_state"
+          className="flex flex-col items-center justify-center py-16 text-center"
+        >
+          <div className="text-5xl mb-4">📖</div>
+          <p
+            className="font-display text-xl font-semibold mb-2"
+            style={{ color: "oklch(0.85 0.04 240)" }}
+          >
+            Look Up Any Word
+          </p>
+          <p className="text-sm text-muted-foreground mb-6">
+            Definitions, synonyms, antonyms & pronunciation
+          </p>
+          <div className="flex flex-wrap gap-2 justify-center">
+            {["serendipity", "ephemeral", "resilience", "quantum"].map(
+              (word) => (
+                <button
+                  key={word}
+                  type="button"
+                  data-ocid="dictionary.tab"
+                  className="px-4 py-2 rounded-full text-sm border transition-colors"
+                  style={{
+                    borderColor: "oklch(0.4 0.08 220)",
+                    color: "oklch(0.72 0.1 220)",
+                    background: "oklch(0.18 0.04 260 / 0.5)",
+                  }}
+                >
+                  {word}
+                </button>
+              ),
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Not found */}
       {!loading && notFound && searched && (
         <div data-ocid="dictionary.empty_state" className="text-center py-16">

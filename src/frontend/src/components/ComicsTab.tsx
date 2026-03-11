@@ -26,9 +26,11 @@ async function fetchComics(q: string, page = 1): Promise<Comic[]> {
   const results: Comic[] = [];
 
   try {
-    const r = await fetch(
-      `https://archive.org/advancedsearch.php?q=${q ? `${encodeURIComponent(q)}+AND+` : ""}(collection:digitalcomicmuseum+OR+collection:comicbookplus+OR+collection:comics+OR+subject:comics)&fl[]=identifier,title,creator,year,subject&output=json&rows=40&page=${page}&sort[]=downloads+desc`,
-    );
+    const collectionFilter =
+      "(collection:digitalcomicmuseum OR collection:comicbookplus OR collection:comics OR subject:comics)";
+    const fullQuery = q ? `${q} AND ${collectionFilter}` : collectionFilter;
+    const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(fullQuery)}&fl[]=identifier,title,creator,year,subject&output=json&rows=40&page=${page}&sort[]=downloads+desc`;
+    const r = await fetch(url);
     const data = await r.json();
     for (const doc of data.response?.docs ?? []) {
       results.push({
@@ -228,12 +230,14 @@ export function ComicsTab() {
   const [query, setQuery] = useState("");
   const [comics, setComics] = useState<Comic[]>([]);
   const [loading, setLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   const [selectedComic, setSelectedComic] = useState<Comic | null>(null);
   const [page, setPage] = useState(1);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const doSearch = useCallback(async (q: string, pg = 1) => {
     setLoading(true);
+    setHasSearched(true);
     if (pg === 1) setComics([]);
     const results = await fetchComics(q, pg);
     setComics((prev) => (pg === 1 ? results : [...prev, ...results]));
@@ -241,9 +245,8 @@ export function ComicsTab() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    doSearch("", 1);
-  }, [doSearch]);
+  // Don't auto-search - show empty state first
+  // useEffect(() => { doSearch("", 1); }, [doSearch]);
 
   // Infinite scroll
   useEffect(() => {
@@ -367,6 +370,43 @@ export function ComicsTab() {
               </div>
             ),
           )}
+        </div>
+      ) : !hasSearched ? (
+        <div
+          className="flex flex-col items-center justify-center py-20 text-center"
+          data-ocid="comics.empty_state"
+        >
+          <div className="text-5xl mb-4">🦸</div>
+          <p
+            className="font-display text-xl font-semibold mb-2"
+            style={{ color: "oklch(0.85 0.04 240)" }}
+          >
+            Search for Public Domain Comics
+          </p>
+          <p className="text-sm mb-6" style={{ color: "oklch(0.55 0.05 240)" }}>
+            Digital Comic Museum, Comic Book Plus, Archive.org
+          </p>
+          <div className="flex flex-wrap gap-2 justify-center">
+            {["Superman", "Batman", "Horror", "Romance"].map((chip) => (
+              <button
+                key={chip}
+                type="button"
+                data-ocid="comics.tab"
+                onClick={() => {
+                  setQuery(chip);
+                  doSearch(chip, 1);
+                }}
+                className="px-4 py-2 rounded-full text-sm border transition-colors"
+                style={{
+                  borderColor: "oklch(0.4 0.08 55)",
+                  color: "oklch(0.72 0.1 55)",
+                  background: "oklch(0.18 0.04 260 / 0.5)",
+                }}
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
         </div>
       ) : comics.length === 0 ? (
         <div

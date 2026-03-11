@@ -497,23 +497,25 @@ export async function fetchEuropeanFilmGateway(
     const res = await fetch(url);
     if (!res.ok) return [];
     const data = await res.json();
-    const EMBEDDABLE = /\.(mp4|webm|ogg)$/i;
+    const DIRECT_PLAYABLE = /\.(mp4|webm|ogg)$/i;
     const results: WikiVideo[] = [];
     for (const item of data?.items ?? []) {
       const directUrl: string = item.edmIsShownBy?.[0] ?? "";
-      const pageUrl: string = item.edmIsShownAt?.[0] ?? "";
-      const videoUrl = directUrl || pageUrl;
-      if (!videoUrl) continue;
-      const isEmbeddable =
-        EMBEDDABLE.test(videoUrl) || videoUrl.includes("player");
+      const pageUrl: string = item.guid ?? item.edmIsShownAt?.[0] ?? "";
+      if (!directUrl && !pageUrl) continue;
+      // embedUrl only if directly playable or contains /embed or /player
+      const canEmbed =
+        DIRECT_PLAYABLE.test(directUrl) ||
+        directUrl.includes("/embed") ||
+        directUrl.includes("/player");
       results.push({
         pageid: 2200000 + results.length,
         title: item.title?.[0] ?? "European Film",
-        url: videoUrl,
+        url: pageUrl || directUrl,
         mime: "video/mp4" as const,
         thumbUrl: item.edmPreview?.[0] ?? undefined,
         description: item.dcDescription?.[0] ?? "",
-        embedUrl: isEmbeddable ? videoUrl : undefined,
+        embedUrl: canEmbed ? directUrl : undefined,
         source: "European Film Gateway",
       });
     }

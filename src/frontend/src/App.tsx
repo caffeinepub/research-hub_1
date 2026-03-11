@@ -605,164 +605,170 @@ export default function App() {
         )}
 
         {/* Results */}
-        {(isLoading || hasResults) && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            {hasResults && (
-              <p className="text-sm text-muted-foreground mb-4">
-                Results for{" "}
-                <span className="font-semibold text-foreground">
-                  &ldquo;{lastQuery}&rdquo;
-                </span>
-              </p>
-            )}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          {hasResults && (
+            <p className="text-sm text-muted-foreground mb-4">
+              Results for{" "}
+              <span className="font-semibold text-foreground">
+                &ldquo;{lastQuery}&rdquo;
+              </span>
+            </p>
+          )}
 
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="mb-6 h-auto p-1 gap-1 bg-muted/60 flex-wrap">
-                <TabsTrigger
-                  data-ocid="tabs.articles_tab"
-                  value="articles"
-                  className="flex items-center gap-2 px-4 py-2"
-                >
-                  <BookOpen className="w-4 h-4" />
-                  Articles
-                  {hasResults && articleCount > 0 && (
-                    <Badge
-                      variant="secondary"
-                      className="ml-1 text-xs px-1.5 py-0"
-                    >
-                      {articleCount}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-
-                <TabsTrigger
-                  data-ocid="tabs.images_tab"
-                  value="images"
-                  className="flex items-center gap-2 px-4 py-2"
-                >
-                  <Image className="w-4 h-4" />
-                  Images
-                  {hasResults && imageCount > 0 && (
-                    <Badge
-                      variant="secondary"
-                      className="ml-1 text-xs px-1.5 py-0"
-                    >
-                      {imageCount}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-
-                <TabsTrigger
-                  data-ocid="tabs.audio_tab"
-                  value="audio"
-                  className="flex items-center gap-2 px-4 py-2"
-                >
-                  <Music className="w-4 h-4" />
-                  Audio
-                  {hasResults && audioCount > 0 && (
-                    <Badge
-                      variant="secondary"
-                      className="ml-1 text-xs px-1.5 py-0"
-                    >
-                      {audioCount}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-
-                {(isLoading || videoCount > 0) && (
-                  <TabsTrigger
-                    data-ocid="tabs.videos_tab"
-                    value="videos"
-                    className="flex items-center gap-2 px-4 py-2"
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="mb-6 h-auto p-1 gap-1 bg-muted/60 flex-wrap">
+              <TabsTrigger
+                data-ocid="tabs.articles_tab"
+                value="articles"
+                className="flex items-center gap-2 px-4 py-2"
+              >
+                <BookOpen className="w-4 h-4" />
+                Articles
+                {hasResults && articleCount > 0 && (
+                  <Badge
+                    variant="secondary"
+                    className="ml-1 text-xs px-1.5 py-0"
                   >
-                    <Film className="w-4 h-4" />
-                    Videos
-                    {hasResults && videoCount > 0 && (
-                      <Badge
-                        variant="secondary"
-                        className="ml-1 text-xs px-1.5 py-0"
-                      >
-                        {videoCount}
-                      </Badge>
-                    )}
-                  </TabsTrigger>
+                    {articleCount}
+                  </Badge>
                 )}
+              </TabsTrigger>
 
-                {(isLoading || filmCount > 0) && (
-                  <TabsTrigger
-                    data-ocid="tabs.films_tab"
-                    value="films"
-                    className="flex items-center gap-2 px-4 py-2"
+              <TabsTrigger
+                data-ocid="tabs.images_tab"
+                value="images"
+                className="flex items-center gap-2 px-4 py-2"
+              >
+                <Image className="w-4 h-4" />
+                Images
+                {hasResults && imageCount > 0 && (
+                  <Badge
+                    variant="secondary"
+                    className="ml-1 text-xs px-1.5 py-0"
                   >
-                    <Clapperboard className="w-4 h-4" />
-                    Films
-                    {hasResults && filmCount > 0 && (
-                      <Badge
-                        variant="secondary"
-                        className="ml-1 text-xs px-1.5 py-0"
-                      >
-                        {filmCount}
-                      </Badge>
-                    )}
-                  </TabsTrigger>
+                    {imageCount}
+                  </Badge>
                 )}
+              </TabsTrigger>
 
+              <TabsTrigger
+                data-ocid="tabs.audio_tab"
+                value="audio"
+                className="flex items-center gap-2 px-4 py-2"
+              >
+                <Music className="w-4 h-4" />
+                Audio
+                {hasResults && audioCount > 0 && (
+                  <Badge
+                    variant="secondary"
+                    className="ml-1 text-xs px-1.5 py-0"
+                  >
+                    {audioCount}
+                  </Badge>
+                )}
+              </TabsTrigger>
+
+              {(isLoading || videoCount > 0) && (
                 <TabsTrigger
-                  data-ocid="tabs.memes_tab"
-                  value="memes"
+                  data-ocid="tabs.videos_tab"
+                  value="videos"
                   className="flex items-center gap-2 px-4 py-2"
                 >
-                  <Smile className="w-4 h-4" />
-                  GIFs &amp; Memes
+                  <Film className="w-4 h-4" />
+                  Videos
+                  {hasResults && videoCount > 0 && (
+                    <Badge
+                      variant="secondary"
+                      className="ml-1 text-xs px-1.5 py-0"
+                    >
+                      {videoCount}
+                    </Badge>
+                  )}
                 </TabsTrigger>
-              </TabsList>
+              )}
 
-              <TabsContent value="articles">
-                <ArticlesTab
-                  articles={results.articles}
-                  loading={isLoading}
-                  onExpand={expandArticle}
-                  onSelect={handleSelectArticle}
-                />
-              </TabsContent>
+              {(isLoading || filmCount > 0) && (
+                <TabsTrigger
+                  data-ocid="tabs.films_tab"
+                  value="films"
+                  className="flex items-center gap-2 px-4 py-2"
+                >
+                  <Clapperboard className="w-4 h-4" />
+                  Films
+                  {hasResults && filmCount > 0 && (
+                    <Badge
+                      variant="secondary"
+                      className="ml-1 text-xs px-1.5 py-0"
+                    >
+                      {filmCount}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              )}
 
-              <TabsContent value="images">
-                <ImagesTab
-                  images={results.images}
-                  loading={isLoading}
-                  fuzzyUsed={fuzzyUsed}
-                />
-              </TabsContent>
+              <TabsTrigger
+                data-ocid="tabs.memes_tab"
+                value="memes"
+                className="flex items-center gap-2 px-4 py-2"
+              >
+                <Smile className="w-4 h-4" />
+                GIFs &amp; Memes
+              </TabsTrigger>
+            </TabsList>
 
-              <TabsContent value="audio">
-                <AudioTab audio={results.audio} loading={isLoading} />
-              </TabsContent>
+            <TabsContent value="articles">
+              <ArticlesTab
+                articles={results.articles}
+                loading={isLoading}
+                onExpand={expandArticle}
+                onSelect={handleSelectArticle}
+                hasSearched={status !== "idle"}
+              />
+            </TabsContent>
 
-              <TabsContent value="videos">
-                <VideosTab
-                  videos={results.videos}
-                  loading={isLoading}
-                  fuzzyUsed={fuzzyUsed}
-                />
-              </TabsContent>
+            <TabsContent value="images">
+              <ImagesTab
+                images={results.images}
+                loading={isLoading}
+                fuzzyUsed={fuzzyUsed}
+                hasSearched={status !== "idle"}
+              />
+            </TabsContent>
 
-              <TabsContent value="films">
-                <FilmsTab
-                  films={results.films}
-                  loading={isLoading}
-                  fuzzyUsed={fuzzyUsed}
-                />
-              </TabsContent>
+            <TabsContent value="audio">
+              <AudioTab
+                audio={results.audio}
+                loading={isLoading}
+                hasSearched={status !== "idle"}
+              />
+            </TabsContent>
 
-              <TabsContent value="memes">
-                <MemesTab />
-              </TabsContent>
-            </Tabs>
-          </motion.div>
-        )}
+            <TabsContent value="videos">
+              <VideosTab
+                videos={results.videos}
+                loading={isLoading}
+                fuzzyUsed={fuzzyUsed}
+                hasSearched={status !== "idle"}
+              />
+            </TabsContent>
 
-        {/* Memes tab always visible when idle too */}
-        {status === "idle" && (
+            <TabsContent value="films">
+              <FilmsTab
+                films={results.films}
+                loading={isLoading}
+                fuzzyUsed={fuzzyUsed}
+                hasSearched={status !== "idle"}
+              />
+            </TabsContent>
+
+            <TabsContent value="memes">
+              <MemesTab />
+            </TabsContent>
+          </Tabs>
+        </motion.div>
+
+        {/* Memes tab always visible when idle too - now handled inside tab */}
+        {false && (
           <div className="mt-10">
             <div className="flex items-center gap-2 mb-4">
               <Smile
