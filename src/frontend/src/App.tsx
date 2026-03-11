@@ -9,20 +9,28 @@ import {
   Compass,
   Film,
   Globe,
+  Globe2,
   Image,
   Loader2,
+  MessageSquare,
   Microscope,
   Music,
   Search,
+  Smile,
+  User,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useRef, useState } from "react";
 import { ArticleDetailPage } from "./components/ArticleDetailPage";
 import { ArticlesTab } from "./components/ArticlesTab";
 import { AudioTab } from "./components/AudioTab";
+import { BrowserPage } from "./components/BrowserPage";
+import { CommunityChatsPage } from "./components/CommunityChatsPage";
 import { DiscoverPage } from "./components/DiscoverPage";
 import { FilmsTab } from "./components/FilmsTab";
 import { ImagesTab } from "./components/ImagesTab";
+import { MemesTab } from "./components/MemesTab";
+import { ProfilePage } from "./components/ProfilePage";
 import { VideosTab } from "./components/VideosTab";
 import { useResearch } from "./hooks/useResearch";
 import type { WikiArticle } from "./types/research";
@@ -36,11 +44,13 @@ const TOPIC_CHIPS = [
   { label: "Art & Culture", query: "art culture renaissance" },
 ];
 
+type NavKey = "search" | "discover" | "browser" | "chat" | "profile";
+
 export default function App() {
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState("articles");
-  const [bottomNav, setBottomNav] = useState<"search" | "discover">("search");
-  const [view, setView] = useState<"search" | "discover" | "article">("search");
+  const [bottomNav, setBottomNav] = useState<NavKey>("search");
+  const [view, setView] = useState<NavKey | "article">("search");
   const [selectedArticle, setSelectedArticle] = useState<WikiArticle | null>(
     null,
   );
@@ -69,7 +79,13 @@ export default function App() {
   };
 
   const handleSelectArticle = (article: WikiArticle) => {
-    setPrevView(bottomNav);
+    setPrevView(
+      bottomNav === "browser"
+        ? "search"
+        : bottomNav === "search" || bottomNav === "discover"
+          ? bottomNav
+          : "search",
+    );
     setSelectedArticle(article);
     setView("article");
   };
@@ -79,7 +95,7 @@ export default function App() {
     setSelectedArticle(null);
   };
 
-  const handleBottomNav = (nav: "search" | "discover") => {
+  const handleBottomNav = (nav: NavKey) => {
     setBottomNav(nav);
     setView(nav);
   };
@@ -102,6 +118,16 @@ export default function App() {
     );
   }
 
+  // Browser view
+  if (view === "browser") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <BrowserPage />
+        <BottomNav current={bottomNav} onChange={handleBottomNav} />
+      </div>
+    );
+  }
+
   // Discover page view
   if (view === "discover") {
     return (
@@ -115,44 +141,61 @@ export default function App() {
           }}
           onSelectArticle={handleSelectArticle}
         />
-        {/* Bottom nav */}
-        <nav
-          className="fixed bottom-0 left-0 right-0 z-40 border-t border-border/60"
-          style={{
-            background: "oklch(0.12 0.03 260 / 0.92)",
-            backdropFilter: "blur(16px)",
-          }}
-        >
-          <div className="container mx-auto px-4 max-w-6xl">
-            <div className="flex items-stretch h-16">
-              <button
-                type="button"
-                data-ocid="nav.search_tab"
-                className="flex-1 flex flex-col items-center justify-center gap-1 transition-colors relative"
-                style={{ color: "oklch(0.55 0.05 240)" }}
-                onClick={() => handleBottomNav("search")}
-              >
-                <Search className="w-5 h-5" />
-                <span className="text-xs font-medium">Search</span>
-              </button>
-              <button
-                type="button"
-                data-ocid="nav.discover_tab"
-                className="flex-1 flex flex-col items-center justify-center gap-1 transition-colors relative"
-                style={{ color: "oklch(0.78 0.18 200)" }}
-                onClick={() => handleBottomNav("discover")}
-              >
-                <Compass className="w-5 h-5" />
-                <span className="text-xs font-medium">Discover</span>
-                <motion.div
-                  layoutId="nav-indicator"
-                  className="absolute bottom-0 h-0.5 w-12 rounded-full"
-                  style={{ background: "oklch(0.78 0.18 200)" }}
-                />
-              </button>
-            </div>
+        <BottomNav current={bottomNav} onChange={handleBottomNav} />
+      </div>
+    );
+  }
+
+  // Chat view
+  if (view === "chat") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <header className="px-4 py-3 border-b border-border/60 flex items-center gap-3">
+          <div
+            className="p-1.5 rounded-lg"
+            style={{
+              background: "oklch(0.65 0.18 200 / 0.15)",
+              border: "1px solid oklch(0.65 0.18 200 / 0.3)",
+            }}
+          >
+            <MessageSquare
+              className="w-5 h-5"
+              style={{ color: "oklch(0.78 0.18 200)" }}
+            />
           </div>
-        </nav>
+          <h1 className="font-display text-xl font-bold">Community Chats</h1>
+        </header>
+        <main className="flex-1 container mx-auto px-4 py-4 max-w-6xl pb-24 overflow-hidden">
+          <CommunityChatsPage />
+        </main>
+        <BottomNav current={bottomNav} onChange={handleBottomNav} />
+      </div>
+    );
+  }
+
+  // Profile view
+  if (view === "profile") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <header className="px-4 py-3 border-b border-border/60 flex items-center gap-3">
+          <div
+            className="p-1.5 rounded-lg"
+            style={{
+              background: "oklch(0.72 0.18 280 / 0.15)",
+              border: "1px solid oklch(0.72 0.18 280 / 0.3)",
+            }}
+          >
+            <User
+              className="w-5 h-5"
+              style={{ color: "oklch(0.78 0.14 280)" }}
+            />
+          </div>
+          <h1 className="font-display text-xl font-bold">Your Profile</h1>
+        </header>
+        <main className="flex-1 container mx-auto max-w-6xl pb-24 overflow-auto">
+          <ProfilePage />
+        </main>
+        <BottomNav current={bottomNav} onChange={handleBottomNav} />
       </div>
     );
   }
@@ -350,10 +393,10 @@ export default function App() {
                 color: "oklch(0.78 0.17 55)",
               },
               {
-                icon: Music,
-                title: "Music & Audio",
-                desc: "Stream concerts, audiobooks, old-time radio, 78rpm records, and podcasts from Internet Archive",
-                color: "oklch(0.72 0.18 280)",
+                icon: Smile,
+                title: "GIFs, Memes & Stickers",
+                desc: "Browse Giphy, Tenor, Imgflip and Archive.org for GIFs, memes and reaction stickers",
+                color: "oklch(0.65 0.18 320)",
               },
             ].map(({ icon: Icon, title, desc, color }, i) => (
               <motion.div
@@ -504,6 +547,15 @@ export default function App() {
                     )}
                   </TabsTrigger>
                 )}
+
+                <TabsTrigger
+                  data-ocid="tabs.memes_tab"
+                  value="memes"
+                  className="flex items-center gap-2 px-4 py-2"
+                >
+                  <Smile className="w-4 h-4" />
+                  GIFs &amp; Memes
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="articles">
@@ -542,8 +594,31 @@ export default function App() {
                   fuzzyUsed={fuzzyUsed}
                 />
               </TabsContent>
+
+              <TabsContent value="memes">
+                <MemesTab />
+              </TabsContent>
             </Tabs>
           </motion.div>
+        )}
+
+        {/* Memes tab always visible when idle too */}
+        {status === "idle" && (
+          <div className="mt-10">
+            <div className="flex items-center gap-2 mb-4">
+              <Smile
+                className="w-5 h-5"
+                style={{ color: "oklch(0.65 0.18 320)" }}
+              />
+              <h2 className="font-display text-lg font-bold">
+                GIFs &amp; Memes
+              </h2>
+              <span className="text-xs text-muted-foreground ml-1">
+                Giphy · Tenor · Imgflip · Archive
+              </span>
+            </div>
+            <MemesTab />
+          </div>
         )}
       </main>
 
@@ -572,64 +647,64 @@ export default function App() {
         </div>
       </footer>
 
-      {/* Bottom Navigation Bar */}
-      <nav
-        className="fixed bottom-0 left-0 right-0 z-40 border-t border-border/60"
-        style={{
-          background: "oklch(0.12 0.03 260 / 0.92)",
-          backdropFilter: "blur(16px)",
-        }}
-      >
-        <div className="container mx-auto px-4 max-w-6xl">
-          <div className="flex items-stretch h-16">
-            <button
-              type="button"
-              data-ocid="nav.search_tab"
-              className="flex-1 flex flex-col items-center justify-center gap-1 transition-colors relative"
-              style={{
-                color:
-                  bottomNav === "search"
-                    ? "oklch(0.78 0.18 200)"
-                    : "oklch(0.55 0.05 240)",
-              }}
-              onClick={() => handleBottomNav("search")}
-            >
-              <Search className="w-5 h-5" />
-              <span className="text-xs font-medium">Search</span>
-              {bottomNav === "search" && (
-                <motion.div
-                  layoutId="nav-indicator"
-                  className="absolute bottom-0 h-0.5 w-12 rounded-full"
-                  style={{ background: "oklch(0.78 0.18 200)" }}
-                />
-              )}
-            </button>
-
-            <button
-              type="button"
-              data-ocid="nav.discover_tab"
-              className="flex-1 flex flex-col items-center justify-center gap-1 transition-colors relative"
-              style={{
-                color:
-                  bottomNav === "discover"
-                    ? "oklch(0.78 0.18 200)"
-                    : "oklch(0.55 0.05 240)",
-              }}
-              onClick={() => handleBottomNav("discover")}
-            >
-              <Compass className="w-5 h-5" />
-              <span className="text-xs font-medium">Discover</span>
-              {bottomNav === "discover" && (
-                <motion.div
-                  layoutId="nav-indicator"
-                  className="absolute bottom-0 h-0.5 w-12 rounded-full"
-                  style={{ background: "oklch(0.78 0.18 200)" }}
-                />
-              )}
-            </button>
-          </div>
-        </div>
-      </nav>
+      <BottomNav current={bottomNav} onChange={handleBottomNav} />
     </div>
+  );
+}
+
+// Shared bottom nav component
+function BottomNav({
+  current,
+  onChange,
+}: {
+  current: NavKey;
+  onChange: (nav: NavKey) => void;
+}) {
+  const items: { key: NavKey; icon: React.ElementType; label: string }[] = [
+    { key: "search", icon: Search, label: "Search" },
+    { key: "discover", icon: Compass, label: "Discover" },
+    { key: "browser", icon: Globe2, label: "Browser" },
+    { key: "chat", icon: MessageSquare, label: "Chat" },
+    { key: "profile", icon: User, label: "Profile" },
+  ];
+
+  return (
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-40 border-t border-border/60"
+      style={{
+        background: "oklch(0.12 0.03 260 / 0.92)",
+        backdropFilter: "blur(16px)",
+      }}
+    >
+      <div className="container mx-auto px-4 max-w-6xl">
+        <div className="flex items-stretch h-16">
+          {items.map(({ key, icon: Icon, label }) => (
+            <button
+              key={key}
+              type="button"
+              data-ocid={`nav.${key}_tab`}
+              className="flex-1 flex flex-col items-center justify-center gap-1 transition-colors relative"
+              style={{
+                color:
+                  current === key
+                    ? "oklch(0.78 0.18 200)"
+                    : "oklch(0.55 0.05 240)",
+              }}
+              onClick={() => onChange(key)}
+            >
+              <Icon className="w-5 h-5" />
+              <span className="text-xs font-medium">{label}</span>
+              {current === key && (
+                <motion.div
+                  layoutId="nav-indicator"
+                  className="absolute bottom-0 h-0.5 w-12 rounded-full"
+                  style={{ background: "oklch(0.78 0.18 200)" }}
+                />
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+    </nav>
   );
 }

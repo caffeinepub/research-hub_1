@@ -8,57 +8,118 @@
 
 import { IDL } from '@icp-sdk/core/candid';
 
-export const http_header = IDL.Record({
-  'value' : IDL.Text,
+export const UserRole = IDL.Variant({
+  'admin' : IDL.Null,
+  'user' : IDL.Null,
+  'guest' : IDL.Null,
+});
+export const Time = IDL.Int;
+export const ChatRoom = IDL.Record({
+  'id' : IDL.Nat,
+  'topic' : IDL.Text,
   'name' : IDL.Text,
+  'createdAt' : Time,
 });
-export const http_request_result = IDL.Record({
-  'status' : IDL.Nat,
-  'body' : IDL.Vec(IDL.Nat8),
-  'headers' : IDL.Vec(http_header),
+export const User = IDL.Record({
+  'bio' : IDL.Text,
+  'username' : IDL.Text,
+  'researchInterests' : IDL.Text,
+  'avatarColor' : IDL.Text,
 });
-export const TransformationInput = IDL.Record({
-  'context' : IDL.Vec(IDL.Nat8),
-  'response' : http_request_result,
-});
-export const TransformationOutput = IDL.Record({
-  'status' : IDL.Nat,
-  'body' : IDL.Vec(IDL.Nat8),
-  'headers' : IDL.Vec(http_header),
+export const Message = IDL.Record({
+  'id' : IDL.Nat,
+  'gif' : IDL.Opt(IDL.Text),
+  'createdAt' : Time,
+  'room' : IDL.Nat,
+  'text' : IDL.Text,
+  'author' : IDL.Principal,
+  'image' : IDL.Opt(IDL.Text),
 });
 
 export const idlService = IDL.Service({
-  'transform' : IDL.Func(
-      [TransformationInput],
-      [TransformationOutput],
+  '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+  'addMessage' : IDL.Func(
+      [IDL.Nat, IDL.Text, IDL.Opt(IDL.Text), IDL.Opt(IDL.Text)],
+      [IDL.Nat],
+      [],
+    ),
+  'addRoom' : IDL.Func([IDL.Text, IDL.Text], [], []),
+  'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+  'deleteMessage' : IDL.Func([IDL.Nat], [], []),
+  'getAllRooms' : IDL.Func([], [IDL.Vec(ChatRoom)], ['query']),
+  'getCallerUserProfile' : IDL.Func([], [IDL.Opt(User)], ['query']),
+  'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+  'getMessages' : IDL.Func(
+      [IDL.Nat, IDL.Nat, IDL.Nat],
+      [IDL.Vec(Message)],
       ['query'],
+    ),
+  'getRoomById' : IDL.Func([IDL.Nat], [IDL.Opt(ChatRoom)], ['query']),
+  'getUserProfile' : IDL.Func([IDL.Principal], [IDL.Opt(User)], ['query']),
+  'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+  'saveCallerUserProfile' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Text, IDL.Text],
+      [],
+      [],
     ),
 });
 
 export const idlInitArgs = [];
 
 export const idlFactory = ({ IDL }) => {
-  const http_header = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
-  const http_request_result = IDL.Record({
-    'status' : IDL.Nat,
-    'body' : IDL.Vec(IDL.Nat8),
-    'headers' : IDL.Vec(http_header),
+  const UserRole = IDL.Variant({
+    'admin' : IDL.Null,
+    'user' : IDL.Null,
+    'guest' : IDL.Null,
   });
-  const TransformationInput = IDL.Record({
-    'context' : IDL.Vec(IDL.Nat8),
-    'response' : http_request_result,
+  const Time = IDL.Int;
+  const ChatRoom = IDL.Record({
+    'id' : IDL.Nat,
+    'topic' : IDL.Text,
+    'name' : IDL.Text,
+    'createdAt' : Time,
   });
-  const TransformationOutput = IDL.Record({
-    'status' : IDL.Nat,
-    'body' : IDL.Vec(IDL.Nat8),
-    'headers' : IDL.Vec(http_header),
+  const User = IDL.Record({
+    'bio' : IDL.Text,
+    'username' : IDL.Text,
+    'researchInterests' : IDL.Text,
+    'avatarColor' : IDL.Text,
+  });
+  const Message = IDL.Record({
+    'id' : IDL.Nat,
+    'gif' : IDL.Opt(IDL.Text),
+    'createdAt' : Time,
+    'room' : IDL.Nat,
+    'text' : IDL.Text,
+    'author' : IDL.Principal,
+    'image' : IDL.Opt(IDL.Text),
   });
   
   return IDL.Service({
-    'transform' : IDL.Func(
-        [TransformationInput],
-        [TransformationOutput],
+    '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+    'addMessage' : IDL.Func(
+        [IDL.Nat, IDL.Text, IDL.Opt(IDL.Text), IDL.Opt(IDL.Text)],
+        [IDL.Nat],
+        [],
+      ),
+    'addRoom' : IDL.Func([IDL.Text, IDL.Text], [], []),
+    'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+    'deleteMessage' : IDL.Func([IDL.Nat], [], []),
+    'getAllRooms' : IDL.Func([], [IDL.Vec(ChatRoom)], ['query']),
+    'getCallerUserProfile' : IDL.Func([], [IDL.Opt(User)], ['query']),
+    'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+    'getMessages' : IDL.Func(
+        [IDL.Nat, IDL.Nat, IDL.Nat],
+        [IDL.Vec(Message)],
         ['query'],
+      ),
+    'getRoomById' : IDL.Func([IDL.Nat], [IDL.Opt(ChatRoom)], ['query']),
+    'getUserProfile' : IDL.Func([IDL.Principal], [IDL.Opt(User)], ['query']),
+    'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+    'saveCallerUserProfile' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text, IDL.Text],
+        [],
+        [],
       ),
   });
 };
