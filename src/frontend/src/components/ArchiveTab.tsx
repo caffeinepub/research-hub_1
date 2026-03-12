@@ -204,7 +204,10 @@ export function ArchiveTab() {
         params.append("sort[]", "downloads desc");
         const url = `https://archive.org/advancedsearch.php?${params.toString()}`;
 
-        const res = await fetch(url);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         const fetched: ArchiveDoc[] = data?.response?.docs ?? [];

@@ -279,7 +279,10 @@ function archiveVideo(collection: string, source: string, baseId: number) {
       params.append("fl[]", "description");
       params.append("sort[]", "downloads desc");
       const url = `https://archive.org/advancedsearch.php?${params.toString()}`;
-      const res = await fetch(url);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
       if (!res.ok) return [];
       const data = await res.json();
       return (data?.response?.docs ?? []).map((doc: any, idx: number) => ({
