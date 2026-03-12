@@ -872,7 +872,7 @@ export function AIChatPage({ onSearchMore }: AIChatPageProps) {
             placeholder={
               mode === "study"
                 ? "Solve 2x+5=11, or ask a study question..."
-                : "Ask anything... e.g. What is quantum physics?"
+                : "Ask me anything -- history, science, math, current events, or anything you're curious about."
             }
             className="flex-1 h-12 border-0 bg-transparent text-sm shadow-none focus-visible:ring-0 px-3"
             style={{ color: "#111" }}

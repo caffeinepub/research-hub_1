@@ -295,10 +295,7 @@ export default function App() {
             AI Research Chat
           </span>
         </div>
-        <main
-          className="flex-1 overflow-hidden"
-          style={{ paddingBottom: "56px" }}
-        >
+        <main className="flex-1 flex flex-col overflow-hidden">
           <AIChatPage
             onSearchMore={(q) => {
               setQuery(q);

@@ -21,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Ban,
   CheckCircle,
+  Flag,
   Globe,
   Lock,
   LogOut,
@@ -89,6 +90,28 @@ function savePosts(posts: ForumPost[]) {
   localStorage.setItem("communityPosts", JSON.stringify(posts));
 }
 
+interface ReportEntry {
+  id: number;
+  type: "post" | "reply";
+  postId: number;
+  replyId?: number;
+  content: string;
+  author: string;
+  reportedBy: string;
+  createdAt: number;
+}
+
+function loadReports(): ReportEntry[] {
+  try {
+    return JSON.parse(localStorage.getItem("communityReports") || "[]");
+  } catch {
+    return [];
+  }
+}
+function saveReports(r: ReportEntry[]) {
+  localStorage.setItem("communityReports", JSON.stringify(r));
+}
+
 function loadDomains(): string[] {
   try {
     return JSON.parse(localStorage.getItem("customDomains") || "[]");
@@ -119,6 +142,7 @@ export function AdminPage() {
   const [bans, setBans] = useState<BanEntry[]>([]);
   const [domains, setDomains] = useState<string[]>([]);
   const [newDomain, setNewDomain] = useState("");
+  const [reports, setReports] = useState<ReportEntry[]>([]);
 
   // Ban dialog state
   const [banTarget, setBanTarget] = useState<string | null>(null);
@@ -131,6 +155,7 @@ export function AdminPage() {
       setPosts(loadPosts());
       setBans(loadBans());
       setDomains(loadDomains());
+      setReports(loadReports());
     }
   }, [unlocked]);
 
@@ -388,28 +413,35 @@ export function AdminPage() {
 
       <Tabs defaultValue="overview" className="flex-1 flex flex-col">
         <TabsList
-          className="mx-3 mt-3 mb-0 grid grid-cols-5 h-8"
+          className="mx-3 mt-3 mb-0 grid grid-cols-6 h-8"
           style={{ background: "oklch(0.15 0.03 260)" }}
         >
-          {(["overview", "users", "posts", "banned", "settings"] as const).map(
-            (tab) => (
-              <TabsTrigger
-                key={tab}
-                value={tab}
-                data-ocid={`admin.${tab}.tab`}
-                className="text-xs capitalize"
-                style={{ color: "oklch(0.65 0.04 240)" }}
-              >
-                {tab}
-              </TabsTrigger>
-            ),
-          )}
+          {(
+            [
+              "overview",
+              "reports",
+              "users",
+              "posts",
+              "banned",
+              "settings",
+            ] as const
+          ).map((tab) => (
+            <TabsTrigger
+              key={tab}
+              value={tab}
+              data-ocid={`admin.${tab}.tab`}
+              className="text-xs capitalize"
+              style={{ color: "oklch(0.65 0.04 240)" }}
+            >
+              {tab}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
         <ScrollArea className="flex-1">
           {/* ── Overview ── */}
           <TabsContent value="overview" className="p-3 space-y-3 m-0">
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <div style={cardStyle}>
                 <div
                   className="text-xs mb-1"
@@ -450,6 +482,25 @@ export function AdminPage() {
                   style={{ color: "oklch(0.80 0.18 30)" }}
                 >
                   {activeBans.length}
+                </div>
+              </div>
+              <div style={cardStyle}>
+                <div
+                  className="text-xs mb-1"
+                  style={{ color: "oklch(0.55 0.04 240)" }}
+                >
+                  Reports
+                </div>
+                <div
+                  className="text-2xl font-bold"
+                  style={{
+                    color:
+                      reports.length > 0
+                        ? "oklch(0.75 0.18 50)"
+                        : "oklch(0.92 0.02 240)",
+                  }}
+                >
+                  {reports.length}
                 </div>
               </div>
             </div>
@@ -501,6 +552,132 @@ export function AdminPage() {
                 )}
               </div>
             </div>
+          </TabsContent>
+
+          {/* ── Reports ── */}
+          <TabsContent value="reports" className="p-3 m-0">
+            <h3
+              className="text-xs font-semibold mb-3"
+              style={{ color: "oklch(0.60 0.04 240)" }}
+            >
+              REPORTED CONTENT ({reports.length})
+            </h3>
+            {reports.length === 0 ? (
+              <div
+                data-ocid="admin.reports.empty_state"
+                className="text-center py-8"
+                style={{ color: "oklch(0.45 0.04 240)" }}
+              >
+                <Flag className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                <p className="text-sm">No reports yet</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {reports.map((report, idx) => (
+                  <div
+                    key={report.id}
+                    data-ocid={`admin.report.item.${idx + 1}`}
+                    className="rounded-lg p-3 space-y-2"
+                    style={{
+                      background: "oklch(0.14 0.03 260)",
+                      border: "1px solid oklch(0.22 0.04 260)",
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                        style={{
+                          background:
+                            report.type === "post"
+                              ? "oklch(0.55 0.18 220 / 0.2)"
+                              : "oklch(0.55 0.18 290 / 0.2)",
+                          color:
+                            report.type === "post"
+                              ? "oklch(0.72 0.18 220)"
+                              : "oklch(0.72 0.18 290)",
+                        }}
+                      >
+                        {report.type.toUpperCase()}
+                      </span>
+                      <span
+                        className="text-xs flex-1 truncate"
+                        style={{ color: "oklch(0.80 0.02 240)" }}
+                      >
+                        {report.content.slice(0, 80)}
+                        {report.content.length > 80 ? "..." : ""}
+                      </span>
+                    </div>
+                    <div
+                      className="flex items-center gap-3 text-[10px]"
+                      style={{ color: "oklch(0.50 0.04 240)" }}
+                    >
+                      <span>By: {report.author}</span>
+                      <span>Reported by: {report.reportedBy}</span>
+                      <span>
+                        {new Date(report.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        data-ocid={`admin.report.delete_button.${idx + 1}`}
+                        className="h-7 text-xs"
+                        style={{
+                          background: "oklch(0.55 0.18 30)",
+                          color: "white",
+                        }}
+                        onClick={() => {
+                          // Delete the post/reply
+                          const updatedPosts = posts
+                            .map((p) => {
+                              if (p.id !== report.postId) return p;
+                              if (report.type === "post") return null;
+                              return {
+                                ...p,
+                                replies: p.replies.filter(
+                                  (r) => r.id !== report.replyId,
+                                ),
+                              };
+                            })
+                            .filter(Boolean) as typeof posts;
+                          setPosts(updatedPosts);
+                          savePosts(updatedPosts);
+                          // Remove the report
+                          const updatedReports = reports.filter(
+                            (r) => r.id !== report.id,
+                          );
+                          setReports(updatedReports);
+                          saveReports(updatedReports);
+                          toast.success("Content deleted");
+                        }}
+                      >
+                        <Trash2 className="w-3 h-3 mr-1" /> Delete
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        data-ocid={`admin.report.cancel_button.${idx + 1}`}
+                        className="h-7 text-xs"
+                        style={{
+                          borderColor: "oklch(0.25 0.05 260)",
+                          color: "oklch(0.65 0.04 240)",
+                        }}
+                        onClick={() => {
+                          const updatedReports = reports.filter(
+                            (r) => r.id !== report.id,
+                          );
+                          setReports(updatedReports);
+                          saveReports(updatedReports);
+                          toast.success("Report dismissed");
+                        }}
+                      >
+                        Dismiss
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </TabsContent>
 
           {/* ── Users ── */}

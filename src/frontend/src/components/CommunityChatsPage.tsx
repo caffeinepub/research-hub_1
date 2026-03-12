@@ -29,6 +29,7 @@ import {
   ArrowLeft,
   Clock,
   Edit3,
+  Flag,
   Flame,
   Hash,
   Image,
@@ -170,71 +171,27 @@ function formatTime(ts: number): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-const SEED_POSTS: ForumPost[] = [
-  {
-    id: 1,
-    title:
-      "James Webb Space Telescope discovers potential biosignatures on K2-18b",
-    body: "The James Webb Space Telescope has detected dimethyl sulfide (DMS) in the atmosphere of K2-18b, a molecule on Earth only produced by living organisms. While scientists are cautious, this could be one of the most significant discoveries in the search for extraterrestrial life.",
-    category: "Space",
-    channel: "space",
-    author: "AstroResearcher",
-    upvotes: 847,
-    upvotedBy: [],
-    replies: [
-      {
-        id: 101,
-        body: "This is incredible! DMS detection would be a massive step. Still need more data but the implications are huge.",
-        author: "CosmosExplorer",
-        upvotes: 234,
-        createdAt: Date.now() - 3600000,
-        upvotedBy: [],
-        reactions: {},
-      },
-    ],
-    createdAt: Date.now() - 86400000,
-    reactions: {},
-  },
-  {
-    id: 2,
-    title: "Open-source AI model beats GPT-4 on coding benchmarks",
-    body: "A new open-source model released on HuggingFace has surpassed GPT-4 on HumanEval coding benchmarks while running entirely locally on consumer hardware.",
-    category: "Technology",
-    channel: "technology",
-    author: "MLEngineer42",
-    upvotes: 1203,
-    upvotedBy: [],
-    replies: [],
-    createdAt: Date.now() - 172800000,
-    reactions: {},
-  },
-  {
-    id: 3,
-    title: "Archive.org digitizes 500,000 rare books from 1400-1800",
-    body: "The Internet Archive has completed a massive digitization project bringing half a million rare books from the early modern period into the public domain.",
-    category: "Research",
-    channel: "general",
-    author: "LibrarianPro",
-    upvotes: 654,
-    upvotedBy: [],
-    replies: [],
-    createdAt: Date.now() - 259200000,
-    reactions: {},
-  },
-  {
-    id: 4,
-    title: "Best public domain art resources for researchers",
-    body: "Compiled a list: Europeana (15M+ works), Met Museum Open Access (375K+), Rijksmuseum API (700K+), Art Institute Chicago (50K+ CC0 images).",
-    category: "Art",
-    channel: "art",
-    author: "DigitalCurator",
-    upvotes: 421,
-    upvotedBy: [],
-    replies: [],
-    createdAt: Date.now() - 432000000,
-    reactions: {},
-  },
-];
+interface ReportEntry {
+  id: number;
+  type: "post" | "reply";
+  postId: number;
+  replyId?: number;
+  content: string;
+  author: string;
+  reportedBy: string;
+  createdAt: number;
+}
+
+function loadReports(): ReportEntry[] {
+  try {
+    return JSON.parse(localStorage.getItem("communityReports") || "[]");
+  } catch {
+    return [];
+  }
+}
+function saveReports(r: ReportEntry[]) {
+  localStorage.setItem("communityReports", JSON.stringify(r));
+}
 
 const CATEGORIES = [
   "All",
@@ -891,6 +848,28 @@ function PostCard({
             {emoji}
           </button>
         ))}
+        <button
+          type="button"
+          onClick={() => {
+            const reports = loadReports();
+            reports.push({
+              id: Date.now(),
+              type: "post",
+              postId: post.id,
+              content: post.body,
+              author: post.author,
+              reportedBy: currentUser.username,
+              createdAt: Date.now(),
+            });
+            saveReports(reports);
+            toast.success("Post reported");
+          }}
+          className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full ml-auto hover:opacity-80 transition-opacity"
+          style={{ color: "oklch(0.65 0.18 30)" }}
+          data-ocid="community.postcard.report.button"
+        >
+          <Flag className="w-3 h-3" /> Report
+        </button>
       </div>
     </div>
   );
@@ -919,6 +898,35 @@ function ThreadView({
   onAddReply: (body: string, imageUrl?: string, replyTo?: ReplyRef) => void;
   onViewProfile: (username: string) => void;
 }) {
+  const reportPost = () => {
+    const reports = loadReports();
+    reports.push({
+      id: Date.now(),
+      type: "post",
+      postId: post.id,
+      content: post.body,
+      author: post.author,
+      reportedBy: currentUser.username,
+      createdAt: Date.now(),
+    });
+    saveReports(reports);
+    toast.success("Post reported");
+  };
+  const reportReply = (replyId: number, body: string, author: string) => {
+    const reports = loadReports();
+    reports.push({
+      id: Date.now(),
+      type: "reply",
+      postId: post.id,
+      replyId,
+      content: body,
+      author,
+      reportedBy: currentUser.username,
+      createdAt: Date.now(),
+    });
+    saveReports(reports);
+    toast.success("Reply reported");
+  };
   const [replyText, setReplyText] = useState("");
   const [replyImage, setReplyImage] = useState("");
   const [replyTo, setReplyTo] = useState<ReplyRef | undefined>(undefined);
@@ -1043,6 +1051,15 @@ function ThreadView({
                   {emoji}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={reportPost}
+                className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full ml-auto hover:opacity-80 transition-opacity"
+                style={{ color: "oklch(0.65 0.18 30)" }}
+                data-ocid="community.post.report.button"
+              >
+                <Flag className="w-3 h-3" /> Report
+              </button>
             </div>
           </div>
 
@@ -1168,6 +1185,16 @@ function ThreadView({
                         {emoji}
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        reportReply(reply.id, reply.body, reply.author)
+                      }
+                      className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full ml-auto hover:opacity-80 transition-opacity"
+                      style={{ color: "oklch(0.65 0.18 30)" }}
+                    >
+                      <Flag className="w-3 h-3" /> Report
+                    </button>
                   </div>
                 </div>
               ))}
@@ -1316,14 +1343,7 @@ export function CommunityChatsPage({
   const [customChannels, setCustomChannels] = useState(loadCustomChannels);
   const allChannels = [...DEFAULT_CHANNELS, ...customChannels];
 
-  const [posts, setPosts] = useState<ForumPost[]>(() => {
-    const saved = loadPosts();
-    if (saved.length === 0) {
-      savePosts(SEED_POSTS);
-      return SEED_POSTS;
-    }
-    return saved;
-  });
+  const [posts, setPosts] = useState<ForumPost[]>(() => loadPosts());
 
   const [activeChannel, setActiveChannel] = useState("general");
   const [sort, setSort] = useState<"hot" | "new" | "top">("hot");
