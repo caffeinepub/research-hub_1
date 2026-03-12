@@ -79,23 +79,24 @@ function setComicComments(comicId: string, comments: Comment[]) {
 async function fetchComics(q: string, page = 1): Promise<Comic[]> {
   const results: Comic[] = [];
   try {
-    const subject = q
-      ? `subject:(comics OR "comic strips" OR "comic books") AND (${q})`
-      : `(subject:comics OR subject:"comic strips" OR subject:"comic books" OR collection:digitalcomicmuseum OR collection:comicbookplus)`;
-    const params = new URLSearchParams({
-      q: `mediatype:texts AND (${subject})`,
-      output: "json",
-      rows: "50",
-      page: String(page),
-    });
+    const subject = q.trim()
+      ? `(subject:comics OR subject:"comic books" OR subject:"comic strips") AND (${q})`
+      : `(subject:comics OR subject:"comic books" OR collection:digitalcomicmuseum OR collection:comicbookplus)`;
+    const fullQ = `mediatype:texts AND ${subject}`;
+
+    const params = new URLSearchParams();
+    params.set("q", fullQ);
+    params.set("output", "json");
+    params.set("rows", "50");
+    params.set("page", String(page));
     params.append("fl[]", "identifier");
     params.append("fl[]", "title");
     params.append("fl[]", "creator");
     params.append("fl[]", "year");
     params.append("sort[]", "downloads desc");
-    const r = await fetch(
-      `https://archive.org/advancedsearch.php?${params.toString()}`,
-    );
+    const url = `https://archive.org/advancedsearch.php?${params.toString()}`;
+
+    const r = await fetch(url);
     if (!r.ok) return results;
     const data = await r.json();
     for (const doc of data.response?.docs ?? []) {
@@ -364,7 +365,6 @@ function ComicReader({
                 <ChevronLeft className="w-4 h-4 mr-1" /> Prev
               </Button>
               <div className="flex items-center gap-1">
-                {/* Page number quick jump */}
                 <span
                   className="text-sm font-mono"
                   style={{ color: "oklch(0.72 0.06 240)" }}
@@ -504,7 +504,6 @@ export function ComicsTab() {
   );
   const [activeTab, setActiveTab] = useState("browse");
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const hasLoaded = useRef(false);
 
   const doSearch = useCallback(async (q: string, pg = 1) => {
     setLoading(true);
@@ -515,13 +514,11 @@ export function ComicsTab() {
     setLoading(false);
   }, []);
 
-  // Auto-load on mount
+  // Auto-load on mount — always fires, no hasLoaded guard
+  // biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount
   useEffect(() => {
-    if (!hasLoaded.current) {
-      hasLoaded.current = true;
-      doSearch("", 1);
-    }
-  }, [doSearch]);
+    doSearch("", 1);
+  }, []);
 
   // Infinite scroll
   useEffect(() => {
@@ -619,6 +616,7 @@ export function ComicsTab() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              setComics([]);
               doSearch(query, 1);
             }}
             className="flex gap-2"
@@ -665,6 +663,7 @@ export function ComicsTab() {
                 data-ocid="comics.tab"
                 onClick={() => {
                   setQuery(chip);
+                  setComics([]);
                   doSearch(chip, 1);
                 }}
                 className="text-xs px-3 py-1 rounded-full border transition-colors"
@@ -728,6 +727,11 @@ export function ComicsTab() {
                   type="button"
                   data-ocid={`comics.item.${idx + 1}`}
                   className="cursor-pointer group text-left"
+                  style={{
+                    pointerEvents: "auto",
+                    position: "relative",
+                    zIndex: 1,
+                  }}
                   onClick={() => setSelectedComic(comic)}
                 >
                   <SensitiveContentBlur label={comic.title}>
@@ -783,10 +787,10 @@ export function ComicsTab() {
                         </div>
                       )}
                     </div>
-                    <p className="mt-1.5 text-xs font-medium line-clamp-2 px-0.5 text-white">
-                      {comic.title}
-                    </p>
                   </SensitiveContentBlur>
+                  <p className="mt-1.5 text-xs font-medium line-clamp-2 px-0.5 text-white">
+                    {comic.title}
+                  </p>
                   {comic.creator && (
                     <p
                       className="text-xs line-clamp-1 px-0.5"

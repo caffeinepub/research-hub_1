@@ -128,12 +128,11 @@ async function fetchArchiveMemes(q: string, page = 1): Promise<MemeItem[]> {
     const searchQ = q.trim()
       ? `${q} AND (collection:GIFs OR collection:memes OR subject:memes OR subject:gif) AND mediatype:image`
       : "(collection:GIFs OR collection:memes OR subject:memes) AND mediatype:image";
-    const params = new URLSearchParams({
-      q: searchQ,
-      output: "json",
-      rows: "30",
-      page: String(page),
-    });
+    const params = new URLSearchParams();
+    params.set("q", searchQ);
+    params.set("output", "json");
+    params.set("rows", "30");
+    params.set("page", String(page));
     params.append("fl[]", "identifier");
     params.append("fl[]", "title");
     params.append("sort[]", "downloads desc");
@@ -178,11 +177,14 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
   const [searched, setSearched] = useState(false);
   const [page, setPage] = useState(1);
   const [giphyOffset, setGiphyOffset] = useState(0);
+  const [activeCategory, setActiveCategory] = useState<
+    "all" | "gifs" | "memes" | "stickers"
+  >("all");
   const sentinelRef = useRef<HTMLDivElement>(null);
   const currentQueryRef = useRef("");
   const loadingRef = useRef(false);
 
-  async function doSearch(q: string) {
+  async function doSearch(q: string, cat = activeCategory) {
     const trimmed = q.trim();
     setAllItems([]);
     setVisibleCount(30);
@@ -192,17 +194,62 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
     setGiphyOffset(0);
     currentQueryRef.current = trimmed;
     loadingRef.current = true;
-    const settled = await Promise.allSettled([
-      fetchGiphy(trimmed, 0),
-      fetchTenor(trimmed, ""),
-      fetchImgflip(),
-      fetchArchiveMemes(trimmed, 1),
-      fetchRedditMemes(trimmed, ""),
-    ]);
-    const [giphy, tenor, imgflip, archive, reddit] = settled.map((r) =>
-      r.status === "fulfilled" ? r.value : [],
-    );
-    const items = interleave([giphy, tenor, imgflip, archive, reddit]);
+
+    let items: MemeItem[] = [];
+    if (cat === "stickers") {
+      const stickerEndpoint = trimmed
+        ? `https://api.giphy.com/v1/stickers/search?api_key=dc6zaTOxFJmzC&q=${encodeURIComponent(trimmed)}&limit=50&rating=g`
+        : "https://api.giphy.com/v1/stickers/trending?api_key=dc6zaTOxFJmzC&limit=50&rating=g";
+      try {
+        const r = await fetch(stickerEndpoint);
+        const data = await r.json();
+        items = (data.data || []).map((g: any) => ({
+          id: `giphy-sticker-${g.id}`,
+          url: g.images?.original?.url || g.images?.downsized?.url || "",
+          previewUrl:
+            g.images?.fixed_width_small?.url ||
+            g.images?.preview_gif?.url ||
+            "",
+          title: g.title || "Sticker",
+          source: "Giphy" as const,
+          pageUrl: g.url,
+        }));
+      } catch {
+        /* ignore */
+      }
+    } else if (cat === "gifs") {
+      const settled = await Promise.allSettled([
+        fetchGiphy(trimmed, 0),
+        fetchTenor(trimmed, ""),
+      ]);
+      const [giphy, tenor] = settled.map((r) =>
+        r.status === "fulfilled" ? r.value : [],
+      );
+      items = interleave([giphy, tenor]);
+    } else if (cat === "memes") {
+      const settled = await Promise.allSettled([
+        fetchImgflip(),
+        fetchRedditMemes(trimmed, ""),
+        fetchArchiveMemes(trimmed, 1),
+      ]);
+      const [imgflip, reddit, archive] = settled.map((r) =>
+        r.status === "fulfilled" ? r.value : [],
+      );
+      items = interleave([imgflip, reddit, archive]);
+    } else {
+      const settled = await Promise.allSettled([
+        fetchGiphy(trimmed, 0),
+        fetchTenor(trimmed, ""),
+        fetchImgflip(),
+        fetchArchiveMemes(trimmed, 1),
+        fetchRedditMemes(trimmed, ""),
+      ]);
+      const [giphy, tenor, imgflip, archive, reddit] = settled.map((r) =>
+        r.status === "fulfilled" ? r.value : [],
+      );
+      items = interleave([giphy, tenor, imgflip, archive, reddit]);
+    }
+
     setAllItems(items);
     setLoading(false);
     loadingRef.current = false;
@@ -235,7 +282,7 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
     setLoadingMore(false);
   }
 
-  // Load trending on mount
+  // Load trending on mount only — no debounce auto-search
   // biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount
   useEffect(() => {
     doSearch("");
@@ -273,7 +320,7 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
 
   return (
     <div className="space-y-4">
-      {/* Search bar */}
+      {/* Search bar — only fires on explicit submit */}
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -283,7 +330,7 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
       >
         <div className="relative flex-1">
           <Search
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 pointer-events-none"
             style={{ color: "oklch(0.6 0.1 230)" }}
           />
           <Input
@@ -291,7 +338,7 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search memes, GIFs, stickers..."
-            className="pl-9 h-10"
+            className="pl-11 h-12 text-base rounded-xl"
             style={{
               background: "oklch(0.18 0.04 260)",
               color: "oklch(0.95 0.02 240)",
@@ -303,17 +350,53 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
           data-ocid="memes.submit_button"
           type="submit"
           disabled={loading}
-          size="sm"
-          className="h-10 px-4"
+          className="h-12 px-5 rounded-xl"
           style={{ background: "oklch(0.52 0.18 220)", color: "white" }}
         >
           {loading ? (
-            <span className="animate-spin inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full" />
+            <span className="animate-spin inline-block w-5 h-5 border-2 border-current border-t-transparent rounded-full" />
           ) : (
-            <Search className="w-4 h-4" />
+            <Search className="w-5 h-5" />
           )}
         </Button>
       </form>
+
+      {/* Category filter tabs */}
+      <div
+        className="flex gap-2 overflow-x-auto pb-1"
+        style={{ scrollbarWidth: "none" }}
+      >
+        {(["all", "gifs", "memes", "stickers"] as const).map((cat) => {
+          const labels = {
+            all: "All",
+            gifs: "GIFs",
+            memes: "Memes",
+            stickers: "Stickers",
+          };
+          const isActive = activeCategory === cat;
+          return (
+            <button
+              key={cat}
+              type="button"
+              data-ocid={`memes.${cat}_tab`}
+              onClick={() => {
+                setActiveCategory(cat);
+                doSearch(query, cat);
+              }}
+              className="flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all"
+              style={{
+                background: isActive
+                  ? "oklch(0.52 0.18 220)"
+                  : "oklch(0.16 0.03 260)",
+                color: isActive ? "white" : "oklch(0.65 0.06 240)",
+                border: isActive ? "none" : "1px solid oklch(0.26 0.05 260)",
+              }}
+            >
+              {labels[cat]}
+            </button>
+          );
+        })}
+      </div>
 
       {/* Quick-pick chips */}
       <div className="flex flex-wrap gap-2">
@@ -336,7 +419,7 @@ export function MemesTab({ onSendToChat }: MemesTabProps) {
             type="button"
             onClick={() => {
               setQuery(chip);
-              doSearch(chip);
+              doSearch(chip, activeCategory);
             }}
             className="text-xs px-3 py-1 rounded-full border transition-colors hover:opacity-80"
             style={{

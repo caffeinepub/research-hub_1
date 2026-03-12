@@ -1,33 +1,32 @@
 # Research Hub
 
 ## Current State
-- CommunityChatsPage has forum posts, channels, thread views, but NO clickable user profiles and NO friend/follow system
-- MemesTab has doSearch and a form, but results may not refresh properly when a new search is submitted
-- GifPickerPanel in CommunityChatsPage has a search input + Go button, but users report it doesn't work
-- No profile modal or friend request UI anywhere in Community
+A comprehensive research platform with tabs for Articles, Images, Videos, Films, Audio, GIFs/Memes, Comics, Archive.org, News, Datasets, Tools, AI Chat, Community, Messages, Profile, Settings, Admin. The app is live but has several persistent bugs.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Clickable user avatars/names throughout CommunityChatsPage (in PostCard, ThreadView replies, Members list) that open a UserProfileModal
-- UserProfileModal: shows username, avatar, join date, post count, and a "Send Friend Request" / "Friends" button
-- Friends state stored in localStorage per user
-- "Members" tab/section in Community showing all authors who have posted, each clickable
-- Fix GIF picker in chat: ensure search input value state is properly tied, onKeyDown Enter fires search, and Go button fires search
-- Fix MemesTab: ensure the form onSubmit properly triggers doSearch with current query value
+- Followers/following list on ProfilePage (visible on own profile and others')
+- More news sources: AP News RSS, NPR, BBC, Reuters RSS, Science Daily, Ars Technica feeds
+- AI Chat: smarter conversational replies with context-aware follow-up suggestions
 
 ### Modify
-- Community page layout: cleaner 3-panel design — left sidebar (channels), center feed, right panel ("Members" showing active users)
-- PostCard and ThreadView: make author name/avatar a clickable button that opens UserProfileModal
-- GifPickerPanel: fix controlled input and search trigger
-- MemesTab: ensure query state is read correctly in the form submit handler
+- **ArchiveTab**: Fix fetch to use JSONP-compatible URL or add `&callback=` workaround; ensure initial load always shows results; add better error display when blocked
+- **ComicsTab**: The archive.org advancedsearch fetch may silently fail; add explicit console logs and ensure the initial auto-load fires correctly; fix `doSearch` not resetting properly
+- **MemesTab**: Reddit fetch may fail CORS -- add fallback, ensure search re-fires on every new query (fix the debounce not resetting allItems before new results arrive causing stale display)
+- **ProfilePage**: Add a Following/Followers section showing localStorage-stored friends list with clickable entries that navigate to their profiles
+- **NewsTab**: Replace or supplement existing news fetches with more reliable open RSS/JSON sources: HackerNews (already working), plus Wikipedia current events, Wikimedia current events, ArXiv recent, NPR JSON API, and more
+- **AIChatPage**: Improve AI responses -- when a Wikipedia summary is available, use it to give a direct answer; add follow-up suggestion chips after each answer; make the study mode more conversational
 
 ### Remove
-- Nothing removed
+- Nothing
 
 ## Implementation Plan
-1. Add `UserProfileModal` component inside CommunityChatsPage.tsx — shows user info + friend button, uses localStorage for friend state
-2. Add `viewProfile` state to CommunityChatsPage, wire avatar/name buttons in PostCard and ThreadView to set viewProfile and open modal
-3. Add a Members panel (right side on desktop, tab on mobile) listing unique post authors with clickable avatars
-4. Fix GifPickerPanel: make `query` state controlled properly, ensure `search(query)` is called on Enter and Go button click
-5. Fix MemesTab: verify `onSubmit` calls `doSearch(query)` with latest query state — use a ref if closure is stale
+
+**Half 1 (this build):**
+1. Fix ArchiveTab: use a proxy-friendly URL format and ensure initial load always fires, add retry logic
+2. Fix ComicsTab: ensure `hasLoaded` ref doesn't block re-fetches, fix empty results bug
+3. Fix MemesTab: ensure every new search clears stale results immediately before async fetch, fix debounce conflict with manual submit
+4. Fix ProfilePage: add Friends/Following section with avatars and message buttons
+5. Improve NewsTab: add AP News (via allorigins CORS proxy), NPR, more Guardian sections, BBC RSS via allorigins
+6. Improve AIChatPage: smarter conversational replies, follow-up chips, better study mode responses

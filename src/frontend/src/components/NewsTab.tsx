@@ -20,6 +20,7 @@ import {
   Newspaper,
   Plus,
   RefreshCw,
+  Search,
   Send,
   TrendingUp,
 } from "lucide-react";
@@ -41,7 +42,9 @@ interface NewsItem {
     | "hackernews"
     | "guardian"
     | "arxiv"
-    | "community";
+    | "community"
+    | "bbc"
+    | "npr";
   category: string;
   publishedAt: string;
   thumbnail?: string;
@@ -116,6 +119,16 @@ const SOURCE_STYLES: Record<
     bg: "oklch(0.25 0.08 170 / 0.3)",
     color: "oklch(0.68 0.14 170)",
     label: "arXiv",
+  },
+  bbc: {
+    bg: "oklch(0.22 0.10 330 / 0.3)",
+    color: "oklch(0.72 0.14 330)",
+    label: "BBC",
+  },
+  npr: {
+    bg: "oklch(0.22 0.10 190 / 0.3)",
+    color: "oklch(0.70 0.14 190)",
+    label: "NPR",
   },
   community: {
     bg: "oklch(0.22 0.10 140 / 0.3)",
@@ -372,6 +385,61 @@ async function fetchWikipediaCurrentEvents(): Promise<NewsItem[]> {
       category: "World",
       publishedAt: item.timestamp || new Date().toISOString(),
     }));
+  } catch {
+    return [];
+  }
+}
+
+function parseRSS(
+  xmlText: string,
+  sourceType: string,
+  source: string,
+): NewsItem[] {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xmlText, "text/xml");
+    const items = Array.from(doc.querySelectorAll("item"));
+    return items.slice(0, 15).map((item, i) => ({
+      id: `${sourceType}-rss-${i}-${Date.now()}`,
+      title: item.querySelector("title")?.textContent || "",
+      summary:
+        item
+          .querySelector("description")
+          ?.textContent?.replace(/<[^>]*>/g, "")
+          .slice(0, 200) || "",
+      source,
+      sourceType: sourceType as NewsItem["sourceType"],
+      category: "World",
+      publishedAt:
+        item.querySelector("pubDate")?.textContent || new Date().toISOString(),
+      url: item.querySelector("link")?.textContent || "",
+    }));
+  } catch {
+    return [];
+  }
+}
+
+async function fetchBBCNews(): Promise<NewsItem[]> {
+  try {
+    const res = await fetch(
+      `https://api.allorigins.win/raw?url=${encodeURIComponent("https://feeds.bbci.co.uk/news/rss.xml")}`,
+    );
+    if (!res.ok) return [];
+    const xml = await res.text();
+    return parseRSS(xml, "bbc", "BBC News");
+  } catch {
+    return [];
+  }
+}
+
+async function fetchNPRNews(): Promise<NewsItem[]> {
+  try {
+    const res = await fetch(
+      `https://api.allorigins.win/raw?url=${encodeURIComponent("https://feeds.npr.org/1001/rss.xml")}`,
+    );
+    if (!res.ok) return [];
+    const xml = await res.text();
+    return parseRSS(xml, "npr", "NPR");
   } catch {
     return [];
   }
@@ -733,20 +801,29 @@ function TopNewsFeed({
   const [loading, setLoading] = useState(false);
   const [activeCategory, setActiveCategory] = useState("All");
   const [page, setPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [userLocation, setUserLocation] = useState<string>(
+    () => localStorage.getItem("userLocation") || "",
+  );
+  const [locationInput, setLocationInput] = useState("");
+  const [localNews, setLocalNews] = useState<NewsItem[]>([]);
   const ITEMS_PER_PAGE = 12;
 
   const loadNews = useCallback(async () => {
     setLoading(true);
     try {
-      const [hn, reddit1, reddit2, guardian, wiki] = await Promise.allSettled([
-        fetchHackerNews(),
-        fetchRedditSub("worldnews", "World"),
-        fetchRedditSub("science", "Science"),
-        fetchGuardianNews(),
-        fetchWikipediaCurrentEvents(),
-      ]);
+      const [hn, reddit1, reddit2, guardian, wiki, bbc, npr] =
+        await Promise.allSettled([
+          fetchHackerNews(),
+          fetchRedditSub("worldnews", "World"),
+          fetchRedditSub("science", "Science"),
+          fetchGuardianNews(),
+          fetchWikipediaCurrentEvents(),
+          fetchBBCNews(),
+          fetchNPRNews(),
+        ]);
       const all: NewsItem[] = [];
-      for (const r of [hn, reddit1, reddit2, guardian, wiki]) {
+      for (const r of [hn, reddit1, reddit2, guardian, wiki, bbc, npr]) {
         if (r.status === "fulfilled") all.push(...r.value);
       }
       all.sort(
@@ -759,16 +836,51 @@ function TopNewsFeed({
     }
   }, []);
 
+  const loadLocalNews = useCallback(async (city: string) => {
+    if (!city.trim()) return;
+    try {
+      const res = await fetch(
+        `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(`${city} news 2026`)}&srnamespace=0&srlimit=6&format=json&origin=*`,
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      const items: NewsItem[] = (data?.query?.search || []).map(
+        (item: any, i: number) => ({
+          id: `local-wiki-${item.pageid || i}`,
+          title: item.title || "Untitled",
+          summary: item.snippet ? item.snippet.replace(/<[^>]+>/g, "") : "",
+          source: "Wikipedia",
+          sourceType: "wikipedia" as const,
+          category: "World",
+          publishedAt: item.timestamp || new Date().toISOString(),
+        }),
+      );
+      setLocalNews(items);
+    } catch {
+      // silently fail
+    }
+  }, []);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: loadNews is stable
   useEffect(() => {
     loadNews();
-  }, [loadNews]);
+    // Load local news if city is already saved
+    const savedCity = localStorage.getItem("userLocation");
+    if (savedCity) {
+      loadLocalNews(savedCity);
+    }
+  }, [loadLocalNews]);
 
-  const filtered =
-    activeCategory === "All"
-      ? news
-      : news.filter((n) =>
-          n.category.toLowerCase().includes(activeCategory.toLowerCase()),
-        );
+  const filtered = news.filter((n) => {
+    const matchesCategory =
+      activeCategory === "All" ||
+      n.category.toLowerCase().includes(activeCategory.toLowerCase());
+    const matchesSearch =
+      !searchQuery.trim() ||
+      n.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (n.summary || "").toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
 
   const displayed = filtered.slice(0, page * ITEMS_PER_PAGE);
   const hero = displayed[0];
@@ -776,6 +888,136 @@ function TopNewsFeed({
 
   return (
     <div>
+      {/* Search bar */}
+      <div className="relative mb-4">
+        <Search
+          className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
+          style={{ color: "oklch(0.55 0.06 240)" }}
+        />
+        <Input
+          data-ocid="news.search_input"
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setPage(1);
+          }}
+          placeholder="Search news articles..."
+          className="pl-9 h-10"
+          style={{
+            background: "oklch(0.15 0.03 260)",
+            borderColor: "oklch(0.26 0.05 260)",
+            color: "white",
+          }}
+        />
+      </div>
+
+      {/* Location-based news */}
+      {userLocation && localNews.length > 0 && (
+        <div
+          className="mb-6 p-4 rounded-2xl"
+          style={{
+            background: "oklch(0.14 0.04 260)",
+            border: "1px solid oklch(0.25 0.06 220 / 0.4)",
+          }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-sm font-bold text-white">
+              📍 News near {userLocation}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setUserLocation("");
+                setLocalNews([]);
+                localStorage.removeItem("userLocation");
+              }}
+              className="ml-auto text-xs px-2 py-0.5 rounded"
+              style={{ color: "oklch(0.55 0.05 240)" }}
+            >
+              Change
+            </button>
+          </div>
+          <div className="space-y-2">
+            {localNews.slice(0, 3).map((item, i) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onSelectArticle(item)}
+                data-ocid={`news.local.item.${i + 1}`}
+                className="w-full text-left px-3 py-2 rounded-xl transition-all hover:opacity-80"
+                style={{ background: "oklch(0.12 0.02 260)" }}
+              >
+                <p className="text-sm font-medium text-white line-clamp-2">
+                  {item.title}
+                </p>
+                {item.summary && (
+                  <p
+                    className="text-xs mt-0.5 line-clamp-1"
+                    style={{ color: "oklch(0.58 0.04 240)" }}
+                  >
+                    {item.summary}
+                  </p>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* No location set - manual input */}
+      {!userLocation && (
+        <div
+          className="mb-5 p-3 rounded-xl flex items-center gap-2"
+          style={{
+            background: "oklch(0.13 0.03 260)",
+            border: "1px solid oklch(0.24 0.05 260)",
+          }}
+        >
+          <span
+            className="text-xs flex-1"
+            style={{ color: "oklch(0.60 0.04 240)" }}
+          >
+            📍 Enter your city for local news
+          </span>
+          <input
+            value={locationInput}
+            onChange={(e) => setLocationInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && locationInput.trim()) {
+                setUserLocation(locationInput.trim());
+                localStorage.setItem("userLocation", locationInput.trim());
+                loadLocalNews(locationInput.trim());
+                setLocationInput("");
+              }
+            }}
+            placeholder="e.g. Indianapolis"
+            className="text-xs px-2 py-1 rounded border w-32"
+            style={{
+              background: "oklch(0.16 0.04 260)",
+              borderColor: "oklch(0.28 0.05 260)",
+              color: "white",
+            }}
+            data-ocid="news.location_input"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              if (locationInput.trim()) {
+                setUserLocation(locationInput.trim());
+                localStorage.setItem("userLocation", locationInput.trim());
+                loadLocalNews(locationInput.trim());
+                setLocationInput("");
+              }
+            }}
+            className="text-xs px-2 py-1 rounded"
+            style={{ background: "oklch(0.52 0.18 220)", color: "white" }}
+            data-ocid="news.location_button"
+          >
+            Go
+          </button>
+        </div>
+      )}
+
       {/* Category filter bar */}
       <div
         className="flex gap-2 overflow-x-auto pb-2 mb-5"

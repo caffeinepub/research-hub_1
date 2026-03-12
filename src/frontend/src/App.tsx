@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Archive,
   BarChart3,
   BookImage,
   BookOpen,
@@ -39,6 +40,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { AIChatPage } from "./components/AIChatPage";
 import { AdminPage } from "./components/AdminPage";
+import { ArchiveTab } from "./components/ArchiveTab";
 import { ArticleDetailPage } from "./components/ArticleDetailPage";
 import { ArticlesTab } from "./components/ArticlesTab";
 import { AudioTab } from "./components/AudioTab";
@@ -144,7 +146,8 @@ type NavKey =
   | "messages"
   | "news"
   | "datasets"
-  | "tools";
+  | "tools"
+  | "archive";
 
 export default function App() {
   const [query, setQuery] = useState("");
@@ -157,6 +160,9 @@ export default function App() {
   const [prevView, setPrevView] = useState<"search" | "discover">("search");
   const [showUniversal, setShowUniversal] = useState(true);
   const [showBrowser, setShowBrowser] = useState(false);
+  const [viewingProfileUser, setViewingProfileUser] = useState<
+    string | undefined
+  >(undefined);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Claim daily login reward silently on app start
@@ -376,7 +382,14 @@ export default function App() {
           onToggleBrowser={() => setShowBrowser((b) => !b)}
         />
         <main className="flex-1 container mx-auto max-w-6xl pb-24 overflow-auto">
-          <ProfilePage />
+          <ProfilePage
+            viewingUser={viewingProfileUser}
+            onNavigateMessages={(_friend) => {
+              setBottomNav("messages");
+              setView("messages");
+            }}
+            onViewProfile={(username) => setViewingProfileUser(username)}
+          />
         </main>
         <BottomNav current={bottomNav} onChange={handleBottomNav} />
       </div>
@@ -509,6 +522,28 @@ export default function App() {
         />
         <main className="flex-1 container mx-auto px-4 py-4 max-w-6xl pb-24 overflow-auto">
           <DatasetsTab />
+        </main>
+        <BottomNav current={bottomNav} onChange={handleBottomNav} />
+      </div>
+    );
+  }
+
+  // Archive.org view
+  if (view === "archive") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <ArchiveHeader
+          query={query}
+          setQuery={setQuery}
+          onSearch={handleSearch}
+          isLoading={isLoading}
+          activeNav={bottomNav}
+          onNav={handleBottomNav}
+          showBrowser={showBrowser}
+          onToggleBrowser={() => setShowBrowser((b) => !b)}
+        />
+        <main className="flex-1 container mx-auto px-4 py-4 max-w-6xl pb-24 overflow-auto">
+          <ArchiveTab />
         </main>
         <BottomNav current={bottomNav} onChange={handleBottomNav} />
       </div>
@@ -1337,6 +1372,7 @@ function ArchiveHeader({
               { key: "comics" as NavKey, icon: BookImage, label: "Comics" },
               { key: "messages" as NavKey, icon: Mail, label: "Messages" },
               { key: "settings" as NavKey, icon: Settings, label: "Settings" },
+              { key: "archive" as NavKey, icon: Archive, label: "Archive" },
               { key: "admin" as NavKey, icon: ShieldAlert, label: "Admin" },
             ] as { key: NavKey; icon: React.ElementType; label: string }[]
           ).map(({ key, icon: Icon, label }) => (
@@ -1393,6 +1429,7 @@ function BottomNav({
   const moreItems: { key: NavKey; icon: React.ElementType; label: string }[] = [
     { key: "dictionary", icon: BookType, label: "Dictionary" },
     { key: "comics", icon: BookImage, label: "Comics" },
+    { key: "archive" as NavKey, icon: Archive, label: "Archive" },
     { key: "datasets", icon: BarChart3, label: "Datasets" },
     { key: "tools", icon: FlaskConical, label: "Tools" },
     { key: "messages", icon: Mail, label: "Messages" },

@@ -33,9 +33,11 @@ const AVATAR_COLORS = [
 export function ProfilePage({
   viewingUser,
   onNavigateMessages,
+  onViewProfile,
 }: {
   viewingUser?: string;
   onNavigateMessages?: (friend?: string) => void;
+  onViewProfile?: (username: string) => void;
 } = {}) {
   const { identity, isLoggingIn } = useInternetIdentity();
   const { actor, isFetching } = useActor();
@@ -573,6 +575,118 @@ export function ProfilePage({
                     participate in Community (+1)
                   </p>
                 </>
+              )}
+            </div>
+          );
+        })()}
+
+      {/* Friends / Following */}
+      {isOwnProfile &&
+        (() => {
+          const friends: string[] = (() => {
+            try {
+              return JSON.parse(
+                localStorage.getItem(`friends_${myUsername}`) || "[]",
+              );
+            } catch {
+              return [];
+            }
+          })();
+          const FRIEND_COLORS = [
+            "oklch(0.52 0.18 220)",
+            "oklch(0.65 0.18 160)",
+            "oklch(0.65 0.18 320)",
+            "oklch(0.65 0.18 55)",
+            "oklch(0.65 0.18 280)",
+          ];
+          return (
+            <div
+              className="rounded-2xl p-5 space-y-3"
+              style={{
+                background: "oklch(0.16 0.04 260)",
+                border: "1px solid oklch(0.28 0.06 260)",
+              }}
+              data-ocid="profile.card"
+            >
+              <div className="flex items-center justify-between">
+                <h3
+                  className="text-xs font-semibold uppercase tracking-wider"
+                  style={{ color: "oklch(0.55 0.05 240)" }}
+                >
+                  Friends
+                </h3>
+                <span
+                  className="text-xs px-2 py-0.5 rounded-full font-mono"
+                  style={{
+                    background: "oklch(0.22 0.05 260)",
+                    color: "oklch(0.65 0.08 240)",
+                  }}
+                >
+                  {friends.length}
+                </span>
+              </div>
+              {friends.length === 0 ? (
+                <p
+                  className="text-sm"
+                  style={{ color: "oklch(0.50 0.05 240)", fontStyle: "italic" }}
+                  data-ocid="profile.empty_state"
+                >
+                  No friends yet. Add friends from Community.
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {friends.map((friend, idx) => (
+                    <div
+                      key={friend}
+                      data-ocid={`profile.item.${idx + 1}`}
+                      className="flex flex-col items-center gap-2 p-3 rounded-xl"
+                      style={{
+                        background: "oklch(0.13 0.03 260)",
+                        border: "1px solid oklch(0.22 0.04 260)",
+                      }}
+                    >
+                      <div
+                        className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white"
+                        style={{
+                          background: FRIEND_COLORS[idx % FRIEND_COLORS.length],
+                        }}
+                      >
+                        {friend.slice(0, 2).toUpperCase()}
+                      </div>
+                      <span className="text-xs font-medium text-white text-center truncate w-full">
+                        {friend}
+                      </span>
+                      <div className="flex gap-1 w-full">
+                        <button
+                          type="button"
+                          data-ocid={`profile.secondary_button.${idx + 1}`}
+                          onClick={() => onNavigateMessages?.(friend)}
+                          className="flex-1 text-[10px] py-1 rounded-lg text-center transition-colors"
+                          style={{
+                            background: "oklch(0.52 0.18 220 / 0.15)",
+                            color: "oklch(0.72 0.14 220)",
+                            border: "1px solid oklch(0.40 0.12 220 / 0.3)",
+                          }}
+                        >
+                          Message
+                        </button>
+                        <button
+                          type="button"
+                          data-ocid={`profile.button.${idx + 1}`}
+                          onClick={() => onViewProfile?.(friend)}
+                          className="flex-1 text-[10px] py-1 rounded-lg text-center transition-colors"
+                          style={{
+                            background: "oklch(0.52 0.18 145 / 0.15)",
+                            color: "oklch(0.65 0.14 145)",
+                            border: "1px solid oklch(0.40 0.12 145 / 0.3)",
+                          }}
+                        >
+                          Profile
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           );

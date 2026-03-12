@@ -39,7 +39,8 @@ function evaluateMath(query: string): string | null {
       .replace(/divided by/g, "/")
       .replace(/x/g, "*")
       .replace(/[^0-9\+\-\*\/\(\)\.\%\s]/g, "");
-    // biome-ignore lint/security/noGlobalEval: safe math eval
+    // biome-ignore lint/security/noGlobalEval: using Function constructor for safe math
+    // biome-ignore lint/security/noGlobalEval: safe
     const result = Function(`"use strict"; return (${expr})`)();
     if (typeof result === "number" && Number.isFinite(result)) {
       return result % 1 === 0
@@ -163,6 +164,7 @@ interface Message {
   isLoading?: boolean;
   isCalcResult?: boolean;
   isStudyAnswer?: boolean;
+  followUps?: string[];
 }
 
 const RESEARCH_QUESTIONS = [
@@ -209,6 +211,17 @@ function getSuggestions(query: string): string[] {
   const words = query.trim().split(" ").filter(Boolean);
   const main = words[0] ?? query;
   return [`${main} history`, `${main} science`, `How does ${main} work`];
+}
+
+function generateFollowUps(query: string): string[] {
+  const q = query.toLowerCase();
+  if (q.includes("what") || q.includes("how"))
+    return ["Give me an example", "Why is this important?", "Tell me more"];
+  if (q.includes("who"))
+    return ["What did they do?", "When did this happen?", "Related figures"];
+  if (q.includes("why"))
+    return ["Explain in simpler terms", "Give me an example", "Tell me more"];
+  return ["Explain in simpler terms", "Related topics", "Fun facts about this"];
 }
 
 function ArticleCard({
@@ -335,6 +348,7 @@ export function AIChatPage({ onSearchMore }: AIChatPageProps) {
                 ...m,
                 isLoading: false,
                 text: buildConversationalReply(q, results.articles),
+                followUps: generateFollowUps(q),
                 results: {
                   articles: results.articles.slice(0, 3),
                   images: results.images.slice(0, 4),
@@ -827,6 +841,35 @@ export function AIChatPage({ onSearchMore }: AIChatPageProps) {
                       ))}
                     </div>
                   )}
+                  {/* Follow-up question chips */}
+                  {!msg.isLoading &&
+                    msg.followUps &&
+                    msg.followUps.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        <span
+                          className="text-[10px] w-full"
+                          style={{ color: "oklch(0.45 0.04 240)" }}
+                        >
+                          Ask a follow-up:
+                        </span>
+                        {msg.followUps.map((fu) => (
+                          <button
+                            key={fu}
+                            type="button"
+                            data-ocid="ai.secondary_button"
+                            onClick={() => handleSend(fu)}
+                            className="text-xs px-3 py-1.5 rounded-full transition-all hover:opacity-90"
+                            style={{
+                              background: "oklch(0.52 0.18 145 / 0.12)",
+                              border: "1px solid oklch(0.52 0.18 145 / 0.35)",
+                              color: "oklch(0.72 0.14 145)",
+                            }}
+                          >
+                            {fu}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                 </div>
               </motion.div>
             ))}

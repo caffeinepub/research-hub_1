@@ -1242,6 +1242,7 @@ function ThreadView({
           <div className="flex gap-2 items-end">
             <Textarea
               data-ocid="community.reply.textarea"
+              autoFocus
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
               placeholder="Write a reply..."
