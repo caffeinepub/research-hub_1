@@ -2,22 +2,19 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft,
   BookImage,
   Bookmark,
   BookmarkCheck,
-  ChevronLeft,
-  ChevronRight,
   MessageCircle,
   Search,
   Send,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { SensitiveContentBlur } from "./SensitiveContentBlur";
 
 interface Comic {
@@ -28,6 +25,7 @@ interface Comic {
   year?: string;
   source: string;
   archiveId?: string;
+  altText?: string;
 }
 
 interface Comment {
@@ -76,32 +74,71 @@ function setComicComments(comicId: string, comments: Comment[]) {
   );
 }
 
-async function fetchComics(q: string, page = 1): Promise<Comic[]> {
-  const results: Comic[] = [];
+const XKCD_NUMS = (() => {
+  const latest = 2900;
+  const nums: number[] = [];
+  const used = new Set<number>();
+  while (nums.length < 50) {
+    const n = Math.floor(Math.random() * latest) + 1;
+    if (!used.has(n)) {
+      used.add(n);
+      nums.push(n);
+    }
+  }
+  return nums;
+})();
+
+async function fetchXkcdStrips(nums: number[]): Promise<Comic[]> {
+  const results = await Promise.allSettled(
+    nums.map((num) =>
+      fetch(`https://xkcd.com/${num}/info.0.json`)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+    ),
+  );
+  return results
+    .filter((r) => r.status === "fulfilled" && r.value)
+    .map((r) => {
+      const c = (r as PromiseFulfilledResult<any>).value;
+      return {
+        id: `xkcd-${c.num}`,
+        title: c.title ?? `XKCD #${c.num}`,
+        coverUrl: c.img ?? "",
+        creator: "Randall Munroe",
+        year: String(c.year ?? ""),
+        source: "XKCD",
+        archiveId: undefined,
+        altText: c.alt ?? "",
+      };
+    })
+    .filter((c) => c.coverUrl);
+}
+
+async function fetchArchiveComics(q: string): Promise<Comic[]> {
+  const controller = new AbortController();
+  const tid = setTimeout(() => controller.abort(), 25000);
   try {
     const subject = q.trim()
-      ? `(subject:comics OR subject:"comic books" OR subject:"comic strips") AND (${q})`
-      : `(subject:comics OR subject:"comic books" OR collection:digitalcomicmuseum OR collection:comicbookplus)`;
-    const fullQ = `mediatype:texts AND ${subject}`;
-
+      ? `(${q}) AND (subject:"comic book" OR subject:"comic strip" OR subject:comics OR collection:digitalcomicmuseum OR collection:comicbookplus)`
+      : `(subject:"comic book" OR subject:"comic strip" OR subject:comics OR collection:digitalcomicmuseum OR collection:comicbookplus) AND mediatype:texts`;
     const params = new URLSearchParams();
-    params.set("q", fullQ);
+    params.set("q", subject);
     params.set("output", "json");
-    params.set("rows", "50");
-    params.set("page", String(page));
+    params.set("rows", "30");
+    params.set("page", "1");
     params.append("fl[]", "identifier");
     params.append("fl[]", "title");
     params.append("fl[]", "creator");
     params.append("fl[]", "year");
     params.append("sort[]", "downloads desc");
     const url = `https://archive.org/advancedsearch.php?${params.toString()}`;
-
-    const r = await fetch(url);
-    if (!r.ok) return results;
+    const r = await fetch(url, { signal: controller.signal });
+    clearTimeout(tid);
+    if (!r.ok) return [];
     const data = await r.json();
-    for (const doc of data.response?.docs ?? []) {
-      if (!doc.identifier) continue;
-      results.push({
+    return (data?.response?.docs ?? [])
+      .filter((doc: any) => doc.identifier)
+      .map((doc: any) => ({
         id: `archive-${doc.identifier}`,
         title: doc.title || doc.identifier,
         coverUrl: `https://archive.org/services/img/${doc.identifier}`,
@@ -109,12 +146,11 @@ async function fetchComics(q: string, page = 1): Promise<Comic[]> {
         year: Array.isArray(doc.year) ? doc.year[0] : doc.year,
         source: "Archive.org",
         archiveId: doc.identifier,
-      });
-    }
+      }));
   } catch {
-    // ignore fetch errors
+    clearTimeout(tid);
+    return [];
   }
-  return results;
 }
 
 interface ComicReaderProps {
@@ -130,10 +166,9 @@ function ComicReader({
   onClose,
   onToggleSave,
 }: ComicReaderProps) {
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState<number | null>(null);
   const [pageUrls, setPageUrls] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [pageIdx, setPageIdx] = useState(0);
+  const [loadingPages, setLoadingPages] = useState(true);
   const [zoom, setZoom] = useState(1);
   const [comments, setComments] = useState<Comment[]>(() =>
     getComicComments(comic.id),
@@ -142,33 +177,36 @@ function ComicReader({
   const [showComments, setShowComments] = useState(false);
 
   useEffect(() => {
-    if (!comic.archiveId) {
-      setLoading(false);
+    // XKCD comics are single images
+    if (comic.source === "XKCD" || !comic.archiveId) {
+      setPageUrls(comic.coverUrl ? [comic.coverUrl] : []);
+      setLoadingPages(false);
       return;
     }
-    setLoading(true);
+    setLoadingPages(true);
     fetch(`https://archive.org/metadata/${comic.archiveId}`)
       .then((r) => r.json())
       .then((data) => {
         const files: { name: string }[] = data.files ?? [];
-        const imageFiles = files
+        const imgs = files
           .filter(
             (f) =>
               /\.(jpg|jpeg|png|gif)$/i.test(f.name) &&
-              !f.name.toLowerCase().includes("thumb") &&
-              !f.name.toLowerCase().includes("_t."),
+              !f.name.toLowerCase().includes("thumb"),
           )
           .sort((a, b) => a.name.localeCompare(b.name))
           .map(
             (f) =>
               `https://archive.org/download/${comic.archiveId}/${encodeURIComponent(f.name)}`,
           );
-        setPageUrls(imageFiles);
-        setTotalPages(imageFiles.length);
-        setLoading(false);
+        setPageUrls(imgs.length > 0 ? imgs : [comic.coverUrl]);
+        setLoadingPages(false);
       })
-      .catch(() => setLoading(false));
-  }, [comic.archiveId]);
+      .catch(() => {
+        setPageUrls(comic.coverUrl ? [comic.coverUrl] : []);
+        setLoadingPages(false);
+      });
+  }, [comic.archiveId, comic.coverUrl, comic.source]);
 
   const handleAddComment = () => {
     if (!commentText.trim()) return;
@@ -184,10 +222,13 @@ function ComicReader({
     setCommentText("");
   };
 
+  const currentPage = pageUrls[pageIdx];
+
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col"
       style={{ background: "oklch(0.08 0.02 265)" }}
+      data-ocid="comics.reader_panel"
     >
       {/* Header */}
       <div
@@ -213,176 +254,140 @@ function ComicReader({
             </p>
           )}
         </div>
-        {/* Zoom controls */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
-            data-ocid="comics.secondary_button"
-            onClick={() => setZoom((z) => Math.max(0.5, z - 0.2))}
-            className="p-1.5 rounded-lg transition-colors"
+            onClick={() => setZoom((z) => Math.max(0.5, z - 0.25))}
+            className="p-1.5 rounded-lg"
             style={{
               background: "oklch(0.20 0.04 260)",
-              color: "oklch(0.75 0.08 240)",
+              color: "oklch(0.70 0.06 240)",
             }}
-            title="Zoom out"
           >
             <ZoomOut className="w-4 h-4" />
           </button>
-          <span
-            className="text-xs min-w-[3rem] text-center"
-            style={{ color: "oklch(0.65 0.06 240)" }}
-          >
-            {Math.round(zoom * 100)}%
-          </span>
           <button
             type="button"
-            data-ocid="comics.primary_button"
-            onClick={() => setZoom((z) => Math.min(3, z + 0.2))}
-            className="p-1.5 rounded-lg transition-colors"
+            onClick={() => setZoom((z) => Math.min(3, z + 0.25))}
+            className="p-1.5 rounded-lg"
             style={{
               background: "oklch(0.20 0.04 260)",
-              color: "oklch(0.75 0.08 240)",
+              color: "oklch(0.70 0.06 240)",
             }}
-            title="Zoom in"
           >
             <ZoomIn className="w-4 h-4" />
           </button>
-        </div>
-        {/* Save */}
-        <button
-          type="button"
-          data-ocid="comics.save_button"
-          onClick={() => onToggleSave(comic)}
-          className="p-2 rounded-lg transition-colors"
-          style={{
-            background: isSaved
-              ? "oklch(0.52 0.18 220 / 0.25)"
-              : "oklch(0.20 0.04 260)",
-            color: isSaved ? "oklch(0.72 0.18 220)" : "oklch(0.65 0.06 240)",
-          }}
-          title={isSaved ? "Unsave comic" : "Save comic"}
-        >
-          {isSaved ? (
-            <BookmarkCheck className="w-4 h-4" />
-          ) : (
-            <Bookmark className="w-4 h-4" />
-          )}
-        </button>
-        {/* Comments toggle */}
-        <button
-          type="button"
-          data-ocid="comics.toggle"
-          onClick={() => setShowComments((s) => !s)}
-          className="p-2 rounded-lg transition-colors"
-          style={{
-            background: showComments
-              ? "oklch(0.52 0.18 150 / 0.25)"
-              : "oklch(0.20 0.04 260)",
-            color: showComments
-              ? "oklch(0.72 0.18 150)"
-              : "oklch(0.65 0.06 240)",
-          }}
-          title="Comments"
-        >
-          <MessageCircle className="w-4 h-4" />
-          {comments.length > 0 && (
-            <span className="ml-1 text-xs">{comments.length}</span>
-          )}
-        </button>
-        {totalPages !== null && totalPages > 0 && (
-          <span
-            className="text-xs shrink-0"
-            style={{ color: "oklch(0.55 0.05 240)" }}
+          <button
+            type="button"
+            onClick={() => onToggleSave(comic)}
+            className="p-1.5 rounded-lg"
+            style={{
+              background: isSaved
+                ? "oklch(0.52 0.18 220 / 0.2)"
+                : "oklch(0.20 0.04 260)",
+              color: isSaved ? "oklch(0.72 0.18 220)" : "oklch(0.55 0.05 240)",
+            }}
           >
-            {page} / {totalPages}
-          </span>
-        )}
+            {isSaved ? (
+              <BookmarkCheck className="w-4 h-4" />
+            ) : (
+              <Bookmark className="w-4 h-4" />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowComments(!showComments)}
+            className="p-1.5 rounded-lg"
+            style={{
+              background: showComments
+                ? "oklch(0.52 0.18 220 / 0.2)"
+                : "oklch(0.20 0.04 260)",
+              color: showComments
+                ? "oklch(0.72 0.18 220)"
+                : "oklch(0.55 0.05 240)",
+            }}
+          >
+            <MessageCircle className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Main reading area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Content */}
-          <div
-            className="flex-1 overflow-auto flex items-start justify-center p-4"
-            style={{ background: "oklch(0.08 0.02 265)" }}
-          >
-            {loading ? (
-              <div className="flex flex-col items-center gap-3 mt-20">
-                <div
-                  className="animate-spin w-8 h-8 border-2 border-current border-t-transparent rounded-full"
-                  style={{ color: "oklch(0.65 0.18 200)" }}
+      {/* Content */}
+      <div className="flex-1 overflow-auto flex gap-4 p-4 min-h-0">
+        {/* Comic page */}
+        <div className="flex-1 flex flex-col items-center gap-3 min-w-0">
+          {loadingPages ? (
+            <Skeleton className="w-full max-w-2xl h-[400px] rounded-xl" />
+          ) : currentPage ? (
+            <>
+              <div
+                style={{
+                  transform: `scale(${zoom})`,
+                  transformOrigin: "top center",
+                  transition: "transform 0.2s",
+                }}
+              >
+                <img
+                  src={currentPage}
+                  alt={comic.title}
+                  className="max-w-full rounded-xl object-contain"
+                  style={{ maxHeight: "70vh" }}
                 />
+              </div>
+              {/* XKCD alt text */}
+              {comic.altText && (
                 <p
-                  className="text-sm"
+                  className="text-xs text-center max-w-lg italic"
                   style={{ color: "oklch(0.55 0.05 240)" }}
                 >
-                  Loading comic pages...
+                  &ldquo;{comic.altText}&rdquo;
                 </p>
-              </div>
-            ) : pageUrls.length > 0 ? (
-              <div className="relative">
-                <img
-                  src={pageUrls[page - 1]}
-                  alt={`Page ${page}`}
-                  className="rounded-lg shadow-2xl transition-transform duration-200"
-                  style={{
-                    maxWidth: "100%",
-                    transform: `scale(${zoom})`,
-                    transformOrigin: "top center",
-                  }}
-                />
-              </div>
-            ) : (
-              <div className="w-full h-full">
-                <iframe
-                  src={`https://archive.org/embed/${comic.archiveId}`}
-                  className="w-full rounded-xl border-0"
-                  style={{ minHeight: "70vh" }}
-                  allowFullScreen
-                  title={comic.title}
-                  sandbox="allow-scripts allow-same-origin allow-presentation"
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Page navigation */}
-          {totalPages !== null && totalPages > 1 && (
-            <div
-              className="flex items-center justify-center gap-4 px-4 py-3 shrink-0"
-              style={{ borderTop: "1px solid oklch(0.20 0.04 260)" }}
-            >
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                data-ocid="comics.pagination_prev"
-                className="h-8"
-                style={{ borderColor: "oklch(0.28 0.06 260)", color: "white" }}
-              >
-                <ChevronLeft className="w-4 h-4 mr-1" /> Prev
-              </Button>
-              <div className="flex items-center gap-1">
-                <span
-                  className="text-sm font-mono"
-                  style={{ color: "oklch(0.72 0.06 240)" }}
-                >
-                  Page {page} of {totalPages}
-                </span>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={page >= (totalPages ?? 1)}
-                onClick={() => setPage((p) => Math.min(totalPages ?? 1, p + 1))}
-                data-ocid="comics.pagination_next"
-                className="h-8"
-                style={{ borderColor: "oklch(0.28 0.06 260)", color: "white" }}
-              >
-                Next <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
+              )}
+              {/* Page navigation (Archive only) */}
+              {pageUrls.length > 1 && (
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    disabled={pageIdx === 0}
+                    onClick={() => setPageIdx((i) => i - 1)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-30"
+                    style={{
+                      background: "oklch(0.20 0.04 260)",
+                      color: "white",
+                    }}
+                  >
+                    ← Prev
+                  </button>
+                  <span
+                    className="text-xs"
+                    style={{ color: "oklch(0.55 0.05 240)" }}
+                  >
+                    {pageIdx + 1} / {pageUrls.length}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={pageIdx >= pageUrls.length - 1}
+                    onClick={() => setPageIdx((i) => i + 1)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-30"
+                    style={{
+                      background: "oklch(0.20 0.04 260)",
+                      color: "white",
+                    }}
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="flex flex-col items-center gap-3 py-10">
+              <BookImage
+                className="w-12 h-12"
+                style={{ color: "oklch(0.40 0.05 260)" }}
+              />
+              <p className="text-sm" style={{ color: "oklch(0.55 0.05 240)" }}>
+                No pages available
+              </p>
             </div>
           )}
         </div>
@@ -390,101 +395,61 @@ function ComicReader({
         {/* Comments panel */}
         {showComments && (
           <div
-            className="w-72 flex flex-col shrink-0"
+            className="w-72 flex-shrink-0 flex flex-col rounded-xl overflow-hidden"
             style={{
-              borderLeft: "1px solid oklch(0.20 0.04 260)",
-              background: "oklch(0.10 0.025 265)",
+              background: "oklch(0.11 0.025 265)",
+              border: "1px solid oklch(0.20 0.04 260)",
             }}
           >
             <div
-              className="px-4 py-3"
-              style={{ borderBottom: "1px solid oklch(0.18 0.04 260)" }}
+              className="px-3 py-2 border-b"
+              style={{ borderColor: "oklch(0.18 0.03 260)" }}
             >
-              <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                <MessageCircle
-                  className="w-4 h-4"
-                  style={{ color: "oklch(0.65 0.14 150)" }}
-                />
+              <p className="text-xs font-semibold text-white">
                 Comments ({comments.length})
-              </h3>
+              </p>
             </div>
-            {/* Add comment */}
-            <div
-              className="p-3"
-              style={{ borderBottom: "1px solid oklch(0.18 0.04 260)" }}
-            >
+            <div className="flex-1 overflow-auto p-3 space-y-2">
+              {comments.length === 0 && (
+                <p
+                  className="text-xs text-center py-4"
+                  style={{ color: "oklch(0.45 0.04 240)" }}
+                >
+                  No comments yet
+                </p>
+              )}
+              {comments.map((c) => (
+                <div
+                  key={c.id}
+                  className="p-2 rounded-lg"
+                  style={{ background: "oklch(0.15 0.03 265)" }}
+                >
+                  <p className="text-xs font-medium text-white">{c.author}</p>
+                  <p
+                    className="text-xs mt-0.5"
+                    style={{ color: "oklch(0.65 0.05 240)" }}
+                  >
+                    {c.text}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div className="p-2 flex gap-1.5">
               <Textarea
-                data-ocid="comics.textarea"
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
-                placeholder="Share your thoughts..."
-                className="text-sm resize-none text-white"
-                rows={3}
-                style={{
-                  background: "oklch(0.16 0.04 260)",
-                  border: "1px solid oklch(0.28 0.06 260)",
-                  color: "white",
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && e.ctrlKey) handleAddComment();
-                }}
+                placeholder="Add a comment..."
+                className="text-xs bg-background border-border text-white resize-none"
+                rows={2}
               />
               <Button
                 type="button"
-                data-ocid="comics.submit_button"
                 size="sm"
-                className="mt-2 w-full h-8 gap-1"
-                style={{ background: "oklch(0.52 0.18 150)", color: "white" }}
                 onClick={handleAddComment}
+                style={{ background: "oklch(0.52 0.18 220)", color: "white" }}
               >
-                <Send className="w-3 h-3" /> Post Comment
+                <Send className="w-3 h-3" />
               </Button>
-            </div>
-            {/* Comment list */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-3">
-              {comments.length === 0 ? (
-                <div
-                  className="text-center py-8"
-                  data-ocid="comics.empty_state"
-                >
-                  <p
-                    className="text-xs"
-                    style={{ color: "oklch(0.45 0.05 240)" }}
-                  >
-                    No comments yet. Be the first!
-                  </p>
-                </div>
-              ) : (
-                comments.map((c, idx) => (
-                  <div
-                    key={c.id}
-                    data-ocid={`comments.item.${idx + 1}`}
-                    className="rounded-lg p-3"
-                    style={{
-                      background: "oklch(0.14 0.03 260)",
-                      border: "1px solid oklch(0.22 0.04 260)",
-                    }}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span
-                        className="text-xs font-semibold"
-                        style={{ color: "oklch(0.72 0.14 220)" }}
-                      >
-                        {c.author}
-                      </span>
-                      <span
-                        className="text-[10px]"
-                        style={{ color: "oklch(0.42 0.04 240)" }}
-                      >
-                        {new Date(c.timestamp).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <p className="text-xs text-white leading-relaxed">
-                      {c.text}
-                    </p>
-                  </div>
-                ))
-              )}
             </div>
           </div>
         )}
@@ -493,48 +458,101 @@ function ComicReader({
   );
 }
 
+const GENRE_CHIPS = [
+  { label: "All", q: "" },
+  { label: "Superhero", q: "superhero" },
+  { label: "Golden Age", q: "golden age" },
+  { label: "Horror", q: "horror" },
+  { label: "Sci-Fi", q: "science fiction" },
+  { label: "Romance", q: "romance" },
+  { label: "Western", q: "western" },
+  { label: "XKCD", q: "xkcd" },
+];
+
+const SKELETON_IDS = [
+  "a",
+  "b",
+  "c",
+  "d",
+  "e",
+  "f",
+  "g",
+  "h",
+  "i",
+  "j",
+  "k",
+  "l",
+];
+
 export function ComicsTab() {
-  const [query, setQuery] = useState("");
   const [comics, setComics] = useState<Comic[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [searchInput, setSearchInput] = useState("");
+  const [activeQuery, setActiveQuery] = useState("");
   const [selectedComic, setSelectedComic] = useState<Comic | null>(null);
-  const [savedComics, setSavedComicsState] = useState<SavedComic[]>(() =>
-    getSavedComics(),
-  );
-  const [activeTab, setActiveTab] = useState("browse");
-  const sentinelRef = useRef<HTMLDivElement>(null);
+  const [savedComics, setSavedComicsState] =
+    useState<SavedComic[]>(getSavedComics);
+  const [activeView, setActiveView] = useState<"browse" | "saved">("browse");
 
-  const doSearch = useCallback(async (q: string, pg = 1) => {
+  // Load XKCD immediately on mount, then try Archive in background
+  const loadComics = useCallback(async (query: string) => {
     setLoading(true);
-    if (pg === 1) setComics([]);
-    const results = await fetchComics(q, pg);
-    setComics((prev) => (pg === 1 ? results : [...prev, ...results]));
-    setPage(pg);
-    setLoading(false);
-  }, []);
 
-  // Auto-load on mount — always fires, no hasLoaded guard
-  // biome-ignore lint/correctness/useExhaustiveDependencies: run once on mount
-  useEffect(() => {
-    doSearch("", 1);
-  }, []);
+    if (query.toLowerCase() === "xkcd" || !query) {
+      // Load XKCD first — fast
+      const xkcdNums = XKCD_NUMS.slice(0, 30);
+      const xkcdComics = await fetchXkcdStrips(xkcdNums);
+      setComics(xkcdComics);
+      setLoading(false);
 
-  // Infinite scroll
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting && !loading && comics.length > 0) {
-          doSearch(query, page + 1);
+      // Then load Archive in background
+      if (!query) {
+        fetchArchiveComics("").then((archiveComics) => {
+          setComics((prev) => {
+            const seen = new Set(prev.map((c) => c.id));
+            const newOnes = archiveComics.filter((c) => !seen.has(c.id));
+            return [...prev, ...newOnes];
+          });
+        });
+      }
+    } else {
+      // For specific queries: filter XKCD client-side + fetch Archive
+      const [allXkcd, archiveComics] = await Promise.all([
+        fetchXkcdStrips(XKCD_NUMS),
+        fetchArchiveComics(query),
+      ]);
+      const filteredXkcd = allXkcd.filter(
+        (c) =>
+          c.title.toLowerCase().includes(query.toLowerCase()) ||
+          (c.altText ?? "").toLowerCase().includes(query.toLowerCase()),
+      );
+      const seen = new Set<string>();
+      const merged: Comic[] = [];
+      for (const c of [...filteredXkcd, ...archiveComics]) {
+        if (!seen.has(c.id)) {
+          seen.add(c.id);
+          merged.push(c);
         }
-      },
-      { rootMargin: "400px" },
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [loading, page, query, doSearch, comics.length]);
+      }
+      setComics(merged.length > 0 ? merged : allXkcd.slice(0, 20));
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadComics("");
+  }, [loadComics]);
+
+  const handleSearch = () => {
+    setActiveQuery(searchInput);
+    loadComics(searchInput);
+  };
+
+  const handleGenreChip = (q: string) => {
+    setSearchInput(q);
+    setActiveQuery(q);
+    loadComics(q);
+  };
 
   const handleToggleSave = (comic: Comic) => {
     const existing = savedComics.find((s) => s.id === comic.id);
@@ -559,388 +577,254 @@ export function ComicsTab() {
     setSavedComics(updated);
   };
 
-  const isSaved = (comicId: string) =>
-    savedComics.some((s) => s.id === comicId);
-
-  if (selectedComic) {
-    return (
-      <ComicReader
-        comic={selectedComic}
-        isSaved={isSaved(selectedComic.id)}
-        onClose={() => setSelectedComic(null)}
-        onToggleSave={handleToggleSave}
-      />
-    );
-  }
-
-  const GENRE_CHIPS = [
-    "Superman",
-    "Batman",
-    "Horror",
-    "Romance",
-    "Western",
-    "Sci-Fi",
-    "Crime",
-    "War",
-    "Adventure",
-    "Funny",
-  ];
+  const displayComics =
+    activeView === "saved"
+      ? savedComics.map((s) => ({
+          id: s.id,
+          title: s.title,
+          coverUrl: s.coverUrl,
+          creator: s.creator,
+          year: s.year,
+          source: "Saved",
+          archiveId: s.archiveId,
+        }))
+      : comics;
 
   return (
-    <div className="space-y-4">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList
-          className="h-9 p-1"
-          style={{ background: "oklch(0.14 0.03 260)" }}
-        >
-          <TabsTrigger
-            value="browse"
-            data-ocid="comics.tab"
-            className="text-sm px-4"
-          >
-            <BookImage className="w-3.5 h-3.5 mr-1.5" />
-            Browse
-          </TabsTrigger>
-          <TabsTrigger
-            value="saved"
-            data-ocid="comics.tab"
-            className="text-sm px-4"
-          >
-            <Bookmark className="w-3.5 h-3.5 mr-1.5" />
-            Saved ({savedComics.length})
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="browse" className="mt-4 space-y-4">
-          {/* Search */}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              setComics([]);
-              doSearch(query, 1);
+    <div className="flex flex-col gap-4">
+      {/* Header */}
+      <div
+        className="rounded-2xl p-4"
+        style={{
+          background: "oklch(0.12 0.04 240)",
+          border: "1px solid oklch(0.22 0.04 260)",
+        }}
+      >
+        <div className="flex items-center gap-2 mb-1">
+          <BookImage
+            className="w-5 h-5"
+            style={{ color: "oklch(0.72 0.18 220)" }}
+          />
+          <span className="font-bold text-white text-lg">Comics</span>
+          <span
+            className="text-xs px-2 py-0.5 rounded-full"
+            style={{
+              background: "oklch(0.52 0.18 220 / 0.15)",
+              color: "oklch(0.72 0.18 220)",
             }}
-            className="flex gap-2"
           >
-            <div className="relative flex-1">
-              <Search
-                className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
-                style={{ color: "oklch(0.6 0.1 230)" }}
-              />
-              <Input
-                data-ocid="comics.search_input"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search comics — Superman, Batman, horror, sci-fi..."
-                className="pl-10 h-11 rounded-xl"
-                style={{
-                  background: "oklch(0.18 0.04 260)",
-                  border: "1px solid oklch(0.3 0.06 260)",
-                  color: "white",
-                }}
-              />
-            </div>
-            <Button
-              data-ocid="comics.submit_button"
-              type="submit"
-              disabled={loading}
-              className="h-11 px-5 rounded-xl"
-              style={{ background: "oklch(0.52 0.18 220)", color: "white" }}
-            >
-              {loading && comics.length === 0 ? (
-                <span className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full" />
-              ) : (
-                <Search className="w-4 h-4" />
-              )}
-            </Button>
-          </form>
+            XKCD · Archive.org
+          </span>
+        </div>
+        <p className="text-xs mb-3" style={{ color: "oklch(0.55 0.05 240)" }}>
+          Browse and read public domain comics and strips
+        </p>
 
-          {/* Genre chips */}
-          <div className="flex flex-wrap gap-2">
-            {GENRE_CHIPS.map((chip) => (
+        {/* Search */}
+        <div className="flex gap-2 mb-3">
+          <Input
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+            placeholder="Search comics by title or genre..."
+            className="flex-1 bg-background border-border text-white placeholder:text-muted-foreground"
+            data-ocid="comics.search_input"
+          />
+          <Button
+            type="button"
+            onClick={handleSearch}
+            style={{ background: "oklch(0.52 0.18 220)", color: "white" }}
+            data-ocid="comics.search_button"
+          >
+            <Search className="w-4 h-4" />
+          </Button>
+        </div>
+
+        {/* Genre chips */}
+        <div
+          className="flex gap-2 overflow-x-auto pb-1"
+          style={{ scrollbarWidth: "none" }}
+        >
+          {GENRE_CHIPS.map((chip) => {
+            const isActive = activeQuery === chip.q;
+            return (
               <button
-                key={chip}
+                key={chip.label}
                 type="button"
-                data-ocid="comics.tab"
-                onClick={() => {
-                  setQuery(chip);
-                  setComics([]);
-                  doSearch(chip, 1);
-                }}
-                className="text-xs px-3 py-1 rounded-full border transition-colors"
+                onClick={() => handleGenreChip(chip.q)}
+                className="flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-all"
                 style={{
-                  borderColor: "oklch(0.4 0.06 260)",
-                  color: "oklch(0.72 0.08 230)",
-                  background: "oklch(0.18 0.04 260 / 0.5)",
+                  background: isActive
+                    ? "oklch(0.52 0.18 220 / 0.2)"
+                    : "oklch(0.16 0.03 260)",
+                  border: `1px solid ${isActive ? "oklch(0.52 0.18 220 / 0.5)" : "oklch(0.24 0.04 260)"}`,
+                  color: isActive
+                    ? "oklch(0.78 0.18 220)"
+                    : "oklch(0.60 0.05 240)",
                 }}
               >
-                {chip}
+                {chip.label}
               </button>
-            ))}
-          </div>
+            );
+          })}
+        </div>
+      </div>
 
-          {/* Source info */}
-          <div className="flex items-center gap-2">
-            <BookImage
-              className="w-4 h-4"
-              style={{ color: "oklch(0.65 0.14 55)" }}
-            />
-            <span className="text-xs" style={{ color: "oklch(0.55 0.05 240)" }}>
-              Public domain comics from Archive.org, Digital Comic Museum &amp;
-              Comic Book Plus
-            </span>
-          </div>
+      {/* View toggle */}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => setActiveView("browse")}
+          className="px-4 py-1.5 rounded-full text-xs font-medium transition-all"
+          style={{
+            background:
+              activeView === "browse"
+                ? "oklch(0.52 0.18 220 / 0.2)"
+                : "oklch(0.14 0.03 260)",
+            border: `1px solid ${activeView === "browse" ? "oklch(0.52 0.18 220 / 0.5)" : "oklch(0.22 0.04 260)"}`,
+            color:
+              activeView === "browse"
+                ? "oklch(0.78 0.18 220)"
+                : "oklch(0.55 0.05 240)",
+          }}
+        >
+          Browse
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveView("saved")}
+          className="px-4 py-1.5 rounded-full text-xs font-medium transition-all"
+          style={{
+            background:
+              activeView === "saved"
+                ? "oklch(0.52 0.18 220 / 0.2)"
+                : "oklch(0.14 0.03 260)",
+            border: `1px solid ${activeView === "saved" ? "oklch(0.52 0.18 220 / 0.5)" : "oklch(0.22 0.04 260)"}`,
+            color:
+              activeView === "saved"
+                ? "oklch(0.78 0.18 220)"
+                : "oklch(0.55 0.05 240)",
+          }}
+        >
+          Saved ({savedComics.length})
+        </button>
+      </div>
 
-          {/* Grid */}
-          {loading && comics.length === 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {Array.from({ length: 10 }, (_, i) => `sk-${i}`).map((sk) => (
-                <div key={sk} className="space-y-2">
-                  <Skeleton
-                    className="aspect-[2/3] rounded-xl"
-                    style={{ background: "oklch(0.16 0.04 260)" }}
-                  />
-                  <Skeleton
-                    className="h-3 w-4/5"
-                    style={{ background: "oklch(0.16 0.04 260)" }}
-                  />
-                </div>
-              ))}
+      {/* Grid */}
+      {loading ? (
+        <div
+          data-ocid="comics.loading_state"
+          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"
+        >
+          {SKELETON_IDS.map((id) => (
+            <div key={id} className="rounded-xl overflow-hidden">
+              <Skeleton className="w-full h-40" />
+              <div className="p-2 space-y-1">
+                <Skeleton className="h-3 w-4/5" />
+                <Skeleton className="h-3 w-3/5" />
+              </div>
             </div>
-          ) : comics.length === 0 ? (
-            <div
-              className="flex flex-col items-center justify-center py-20 text-center"
-              data-ocid="comics.empty_state"
-            >
-              <div className="text-5xl mb-4">🦸</div>
-              <p className="font-semibold text-xl mb-2 text-white">
-                No Comics Found
-              </p>
-              <p className="text-sm" style={{ color: "oklch(0.55 0.05 240)" }}>
-                Try a different search term or check your connection.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {comics.map((comic, idx) => (
-                <button
-                  key={comic.id}
-                  type="button"
-                  data-ocid={`comics.item.${idx + 1}`}
-                  className="cursor-pointer group text-left"
-                  style={{
-                    pointerEvents: "auto",
-                    position: "relative",
-                    zIndex: 1,
-                  }}
-                  onClick={() => setSelectedComic(comic)}
+          ))}
+        </div>
+      ) : displayComics.length === 0 ? (
+        <div
+          data-ocid="comics.empty_state"
+          className="flex flex-col items-center justify-center py-20 gap-3"
+        >
+          <BookImage
+            className="w-12 h-12"
+            style={{ color: "oklch(0.35 0.05 260)" }}
+          />
+          <p className="text-sm" style={{ color: "oklch(0.50 0.05 240)" }}>
+            {activeView === "saved"
+              ? "No saved comics yet"
+              : "No comics found. Try a different search."}
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+          {displayComics.map((comic, i) => {
+            const isSaved = savedComics.some((s) => s.id === comic.id);
+            return (
+              <button
+                key={comic.id}
+                type="button"
+                data-ocid={`comics.item.${(i % 50) + 1}`}
+                onClick={() => setSelectedComic(comic)}
+                className="rounded-xl overflow-hidden text-left transition-all hover:scale-[1.02] active:scale-[0.98] group"
+                style={{
+                  background: "oklch(0.12 0.03 260)",
+                  border: "1px solid oklch(0.20 0.04 260)",
+                }}
+              >
+                <div
+                  className="w-full h-40 overflow-hidden relative"
+                  style={{ background: "oklch(0.09 0.03 260)" }}
                 >
                   <SensitiveContentBlur label={comic.title}>
-                    <div
-                      className="relative aspect-[2/3] rounded-xl overflow-hidden border transition-all duration-200 group-hover:border-blue-500/50"
-                      style={{
-                        background: "oklch(0.16 0.04 260)",
-                        borderColor: "oklch(0.3 0.04 260)",
-                      }}
-                    >
-                      <img
-                        src={comic.coverUrl}
-                        alt={comic.title}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                        loading="lazy"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = "none";
-                        }}
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                      <div className="absolute bottom-2 left-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <span
-                          className="flex-1 text-xs font-semibold px-2 py-1 rounded-full text-center"
-                          style={{
-                            background: "oklch(0.52 0.18 220 / 0.9)",
-                            color: "white",
-                          }}
-                        >
-                          Read
-                        </span>
-                        {isSaved(comic.id) && (
-                          <span
-                            className="p-1 rounded-full"
-                            style={{ background: "oklch(0.52 0.18 220 / 0.9)" }}
-                          >
-                            <BookmarkCheck className="w-3 h-3 text-white" />
-                          </span>
-                        )}
-                      </div>
-                      {comic.year && (
-                        <div className="absolute top-2 right-2">
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] py-0 px-1.5"
-                            style={{
-                              background: "oklch(0.12 0.03 260 / 0.85)",
-                              borderColor: "oklch(0.35 0.06 260)",
-                              color: "oklch(0.72 0.06 240)",
-                            }}
-                          >
-                            {comic.year}
-                          </Badge>
-                        </div>
-                      )}
-                    </div>
+                    <img
+                      src={comic.coverUrl}
+                      alt={comic.title}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
                   </SensitiveContentBlur>
-                  <p className="mt-1.5 text-xs font-medium line-clamp-2 px-0.5 text-white">
+                  {isSaved && (
+                    <div
+                      className="absolute top-1.5 right-1.5 p-1 rounded-full"
+                      style={{ background: "oklch(0.52 0.18 220 / 0.9)" }}
+                    >
+                      <BookmarkCheck className="w-3 h-3 text-white" />
+                    </div>
+                  )}
+                </div>
+                <div className="p-2">
+                  <p className="text-xs font-semibold text-white line-clamp-2 leading-tight mb-1">
                     {comic.title}
                   </p>
                   {comic.creator && (
                     <p
-                      className="text-xs line-clamp-1 px-0.5"
-                      style={{ color: "oklch(0.55 0.05 240)" }}
+                      className="text-[10px] line-clamp-1 mb-1"
+                      style={{ color: "oklch(0.52 0.04 240)" }}
                     >
                       {comic.creator}
                     </p>
                   )}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {!loading && comics.length > 0 && (
-            <div ref={sentinelRef} className="h-10" aria-hidden="true" />
-          )}
-          {loading && comics.length > 0 && (
-            <div className="flex justify-center py-4">
-              <span
-                className="animate-spin w-6 h-6 border-2 border-current border-t-transparent rounded-full"
-                style={{ color: "oklch(0.65 0.14 240)" }}
-              />
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="saved" className="mt-4">
-          {savedComics.length === 0 ? (
-            <div
-              className="flex flex-col items-center justify-center py-20 text-center"
-              data-ocid="comics.empty_state"
-            >
-              <Bookmark
-                className="w-12 h-12 mb-4"
-                style={{ color: "oklch(0.35 0.06 260)" }}
-              />
-              <p className="text-lg font-semibold mb-2 text-white">
-                No Saved Comics
-              </p>
-              <p className="text-sm" style={{ color: "oklch(0.55 0.05 240)" }}>
-                Open any comic and tap the bookmark icon to save it here.
-              </p>
-              <Button
-                type="button"
-                className="mt-4"
-                data-ocid="comics.secondary_button"
-                onClick={() => setActiveTab("browse")}
-                style={{ background: "oklch(0.52 0.18 220)", color: "white" }}
-              >
-                Browse Comics
-              </Button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {savedComics.map((saved, idx) => (
-                <button
-                  key={saved.id}
-                  type="button"
-                  data-ocid={`comics.item.${idx + 1}`}
-                  className="cursor-pointer group text-left"
-                  onClick={() =>
-                    setSelectedComic({
-                      id: saved.id,
-                      title: saved.title,
-                      coverUrl: saved.coverUrl,
-                      creator: saved.creator,
-                      year: saved.year,
-                      source: "Archive.org",
-                      archiveId: saved.archiveId,
-                    })
-                  }
-                >
-                  <SensitiveContentBlur label={saved.title}>
-                    <div
-                      className="relative aspect-[2/3] rounded-xl overflow-hidden border transition-all"
-                      style={{
-                        background: "oklch(0.16 0.04 260)",
-                        borderColor: "oklch(0.3 0.04 260)",
-                      }}
-                    >
-                      <img
-                        src={saved.coverUrl}
-                        alt={saved.title}
-                        className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                        loading="lazy"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = "none";
-                        }}
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                      <div className="absolute bottom-2 left-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <span
-                          className="block text-xs font-semibold px-2 py-1 rounded-full text-center"
-                          style={{
-                            background: "oklch(0.52 0.18 220 / 0.9)",
-                            color: "white",
-                          }}
-                        >
-                          Read
-                        </span>
-                      </div>
-                      <div className="absolute top-2 left-2">
-                        <BookmarkCheck
-                          className="w-4 h-4"
-                          style={{ color: "oklch(0.72 0.18 220)" }}
-                        />
-                      </div>
-                    </div>
-                    <p className="mt-1.5 text-xs font-medium line-clamp-2 text-white">
-                      {saved.title}
-                    </p>
-                  </SensitiveContentBlur>
-                  {saved.creator && (
-                    <p
-                      className="text-xs line-clamp-1"
-                      style={{ color: "oklch(0.55 0.05 240)" }}
-                    >
-                      {saved.creator}
-                    </p>
-                  )}
-                  <button
-                    type="button"
-                    data-ocid={`comics.delete_button.${idx + 1}`}
-                    className="mt-1 text-[10px] px-2 py-0.5 rounded-full transition-colors"
+                  <Badge
+                    variant="outline"
+                    className="text-[9px] px-1.5 py-0"
                     style={{
-                      background: "oklch(0.55 0.18 25 / 0.15)",
-                      color: "oklch(0.65 0.14 25)",
-                      border: "1px solid oklch(0.40 0.12 25 / 0.3)",
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleToggleSave({
-                        id: saved.id,
-                        title: saved.title,
-                        coverUrl: saved.coverUrl,
-                        creator: saved.creator,
-                        year: saved.year,
-                        source: "Archive.org",
-                        archiveId: saved.archiveId,
-                      });
+                      background:
+                        comic.source === "XKCD"
+                          ? "oklch(0.55 0.18 160 / 0.15)"
+                          : "oklch(0.52 0.18 30 / 0.15)",
+                      borderColor:
+                        comic.source === "XKCD"
+                          ? "oklch(0.55 0.18 160 / 0.4)"
+                          : "oklch(0.52 0.18 30 / 0.4)",
+                      color:
+                        comic.source === "XKCD"
+                          ? "oklch(0.72 0.18 160)"
+                          : "oklch(0.72 0.18 30)",
                     }}
                   >
-                    Remove
-                  </button>
-                </button>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+                    {comic.source}
+                  </Badge>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {selectedComic && (
+        <ComicReader
+          comic={selectedComic}
+          isSaved={savedComics.some((s) => s.id === selectedComic.id)}
+          onClose={() => setSelectedComic(null)}
+          onToggleSave={handleToggleSave}
+        />
+      )}
     </div>
   );
 }

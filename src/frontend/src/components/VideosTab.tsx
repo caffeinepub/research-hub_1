@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Archive, Play, Video, Youtube } from "lucide-react";
 import { motion } from "motion/react";
@@ -11,6 +12,7 @@ interface Props {
   loading: boolean;
   fuzzyUsed?: boolean;
   hasSearched?: boolean;
+  query?: string;
 }
 
 const PAGE_SIZE = 24;
@@ -46,7 +48,19 @@ const SOURCE_COLORS: Record<string, string> = {
   "Classic TV": "bg-stone-500/10 text-stone-300 border-stone-500/20",
   "MIT OpenCourseWare": "bg-red-800/10 text-red-300 border-red-800/20",
   "TED Talks": "bg-rose-600/10 text-rose-400 border-rose-600/20",
+  Dailymotion: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+  Reddit: "bg-orange-500/10 text-orange-400 border-orange-500/20",
   "News & Public Affairs": "bg-slate-600/10 text-slate-300 border-slate-600/20",
+  Odysee: "bg-lime-500/10 text-lime-400 border-lime-500/20",
+  PeerTube: "bg-orange-600/10 text-orange-300 border-orange-600/20",
+  "Free Movies": "bg-cyan-600/10 text-cyan-400 border-cyan-600/20",
+  "Mystery & Sci-Fi": "bg-violet-600/10 text-violet-400 border-violet-600/20",
+  "Film Noir": "bg-stone-400/10 text-stone-300 border-stone-400/20",
+  Newsreels: "bg-yellow-700/10 text-yellow-400 border-yellow-700/20",
+  "Instructional Films": "bg-green-700/10 text-green-400 border-green-700/20",
+  "NFL Films": "bg-green-600/10 text-green-300 border-green-600/20",
+  "Live Concerts": "bg-pink-600/10 text-pink-400 border-pink-600/20",
+  "Open Culture": "bg-teal-400/10 text-teal-300 border-teal-400/20",
 };
 
 function isArchiveSource(source: string) {
@@ -78,17 +92,43 @@ function VideoPlayer({ video }: { video: WikiVideo }) {
       />
     );
   }
+  // If it looks like a direct video file, use <video>
+  const isDirectVideo = /\.(mp4|webm|ogg|ogv)(\?|$)/i.test(video.url);
+  if (isDirectVideo) {
+    return (
+      // biome-ignore lint/a11y/useMediaCaption: public domain video source may not have captions
+      <video
+        key={video.url}
+        controls
+        className="w-full aspect-video"
+        style={{ maxHeight: "500px" }}
+      >
+        <source src={video.url} type={video.mime} />
+        Your browser does not support this video format.
+      </video>
+    );
+  }
+  // Fallback: show a watch button for sources that block embedding
   return (
-    // biome-ignore lint/a11y/useMediaCaption: public domain video source may not have captions
-    <video
-      key={video.url}
-      controls
-      className="w-full aspect-video"
-      style={{ maxHeight: "500px" }}
-    >
-      <source src={video.url} type={video.mime} />
-      Your browser does not support this video format.
-    </video>
+    <div className="w-full aspect-video bg-black/80 flex flex-col items-center justify-center gap-4 p-6">
+      {video.thumbUrl && (
+        <img
+          src={video.thumbUrl}
+          alt={video.title}
+          className="max-h-32 object-contain rounded-lg opacity-60"
+        />
+      )}
+      <p className="text-white/70 text-sm text-center line-clamp-2">
+        {video.title}
+      </p>
+      <button
+        type="button"
+        onClick={() => window.open(video.url, "_blank")}
+        className="px-6 py-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-medium border border-white/20 transition-colors"
+      >
+        Watch on {video.source} ↗
+      </button>
+    </div>
   );
 }
 
@@ -200,7 +240,13 @@ function SourceFilters({
   );
 }
 
-export function VideosTab({ videos, loading, fuzzyUsed, hasSearched }: Props) {
+export function VideosTab({
+  videos,
+  loading,
+  fuzzyUsed,
+  hasSearched,
+  query,
+}: Props) {
   const [selected, setSelected] = useState<WikiVideo | null>(null);
   const [disabledSources, setDisabledSources] = useState<Set<string>>(
     new Set(),
@@ -212,6 +258,75 @@ export function VideosTab({ videos, loading, fuzzyUsed, hasSearched }: Props) {
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
   }, [videos]);
+
+  const [localVideos, setLocalVideos] = useState<WikiVideo[]>([]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fetch local sources on query change
+  useEffect(() => {
+    if (!query) {
+      setLocalVideos([]);
+      return;
+    }
+    const controller = new AbortController();
+    (async () => {
+      const results: WikiVideo[] = [];
+      await Promise.allSettled([
+        fetch(
+          `https://api.dailymotion.com/videos?search=${encodeURIComponent(query)}&fields=id,title,thumbnail_url,embed_url&limit=20&sort=relevance`,
+          { signal: controller.signal },
+        )
+          .then((r) => r.json())
+          .then((dmData) => {
+            const dmVideos: WikiVideo[] = (dmData.list ?? []).map((v: any) => ({
+              pageid: v.id,
+              title: v.title,
+              url: `https://www.dailymotion.com/video/${v.id}`,
+              embedUrl:
+                v.embed_url ||
+                `https://www.dailymotion.com/embed/video/${v.id}`,
+              thumbUrl: v.thumbnail_url,
+              mime: "video/mp4",
+              source: "Dailymotion",
+              description: "",
+              sensitive: false,
+            }));
+            results.push(...dmVideos);
+          })
+          .catch(() => {}),
+        fetch(
+          `https://www.reddit.com/search.json?q=${encodeURIComponent(query)}&type=link&sort=top&limit=25`,
+          {
+            headers: { Accept: "application/json" },
+            signal: controller.signal,
+          },
+        )
+          .then((r) => r.json())
+          .then((redditData) => {
+            const redditVideos: WikiVideo[] = (redditData?.data?.children ?? [])
+              .filter(
+                (c: any) =>
+                  c.data.is_video || c.data.url?.includes("v.redd.it"),
+              )
+              .map((c: any) => ({
+                pageid: c.data.id,
+                title: c.data.title,
+                url: c.data.url,
+                embedUrl: c.data.media?.reddit_video?.fallback_url ?? "",
+                thumbUrl: c.data.thumbnail !== "self" ? c.data.thumbnail : "",
+                mime: "video/mp4",
+                source: "Reddit",
+                description: c.data.subreddit_name_prefixed ?? "",
+                sensitive: false,
+              }))
+              .filter((v: WikiVideo) => v.embedUrl);
+            results.push(...redditVideos);
+          })
+          .catch(() => {}),
+      ]);
+      setLocalVideos(results);
+    })();
+    return () => controller.abort();
+  }, [query]);
 
   // Infinite scroll via IntersectionObserver
   useEffect(() => {
@@ -229,9 +344,21 @@ export function VideosTab({ videos, loading, fuzzyUsed, hasSearched }: Props) {
     return () => observer.disconnect();
   }, []);
 
+  const combinedVideos = useMemo(() => {
+    const seen = new Set<string | number>();
+    const merged: WikiVideo[] = [];
+    for (const v of [...videos, ...localVideos]) {
+      if (!seen.has(v.pageid)) {
+        seen.add(v.pageid);
+        merged.push(v);
+      }
+    }
+    return merged;
+  }, [videos, localVideos]);
+
   const allSources = useMemo(
-    () => Array.from(new Set(videos.map((v) => v.source))).sort(),
-    [videos],
+    () => Array.from(new Set(combinedVideos.map((v) => v.source))).sort(),
+    [combinedVideos],
   );
 
   const toggleSource = (source: string) => {
@@ -244,8 +371,8 @@ export function VideosTab({ videos, loading, fuzzyUsed, hasSearched }: Props) {
   };
 
   const filteredVideos = useMemo(
-    () => videos.filter((v) => !disabledSources.has(v.source)),
-    [videos, disabledSources],
+    () => combinedVideos.filter((v) => !disabledSources.has(v.source)),
+    [combinedVideos, disabledSources],
   );
 
   const ytArchivedVideos = filteredVideos.filter(
@@ -349,6 +476,29 @@ export function VideosTab({ videos, loading, fuzzyUsed, hasSearched }: Props) {
         </p>
       )}
 
+      {query && (
+        <div className="mb-2 p-3 rounded-lg border border-orange-500/20 bg-orange-500/5 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <span className="text-white font-medium">Rumble</span>
+            <span className="text-muted-foreground text-sm ml-2 truncate">
+              Search "{query}" on Rumble
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="shrink-0 border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
+            onClick={() =>
+              window.open(
+                `https://rumble.com/search/video?q=${encodeURIComponent(query)}`,
+                "_blank",
+              )
+            }
+          >
+            Watch
+          </Button>
+        </div>
+      )}
       <SourceFilters
         sources={allSources}
         disabled={disabledSources}

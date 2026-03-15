@@ -224,6 +224,151 @@ function generateFollowUps(query: string): string[] {
   return ["Explain in simpler terms", "Related topics", "Fun facts about this"];
 }
 
+const APP_FAQ: Record<string, string> = {
+  tabs: "Research Hub has these main sections: Articles, Images, Videos, Films, Audio, GIFs & Memes, E-books, AI Chat (that's me!), News, Datasets, Tools, Community Forums, Direct Messages, Archive.org, Settings, and Admin.",
+  follow:
+    "To follow someone, go to Community, tap on a user's profile or username, then tap the Follow button. They'll appear in your Following list on your profile page.",
+  "direct message":
+    "To send a direct message, you need to be friends first. Go to a user's profile, send a friend request, and once they accept, you can chat in the Messages tab.",
+  comics:
+    "Comics are managed through the Admin panel. Admins can browse and manage the comic library from within the admin dashboard.",
+  admin:
+    "Admin access requires the passcode TRX. Admins can moderate content, promote users to Moderator or Admin roles, manage communities, run polls, and block users from chats.",
+  search:
+    "The main search bar at the top searches everything at once -- articles, images, videos, and more. Each tab also has its own search bar for more targeted searches.",
+  ebooks:
+    "The E-books tab lets you search and read books from Project Gutenberg and Open Library. Tap any book to read it right inside the app for free!",
+  sensitive:
+    "Sensitive content is blurred by default. You can turn this off in Settings by toggling the Sensitive Content Filter switch.",
+  settings:
+    "In Settings you can toggle: Dark Mode, Sensitive Content Filter, Notifications, Compact Mode, Auto-Play Videos, and adjust Text Size.",
+  credits:
+    "AI credits let you do more searches per day. Earn them by logging in daily, installing the app, or participating in the community. Admins have unlimited credits.",
+  archive:
+    "The Archive tab lets you browse Internet Archive (archive.org) content directly. You can also find Archive content in the Videos, Images, and Audio tabs.",
+  community:
+    "The Community tab has Reddit-style forums where you can post, reply, upvote, and join discussions. You can also follow other users and send direct messages.",
+  news: "The News tab aggregates articles from multiple sources including BBC, NPR, HackerNews, The Guardian, and more. You can also post your own news articles.",
+};
+
+function getAppFAQAnswer(query: string): string | null {
+  const q = query.toLowerCase();
+  const isAboutApp =
+    q.includes("research hub") ||
+    q.includes("this app") ||
+    q.includes("the app") ||
+    q.includes("your app") ||
+    q.includes("this site") ||
+    q.includes("this website") ||
+    q.includes("how do i") ||
+    q.includes("how do you") ||
+    q.includes("how to") ||
+    q.includes("can i") ||
+    q.includes("where is") ||
+    q.includes("what tabs") ||
+    q.includes("do you have");
+
+  if (isAboutApp) {
+    for (const [key, answer] of Object.entries(APP_FAQ)) {
+      if (q.includes(key)) return answer;
+    }
+    if (
+      (q.includes("what") || q.includes("tell me")) &&
+      (q.includes("app") ||
+        q.includes("site") ||
+        q.includes("website") ||
+        q.includes("tabs") ||
+        q.includes("features"))
+    ) {
+      return "Research Hub is your all-in-one research platform! I can help you find articles, images, videos, audio, e-books, GIFs, memes, news, and more. We also have AI Chat (that's me!), community forums, direct messaging, and tools like citation generators and mind maps. What would you like to explore?";
+    }
+  }
+  return null;
+}
+function getConversationalReply(query: string): string | null {
+  const q = query.trim().toLowerCase();
+
+  // Greetings
+  const greetings = [
+    "hi",
+    "hello",
+    "hey",
+    "howdy",
+    "hiya",
+    "sup",
+    "yo",
+    "greetings",
+    "good morning",
+    "good afternoon",
+    "good evening",
+    "good night",
+  ];
+  if (
+    greetings.some(
+      (g) => q === g || q.startsWith(`${g} `) || q.startsWith(`${g}!`),
+    )
+  ) {
+    const replies = [
+      "Hey there! I'm your Research Hub study partner. Ask me anything — science, history, math, literature, current events. What's on your mind?",
+      "Hi! Ready to learn something new today? I can help you research any topic, solve math problems, or just chat. What are you curious about?",
+      "Hello! I'm here to help you explore, learn, and discover. Got a question or something you want to research?",
+    ];
+    return replies[Math.floor(Math.random() * replies.length)];
+  }
+
+  // How are you / what's up
+  if (
+    q.match(
+      /^(how are you|how r u|how are u|what'?s up|how'?s it going|how do you do|you ok|are you ok)/,
+    )
+  ) {
+    return "I'm doing great, thanks for asking! I'm always ready to help you learn something new. What would you like to explore today?";
+  }
+
+  // What's your name
+  if (
+    q.match(
+      /^(what'?s your name|who are you|what are you|tell me about yourself|introduce yourself)/,
+    )
+  ) {
+    return "I'm the Research Hub AI — your study partner and research assistant! I can answer questions, explain concepts, solve math, and search across millions of articles, videos, and more. What do you want to learn about?";
+  }
+
+  // What can you do
+  if (
+    q.match(
+      /^(what can you do|what do you do|help|how do you work|what are your abilities|what are your features)/,
+    )
+  ) {
+    return "I can do a lot! Here's what I'm good at: answer any question directly, solve math, explain science/history/literature, and search across millions of articles, videos, and audio. I can also answer questions about this app. Just type anything you're curious about!";
+  }
+
+  // Thank you
+  if (q.match(/^(thanks|thank you|thank u|thx|ty|appreciate it|cheers)/)) {
+    return "You're welcome! Happy to help anytime. Got any more questions?";
+  }
+
+  // Bye / goodbye
+  if (q.match(/^(bye|goodbye|see you|see ya|later|cya|good night|take care)/)) {
+    return "See you later! Come back anytime you have questions or want to explore something new. Happy researching!";
+  }
+
+  // Definition queries — answer directly
+  const defMatch = q.match(
+    /^(what(?:'s| is) (?:the )?(?:definition of |meaning of )?|define |meaning of |explain |what does .+ mean)(.+)/,
+  );
+  if (defMatch) {
+    // Don't catch multi-word research queries, only simple "what is X" with a short term
+    const term = defMatch[2]?.trim() ?? "";
+    if (term && term.split(" ").length <= 4 && !term.includes("?")) {
+      // Return null to let the normal research flow handle it, but we'll prepend the direct answer style
+      return null;
+    }
+  }
+
+  return null;
+}
+
 function ArticleCard({
   article,
   onClick,
@@ -392,6 +537,47 @@ export function AIChatPage({ onSearchMore }: AIChatPageProps) {
       return;
     }
     setInput("");
+
+    // Check conversational/casual messages first (greetings, thanks, etc.)
+    const conversationalReply = getConversationalReply(query);
+    if (conversationalReply !== null) {
+      setMessages((prev) => [
+        ...prev,
+        { id: `u-${Date.now() - 1}`, role: "user" as const, text: query },
+        {
+          id: `a-${Date.now()}`,
+          role: "assistant" as const,
+          text: conversationalReply,
+          followUps: [
+            "Tell me something interesting",
+            "What can you research?",
+            "How do I use this app?",
+          ],
+        },
+      ]);
+      return;
+    }
+
+    // Check FAQ for app-related questions first
+    const faqAnswer = getAppFAQAnswer(query);
+    if (faqAnswer !== null) {
+      const faqMsg: Message = {
+        id: `a-${Date.now()}`,
+        role: "assistant",
+        text: faqAnswer,
+        followUps: [
+          "What would you like to know more about?",
+          "Tell me more about the community",
+          "How do I get started?",
+        ],
+      };
+      setMessages((prev) => [
+        ...prev,
+        { id: `u-${Date.now() - 1}`, role: "user", text: query },
+        faqMsg,
+      ]);
+      return;
+    }
 
     const userMsg: Message = {
       id: `u-${Date.now()}`,

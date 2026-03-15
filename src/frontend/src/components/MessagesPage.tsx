@@ -589,7 +589,7 @@ export function MessagesPage({
   }
 
   return (
-    <div data-ocid="messages.section" className="max-w-5xl mx-auto px-4 py-6">
+    <div data-ocid="messages.section" className="flex flex-col h-full">
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -636,7 +636,7 @@ export function MessagesPage({
         </div>
       )}
 
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-3 mb-3 px-4 pt-3">
         <div
           className="w-10 h-10 rounded-xl flex items-center justify-center"
           style={{ background: "oklch(0.52 0.18 200 / 0.15)" }}
@@ -663,7 +663,7 @@ export function MessagesPage({
       {/* Friend Requests */}
       {requests.length > 0 && (
         <div
-          className="mb-4 p-3 rounded-xl"
+          className="mb-3 mx-4 p-3 rounded-xl"
           style={{
             background: "oklch(0.52 0.18 55 / 0.08)",
             border: "1px solid oklch(0.52 0.18 55 / 0.25)",
@@ -720,16 +720,14 @@ export function MessagesPage({
 
       {/* Two-panel layout */}
       <div
-        className="flex rounded-2xl overflow-hidden"
+        className="flex rounded-xl overflow-hidden flex-1 min-h-0"
         style={{
-          height: "calc(100vh - 280px)",
-          minHeight: "400px",
           border: "1px solid oklch(0.22 0.04 260)",
         }}
       >
         {/* Friends List */}
         <aside
-          className="w-56 flex-shrink-0 flex flex-col"
+          className={`${selectedFriend ? "hidden md:flex" : "flex"} w-full md:w-56 flex-shrink-0 flex-col`}
           style={{
             background: "oklch(0.11 0.03 260)",
             borderRight: "1px solid oklch(0.22 0.04 260)",
@@ -800,7 +798,7 @@ export function MessagesPage({
 
         {/* DM Chat Panel */}
         <div
-          className="flex-1 flex flex-col"
+          className={`${!selectedFriend ? "hidden md:flex" : "flex"} flex-1 flex-col`}
           style={{ background: "oklch(0.13 0.03 260)" }}
         >
           {!selectedFriend ? (
@@ -826,6 +824,24 @@ export function MessagesPage({
                 className="flex items-center gap-2 px-4 py-3 border-b"
                 style={{ borderColor: "oklch(0.22 0.04 260)" }}
               >
+                <button
+                  type="button"
+                  className="md:hidden mr-1 p-1 rounded hover:bg-white/5"
+                  style={{ color: "oklch(0.65 0.10 220)" }}
+                  onClick={() => setSelectedFriend(null)}
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <title>Back</title>
+                    <path d="M19 12H5M12 19l-7-7 7-7" />
+                  </svg>
+                </button>
                 <button
                   type="button"
                   onClick={() => setProfileUser(selectedFriend)}

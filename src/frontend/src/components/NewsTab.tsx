@@ -1,4 +1,3 @@
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -7,26 +6,28 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft,
-  Clock,
-  MessageCircle,
+  Hash,
+  Image,
   Newspaper,
+  Play,
   Plus,
   RefreshCw,
   Search,
-  Send,
   TrendingUp,
+  X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { SensitiveContentBlur } from "./SensitiveContentBlur";
 
 // ─── Types ────────────────────────────────────────────────────────────
 
@@ -36,275 +37,122 @@ interface NewsItem {
   summary: string;
   body?: string;
   source: string;
-  sourceType:
-    | "wikipedia"
-    | "reddit"
-    | "hackernews"
-    | "guardian"
-    | "arxiv"
-    | "community"
-    | "bbc"
-    | "npr";
+  sourceType: "wikipedia" | "reddit" | "hackernews" | "guardian" | "community";
   category: string;
   publishedAt: string;
   thumbnail?: string;
   author?: string;
-  comments?: NewsComment[];
   url?: string;
+  hashtags?: string[];
 }
 
-interface NewsComment {
-  id: number;
-  author: string;
-  text: string;
-  time: string;
-}
-
-interface ForumThread {
-  id: number;
+interface VideoNewsItem {
+  id: string;
   title: string;
-  body: string;
-  category: string;
-  replies: ForumReply[];
-  author: string;
-  createdAt: string;
-  views: number;
+  thumbnail: string;
+  embedUrl: string;
+  source: string;
+  duration?: string;
 }
 
-interface ForumReply {
-  id: number;
-  author: string;
+interface CommunityPost {
+  id: string;
+  headline: string;
   body: string;
-  createdAt: string;
+  hashtags: string[];
+  imageUrl?: string;
+  author: string;
+  createdAt: number;
 }
 
-// ─── Constants ───────────────────────────────────────────────────────────
-
-const NEWS_CATEGORIES = [
-  "All",
-  "World",
-  "Science",
-  "Tech",
-  "Health",
-  "Space",
-  "History",
-  "Community",
-];
+// ─── Source Config ─────────────────────────────────────────────────────
 
 const SOURCE_STYLES: Record<
   string,
   { bg: string; color: string; label: string }
 > = {
   wikipedia: {
-    bg: "oklch(0.25 0.08 220 / 0.3)",
-    color: "oklch(0.72 0.14 220)",
+    bg: "oklch(0.20 0.06 220 / 0.4)",
+    color: "oklch(0.75 0.14 220)",
     label: "Wikipedia",
   },
   reddit: {
-    bg: "oklch(0.25 0.10 25 / 0.3)",
-    color: "oklch(0.72 0.16 25)",
+    bg: "oklch(0.22 0.10 25 / 0.4)",
+    color: "oklch(0.78 0.18 25)",
     label: "Reddit",
   },
   hackernews: {
-    bg: "oklch(0.28 0.12 45 / 0.3)",
-    color: "oklch(0.78 0.18 45)",
-    label: "HN",
+    bg: "oklch(0.24 0.12 45 / 0.4)",
+    color: "oklch(0.82 0.18 45)",
+    label: "Hacker News",
   },
   guardian: {
-    bg: "oklch(0.22 0.08 290 / 0.3)",
-    color: "oklch(0.72 0.14 290)",
-    label: "Guardian",
-  },
-  arxiv: {
-    bg: "oklch(0.25 0.08 170 / 0.3)",
-    color: "oklch(0.68 0.14 170)",
-    label: "arXiv",
-  },
-  bbc: {
-    bg: "oklch(0.22 0.10 330 / 0.3)",
-    color: "oklch(0.72 0.14 330)",
-    label: "BBC",
-  },
-  npr: {
-    bg: "oklch(0.22 0.10 190 / 0.3)",
-    color: "oklch(0.70 0.14 190)",
-    label: "NPR",
+    bg: "oklch(0.20 0.08 290 / 0.4)",
+    color: "oklch(0.75 0.14 290)",
+    label: "The Guardian",
   },
   community: {
-    bg: "oklch(0.22 0.10 140 / 0.3)",
-    color: "oklch(0.70 0.16 140)",
+    bg: "oklch(0.20 0.10 140 / 0.4)",
+    color: "oklch(0.75 0.16 140)",
     label: "Community",
   },
 };
 
-const MOCK_FORUM_THREADS: ForumThread[] = [
-  {
-    id: 1,
-    title: "Climate change latest findings — record ocean temperatures in 2026",
-    body: "Scientists have recorded unprecedented ocean temperatures this year. Several studies suggest we're approaching tipping points faster than previously modeled. What does the latest research tell us?",
-    category: "Science",
-    author: "JordanLee",
-    createdAt: "3h ago",
-    views: 847,
-    replies: [
-      {
-        id: 1,
-        author: "AlexChen",
-        body: "The IPCC models from 2023 seem to have underestimated the pace significantly. This is alarming.",
-        createdAt: "2h ago",
-      },
-      {
-        id: 2,
-        author: "MayaPatel",
-        body: "There are also positive developments in carbon capture tech — we shouldn't lose hope.",
-        createdAt: "1h ago",
-      },
-    ],
-  },
-  {
-    id: 2,
-    title:
-      "Space exploration updates 2026 — Artemis III crew selection announced",
-    body: "NASA has announced the crew for the first crewed lunar landing since Apollo 17. The mission is scheduled for late 2026. What's your take on the mission plan and science objectives?",
-    category: "Space",
-    author: "AlexChen",
-    createdAt: "6h ago",
-    views: 1203,
-    replies: [
-      {
-        id: 1,
-        author: "SamTorres",
-        body: "The South Pole landing site is strategically important for water ice discovery. Smart choice.",
-        createdAt: "5h ago",
-      },
-    ],
-  },
-  {
-    id: 3,
-    title: "AI in medicine: FDA approves 3rd AI diagnostic tool this year",
-    body: "The FDA has approved another AI-based diagnostic tool, this time for early Alzheimer's detection. The tool claims 94% accuracy on early-stage cases. How should we think about AI replacing radiologists and pathologists?",
-    category: "Tech",
-    author: "SamTorres",
-    createdAt: "1d ago",
-    views: 2341,
-    replies: [
-      {
-        id: 1,
-        author: "JordanLee",
-        body: "Augmenting, not replacing — that's the key. These tools are most powerful when paired with human expertise.",
-        createdAt: "20h ago",
-      },
-      {
-        id: 2,
-        author: "RileyKim",
-        body: "The ethics of algorithmic diagnosis are underexplored. Who bears liability when the AI is wrong?",
-        createdAt: "18h ago",
-      },
-    ],
-  },
-  {
-    id: 4,
-    title:
-      "Historical discoveries this year — Bronze Age site found in northern Scotland",
-    body: "Archaeologists have uncovered a well-preserved Bronze Age settlement in the Scottish Highlands, dating back 3,500 years. Artifacts suggest trade connections with Scandinavia. This could rewrite the history of early Scottish civilization.",
-    category: "History",
-    author: "MayaPatel",
-    createdAt: "2d ago",
-    views: 891,
-    replies: [],
-  },
-  {
-    id: 5,
-    title:
-      "Technology breakthroughs — solid-state batteries hit commercial production",
-    body: "Toyota has begun limited commercial production of solid-state batteries with 2x energy density over lithium-ion. This could be the breakthrough that finally makes EVs competitive on range and cost. When will we see these in consumer vehicles?",
-    category: "Tech",
-    author: "SamTorres",
-    createdAt: "2d ago",
-    views: 3456,
-    replies: [
-      {
-        id: 1,
-        author: "AlexChen",
-        body: "I've been following Toyota's SSB program for years. If these numbers hold up in real-world conditions, it's genuinely transformative.",
-        createdAt: "1d ago",
-      },
-    ],
-  },
-  {
-    id: 6,
-    title: "Global health watch — new MRSA strain identified in 12 countries",
-    body: "A new antibiotic-resistant strain of MRSA has been identified in hospital settings across 12 countries. The WHO has issued a level-2 alert. What should we know about containment and treatment?",
-    category: "Health",
-    author: "JordanLee",
-    createdAt: "4h ago",
-    views: 1567,
-    replies: [],
-  },
+const CATEGORIES = [
+  "All",
+  "World",
+  "Tech",
+  "Science",
+  "Health",
+  "Space",
+  "Politics",
+  "Community",
 ];
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+const CATEGORY_GRADIENTS: Record<string, string> = {
+  World: "oklch(0.35 0.12 220), oklch(0.25 0.08 260)",
+  Tech: "oklch(0.30 0.14 260), oklch(0.22 0.10 300)",
+  Science: "oklch(0.28 0.12 180), oklch(0.22 0.08 220)",
+  Health: "oklch(0.30 0.12 145), oklch(0.22 0.08 180)",
+  Space: "oklch(0.22 0.10 270), oklch(0.15 0.06 290)",
+  Politics: "oklch(0.30 0.12 30), oklch(0.22 0.08 55)",
+  Community: "oklch(0.28 0.10 130), oklch(0.20 0.06 160)",
+  default: "oklch(0.25 0.08 240), oklch(0.18 0.05 260)",
+};
 
-function timeAgo(dateStr: string): string {
-  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-  if (diff < 60) return `${diff}s ago`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
-}
+// ─── Fetchers ─────────────────────────────────────────────────────────
 
-function SourceBadge({
-  type,
-  source,
-}: { type: NewsItem["sourceType"]; source: string }) {
-  const style = SOURCE_STYLES[type] || SOURCE_STYLES.wikipedia;
-  return (
-    <span
-      className="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full"
-      style={{
-        background: style.bg,
-        color: style.color,
-        border: `1px solid ${style.color}44`,
-      }}
-    >
-      {source}
-    </span>
-  );
-}
-
-// ─── Data Fetching ──────────────────────────────────────────────────────────
-
-async function fetchHackerNews(): Promise<NewsItem[]> {
+async function fetchHackerNews(limit = 20): Promise<NewsItem[]> {
   try {
-    const res = await fetch(
+    const r = await fetch(
       "https://hacker-news.firebaseio.com/v0/topstories.json",
     );
-    if (!res.ok) return [];
-    const ids: number[] = await res.json();
-    const top = ids.slice(0, 12);
-    const items = await Promise.allSettled(
+    const ids: number[] = await r.json();
+    const top = ids.slice(0, limit);
+    const stories = await Promise.allSettled(
       top.map((id) =>
         fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`).then(
-          (r) => r.json(),
+          (res) => res.json(),
         ),
       ),
     );
-    return items
-      .filter((r) => r.status === "fulfilled" && r.value?.title)
-      .map((r, i) => {
-        const v = (r as PromiseFulfilledResult<any>).value;
+    return stories
+      .filter((s) => s.status === "fulfilled" && s.value?.title)
+      .map((s) => {
+        const v = (s as PromiseFulfilledResult<any>).value;
         return {
-          id: `hn-${v.id || i}`,
-          title: v.title || "Untitled",
-          summary: v.text
-            ? v.text.replace(/<[^>]+>/g, "").slice(0, 300)
-            : `${v.score || 0} points · ${v.descendants || 0} comments`,
-          body: v.text ? v.text.replace(/<[^>]+>/g, "") : undefined,
+          id: `hn-${v.id}`,
+          title: v.title,
+          summary: v.url
+            ? `${v.score} points · ${v.descendants ?? 0} comments`
+            : (v.text?.slice(0, 200) ?? ""),
           source: "Hacker News",
           sourceType: "hackernews" as const,
           category: "Tech",
-          publishedAt: new Date((v.time || 0) * 1000).toISOString(),
-          url: v.url,
+          publishedAt: new Date(v.time * 1000).toISOString(),
+          url: v.url || `https://news.ycombinator.com/item?id=${v.id}`,
+          author: v.by,
+          hashtags: ["tech", "hackernews"],
         };
       });
   } catch {
@@ -312,35 +160,43 @@ async function fetchHackerNews(): Promise<NewsItem[]> {
   }
 }
 
-async function fetchRedditSub(
-  sub: string,
-  category: string,
-): Promise<NewsItem[]> {
+async function fetchRedditNews(): Promise<NewsItem[]> {
   try {
-    const res = await fetch(
-      `https://www.reddit.com/r/${sub}/hot.json?limit=15`,
-    );
-    if (!res.ok) return [];
-    const data = await res.json();
-    return (data?.data?.children || []).map((p: any, i: number) => {
-      const d = p.data;
-      return {
-        id: `reddit-${sub}-${d.id || i}`,
-        title: d.title || "Untitled",
-        summary: d.selftext
-          ? d.selftext.slice(0, 300)
-          : `${d.score || 0} upvotes · ${d.num_comments || 0} comments`,
-        body: d.selftext || undefined,
-        source: `r/${sub}`,
-        sourceType: "reddit" as const,
-        category,
-        publishedAt: new Date((d.created_utc || 0) * 1000).toISOString(),
-        thumbnail:
-          d.thumbnail?.startsWith("http") && !d.thumbnail.includes("self")
-            ? d.thumbnail
-            : undefined,
-      };
-    });
+    const [worldR, scienceR] = await Promise.allSettled([
+      fetch("https://www.reddit.com/r/worldnews.json?limit=15", {
+        headers: { Accept: "application/json" },
+      }).then((r) => r.json()),
+      fetch("https://www.reddit.com/r/science.json?limit=10", {
+        headers: { Accept: "application/json" },
+      }).then((r) => r.json()),
+    ]);
+
+    const posts: any[] = [];
+    if (worldR.status === "fulfilled")
+      posts.push(...(worldR.value?.data?.children ?? []));
+    if (scienceR.status === "fulfilled")
+      posts.push(...(scienceR.value?.data?.children ?? []));
+
+    return posts
+      .filter((p) => p.data?.title)
+      .map((p) => {
+        const d = p.data;
+        const thumb = d.thumbnail?.startsWith("http") ? d.thumbnail : undefined;
+        return {
+          id: `reddit-${d.id}`,
+          title: d.title,
+          summary: d.selftext?.slice(0, 200) || d.title,
+          body: d.selftext || undefined,
+          source: `r/${d.subreddit}`,
+          sourceType: "reddit" as const,
+          category: d.subreddit === "science" ? "Science" : "World",
+          publishedAt: new Date(d.created_utc * 1000).toISOString(),
+          thumbnail: thumb,
+          url: `https://reddit.com${d.permalink}`,
+          author: d.author,
+          hashtags: [d.subreddit.toLowerCase(), "news"],
+        };
+      });
   } catch {
     return [];
   }
@@ -348,21 +204,34 @@ async function fetchRedditSub(
 
 async function fetchGuardianNews(): Promise<NewsItem[]> {
   try {
-    const res = await fetch(
-      "https://content.guardianapis.com/search?api-key=test&show-fields=headline,trailText,bodyText,thumbnail&page-size=20",
+    const r = await fetch(
+      "https://content.guardianapis.com/search?api-key=test&show-fields=thumbnail,trailText,bodyText&page-size=20&order-by=newest",
     );
-    if (!res.ok) return [];
-    const data = await res.json();
-    return (data?.response?.results || []).map((item: any, i: number) => ({
-      id: `guardian-${item.id || i}`,
-      title: item.webTitle || item.fields?.headline || "Untitled",
-      summary: item.fields?.trailText || "",
-      body: item.fields?.bodyText || undefined,
+    const data = await r.json();
+    const results = data?.response?.results ?? [];
+    return results.map((item: any) => ({
+      id: `guardian-${item.id}`,
+      title: item.webTitle,
+      summary:
+        item.fields?.trailText?.replace(/<[^>]+>/g, "").slice(0, 200) ||
+        item.webTitle,
+      body:
+        item.fields?.bodyText?.replace(/<[^>]+>/g, "").slice(0, 1000) ||
+        undefined,
       source: "The Guardian",
       sourceType: "guardian" as const,
-      category: item.sectionName || "World",
-      publishedAt: item.webPublicationDate || new Date().toISOString(),
+      category:
+        item.sectionId === "technology"
+          ? "Tech"
+          : item.sectionId === "science"
+            ? "Science"
+            : item.sectionId === "politics"
+              ? "Politics"
+              : "World",
+      publishedAt: item.webPublicationDate,
       thumbnail: item.fields?.thumbnail || undefined,
+      url: item.webUrl,
+      hashtags: [item.sectionId?.toLowerCase(), "guardian"].filter(Boolean),
     }));
   } catch {
     return [];
@@ -371,1386 +240,1154 @@ async function fetchGuardianNews(): Promise<NewsItem[]> {
 
 async function fetchWikipediaCurrentEvents(): Promise<NewsItem[]> {
   try {
-    const res = await fetch(
-      "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=2026&srnamespace=0&srlimit=10&format=json&origin=*",
+    const r = await fetch(
+      `https://en.wikipedia.org/api/rest_v1/feed/featured/${new Date().toISOString().slice(0, 10).replace(/-/g, "/")}`,
     );
-    if (!res.ok) return [];
-    const data = await res.json();
-    return (data?.query?.search || []).map((item: any, i: number) => ({
-      id: `wiki-${item.pageid || i}`,
-      title: item.title || "Untitled",
-      summary: item.snippet ? item.snippet.replace(/<[^>]+>/g, "") : "",
-      source: "Wikipedia",
-      sourceType: "wikipedia" as const,
-      category: "World",
-      publishedAt: item.timestamp || new Date().toISOString(),
-    }));
-  } catch {
-    return [];
-  }
-}
-
-function parseRSS(
-  xmlText: string,
-  sourceType: string,
-  source: string,
-): NewsItem[] {
-  try {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(xmlText, "text/xml");
-    const items = Array.from(doc.querySelectorAll("item"));
-    return items.slice(0, 15).map((item, i) => ({
-      id: `${sourceType}-rss-${i}-${Date.now()}`,
-      title: item.querySelector("title")?.textContent || "",
-      summary:
-        item
-          .querySelector("description")
-          ?.textContent?.replace(/<[^>]*>/g, "")
-          .slice(0, 200) || "",
-      source,
-      sourceType: sourceType as NewsItem["sourceType"],
-      category: "World",
-      publishedAt:
-        item.querySelector("pubDate")?.textContent || new Date().toISOString(),
-      url: item.querySelector("link")?.textContent || "",
-    }));
-  } catch {
-    return [];
-  }
-}
-
-async function fetchBBCNews(): Promise<NewsItem[]> {
-  try {
-    const res = await fetch(
-      `https://api.allorigins.win/raw?url=${encodeURIComponent("https://feeds.bbci.co.uk/news/rss.xml")}`,
-    );
-    if (!res.ok) return [];
-    const xml = await res.text();
-    return parseRSS(xml, "bbc", "BBC News");
-  } catch {
-    return [];
-  }
-}
-
-async function fetchNPRNews(): Promise<NewsItem[]> {
-  try {
-    const res = await fetch(
-      `https://api.allorigins.win/raw?url=${encodeURIComponent("https://feeds.npr.org/1001/rss.xml")}`,
-    );
-    if (!res.ok) return [];
-    const xml = await res.text();
-    return parseRSS(xml, "npr", "NPR");
-  } catch {
-    return [];
-  }
-}
-
-// ─── Article Reader ───────────────────────────────────────────────────────────
-
-function ArticleReader({
-  article,
-  onBack,
-}: {
-  article: NewsItem;
-  onBack: () => void;
-}) {
-  const [comment, setComment] = useState("");
-  const [comments, setComments] = useState<NewsComment[]>(
-    article.comments || [],
-  );
-  const style = SOURCE_STYLES[article.sourceType] || SOURCE_STYLES.wikipedia;
-
-  const submitComment = () => {
-    if (!comment.trim()) return;
-    setComments((prev) => [
-      ...prev,
-      { id: Date.now(), author: "You", text: comment.trim(), time: "Just now" },
-    ]);
-    setComment("");
-    toast.success("Comment posted!");
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -20 }}
-      className="max-w-3xl mx-auto"
-    >
-      <button
-        type="button"
-        onClick={onBack}
-        className="flex items-center gap-2 text-sm mb-6 hover:opacity-80 transition-opacity"
-        style={{ color: "oklch(0.65 0.12 220)" }}
-        data-ocid="news.reader_back_button"
-      >
-        <ArrowLeft className="w-4 h-4" /> Back to news
-      </button>
-
-      {/* Hero image */}
-      {article.thumbnail && (
-        <div className="w-full h-48 md:h-64 rounded-2xl overflow-hidden mb-6">
-          <img
-            src={article.thumbnail}
-            alt={article.title}
-            className="w-full h-full object-cover"
-          />
-        </div>
-      )}
-
-      {/* Category + source */}
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <SourceBadge type={article.sourceType} source={article.source} />
-        <span
-          className="text-xs px-2 py-0.5 rounded-full"
-          style={{
-            background: "oklch(0.18 0.04 260)",
-            color: "oklch(0.60 0.06 240)",
-          }}
-        >
-          {article.category}
-        </span>
-        <span
-          className="text-xs flex items-center gap-1"
-          style={{ color: "oklch(0.50 0.04 240)" }}
-        >
-          <Clock className="w-3 h-3" />
-          {timeAgo(article.publishedAt)}
-        </span>
-      </div>
-
-      {/* Headline */}
-      <h1 className="font-display font-bold text-2xl md:text-3xl text-white leading-tight mb-4">
-        {article.title}
-      </h1>
-
-      {/* Body */}
-      <div
-        className="rounded-2xl p-5 mb-6"
-        style={{
-          background: "oklch(0.13 0.025 260)",
-          border: "1px solid oklch(0.22 0.04 260)",
-        }}
-      >
-        {article.body ? (
-          <p
-            className="text-sm leading-relaxed whitespace-pre-line"
-            style={{ color: "oklch(0.80 0.03 240)" }}
-          >
-            {article.body}
-          </p>
-        ) : (
-          <p
-            className="text-sm leading-relaxed"
-            style={{ color: "oklch(0.80 0.03 240)" }}
-          >
-            {article.summary || "No content available for this article."}
-          </p>
-        )}
-        {article.url && article.sourceType !== "community" && (
-          <p className="mt-4 text-xs" style={{ color: "oklch(0.50 0.04 240)" }}>
-            Source: <span style={{ color: style.color }}>{article.source}</span>
-          </p>
-        )}
-      </div>
-
-      {/* Comments */}
-      {article.sourceType === "community" && (
-        <div>
-          <h2 className="font-semibold text-white text-base mb-4">
-            Comments ({comments.length})
-          </h2>
-
-          <div className="space-y-3 mb-4">
-            {comments.map((c, i) => (
-              <div
-                key={c.id}
-                data-ocid={`news.comment.item.${i + 1}`}
-                className="flex gap-3 p-3 rounded-xl"
-                style={{
-                  background: "oklch(0.12 0.02 260)",
-                  border: "1px solid oklch(0.20 0.03 260)",
-                }}
-              >
-                <Avatar className="w-7 h-7 flex-shrink-0">
-                  <AvatarFallback
-                    style={{
-                      background: "oklch(0.20 0.05 260)",
-                      color: "oklch(0.75 0.08 240)",
-                      fontSize: "10px",
-                    }}
-                  >
-                    {c.author.slice(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-semibold text-white">
-                      {c.author}
-                    </span>
-                    <span
-                      className="text-[10px]"
-                      style={{ color: "oklch(0.45 0.04 240)" }}
-                    >
-                      {c.time}
-                    </span>
-                  </div>
-                  <p
-                    className="text-sm"
-                    style={{ color: "oklch(0.72 0.04 240)" }}
-                  >
-                    {c.text}
-                  </p>
-                </div>
-              </div>
-            ))}
-            {comments.length === 0 && (
-              <p
-                className="text-sm text-center py-4"
-                style={{ color: "oklch(0.45 0.04 240)" }}
-              >
-                No comments yet
-              </p>
-            )}
-          </div>
-
-          <div className="flex gap-2">
-            <Input
-              placeholder="Write a comment..."
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && submitComment()}
-              style={{
-                background: "oklch(0.13 0.025 260)",
-                borderColor: "oklch(0.22 0.04 260)",
-                color: "white",
-              }}
-              data-ocid="news.comment_input"
-            />
-            <Button
-              type="button"
-              onClick={submitComment}
-              disabled={!comment.trim()}
-              style={{ background: "oklch(0.52 0.18 220)" }}
-              data-ocid="news.comment_submit_button"
-            >
-              <Send className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      )}
-    </motion.div>
-  );
-}
-
-// ─── News Card ────────────────────────────────────────────────────────────────
-
-function HeroCard({ item, onClick }: { item: NewsItem; onClick: () => void }) {
-  const style = SOURCE_STYLES[item.sourceType] || SOURCE_STYLES.wikipedia;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      data-ocid="news.hero_card"
-      className="w-full text-left rounded-2xl overflow-hidden relative group transition-all hover:scale-[1.005]"
-      style={{
-        background: "oklch(0.13 0.025 260)",
-        border: "1px solid oklch(0.25 0.05 260)",
-        minHeight: 280,
-      }}
-    >
-      {item.thumbnail ? (
-        <div className="relative">
-          <img
-            src={item.thumbnail}
-            alt={item.title}
-            className="w-full h-52 object-cover"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = "none";
-            }}
-          />
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                "linear-gradient(to bottom, transparent 30%, oklch(0.10 0.02 260) 100%)",
-            }}
-          />
-        </div>
-      ) : (
-        <div
-          className="w-full h-32 flex items-center justify-center"
-          style={{
-            background: `linear-gradient(135deg, oklch(0.15 0.05 260), oklch(0.12 0.03 ${item.sourceType === "reddit" ? "25" : "220"}))`,
-          }}
-        >
-          <Newspaper
-            className="w-12 h-12 opacity-30"
-            style={{ color: style.color }}
-          />
-        </div>
-      )}
-      <div className="p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <SourceBadge type={item.sourceType} source={item.source} />
-          <Badge
-            variant="outline"
-            className="text-[10px] h-5 px-2"
-            style={{
-              borderColor: "oklch(0.28 0.04 260)",
-              color: "oklch(0.55 0.05 240)",
-            }}
-          >
-            {item.category}
-          </Badge>
-          <span
-            className="text-[10px] ml-auto flex items-center gap-1"
-            style={{ color: "oklch(0.48 0.04 240)" }}
-          >
-            <Clock className="w-3 h-3" />
-            {timeAgo(item.publishedAt)}
-          </span>
-        </div>
-        <h2 className="font-display font-bold text-white text-xl leading-snug mb-2 line-clamp-3">
-          {item.title}
-        </h2>
-        {item.summary && (
-          <p
-            className="text-sm line-clamp-2"
-            style={{ color: "oklch(0.62 0.04 240)" }}
-          >
-            {item.summary}
-          </p>
-        )}
-      </div>
-    </button>
-  );
-}
-
-function NewsCard({
-  item,
-  index,
-  onClick,
-}: { item: NewsItem; index: number; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      data-ocid={`news.item.${index + 1}`}
-      className="w-full text-left rounded-xl overflow-hidden transition-all hover:scale-[1.02] active:scale-[0.99]"
-      style={{
-        background: "oklch(0.13 0.025 260)",
-        border: "1px solid oklch(0.22 0.04 260)",
-      }}
-    >
-      {item.thumbnail && (
-        <div className="w-full h-32 overflow-hidden">
-          <img
-            src={item.thumbnail}
-            alt={item.title}
-            className="w-full h-full object-cover transition-transform group-hover:scale-105"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = "none";
-            }}
-          />
-        </div>
-      )}
-      <div className="p-3">
-        <div className="flex items-center gap-2 mb-2">
-          <SourceBadge type={item.sourceType} source={item.source} />
-          <span
-            className="text-[10px] ml-auto"
-            style={{ color: "oklch(0.45 0.04 240)" }}
-          >
-            {timeAgo(item.publishedAt)}
-          </span>
-        </div>
-        <p className="font-semibold text-white text-sm leading-snug line-clamp-3 mb-1">
-          {item.title}
-        </p>
-        {item.summary && (
-          <p
-            className="text-xs line-clamp-2"
-            style={{ color: "oklch(0.55 0.04 240)" }}
-          >
-            {item.summary}
-          </p>
-        )}
-        {item.sourceType === "community" && (
-          <div
-            className="flex items-center gap-1 mt-2"
-            style={{ color: "oklch(0.50 0.04 240)" }}
-          >
-            <MessageCircle className="w-3 h-3" />
-            <span className="text-[10px]">
-              {item.comments?.length || 0} comments
-            </span>
-          </div>
-        )}
-      </div>
-    </button>
-  );
-}
-
-// ─── Top News Feed ───────────────────────────────────────────────────────────
-
-function TopNewsFeed({
-  onSelectArticle,
-}: { onSelectArticle: (item: NewsItem) => void }) {
-  const [news, setNews] = useState<NewsItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [activeCategory, setActiveCategory] = useState("All");
-  const [page, setPage] = useState(1);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [userLocation, setUserLocation] = useState<string>(
-    () => localStorage.getItem("userLocation") || "",
-  );
-  const [locationInput, setLocationInput] = useState("");
-  const [localNews, setLocalNews] = useState<NewsItem[]>([]);
-  const ITEMS_PER_PAGE = 12;
-
-  const loadNews = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [hn, reddit1, reddit2, guardian, wiki, bbc, npr] =
-        await Promise.allSettled([
-          fetchHackerNews(),
-          fetchRedditSub("worldnews", "World"),
-          fetchRedditSub("science", "Science"),
-          fetchGuardianNews(),
-          fetchWikipediaCurrentEvents(),
-          fetchBBCNews(),
-          fetchNPRNews(),
-        ]);
-      const all: NewsItem[] = [];
-      for (const r of [hn, reddit1, reddit2, guardian, wiki, bbc, npr]) {
-        if (r.status === "fulfilled") all.push(...r.value);
-      }
-      all.sort(
-        (a, b) =>
-          new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime(),
-      );
-      setNews(all);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const loadLocalNews = useCallback(async (city: string) => {
-    if (!city.trim()) return;
-    try {
-      const res = await fetch(
-        `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(`${city} news 2026`)}&srnamespace=0&srlimit=6&format=json&origin=*`,
-      );
-      if (!res.ok) return;
-      const data = await res.json();
-      const items: NewsItem[] = (data?.query?.search || []).map(
-        (item: any, i: number) => ({
-          id: `local-wiki-${item.pageid || i}`,
-          title: item.title || "Untitled",
-          summary: item.snippet ? item.snippet.replace(/<[^>]+>/g, "") : "",
+    const data = await r.json();
+    const items: NewsItem[] = [];
+    if (data.news) {
+      for (const n of data.news.slice(0, 10)) {
+        const article = n.links?.[0];
+        if (!article) continue;
+        items.push({
+          id: `wiki-${article.pageid || Math.random()}`,
+          title: article.normalizedtitle || article.title,
+          summary: article.extract?.slice(0, 200) || "",
+          body: article.extract || undefined,
           source: "Wikipedia",
           sourceType: "wikipedia" as const,
           category: "World",
-          publishedAt: item.timestamp || new Date().toISOString(),
-        }),
-      );
-      setLocalNews(items);
-    } catch {
-      // silently fail
+          publishedAt: new Date().toISOString(),
+          thumbnail: article.thumbnail?.source || undefined,
+          url: `https://en.wikipedia.org/wiki/${encodeURIComponent(article.title || "")}`,
+          hashtags: ["wikipedia", "currentevents"],
+        });
+      }
     }
-  }, []);
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: loadNews is stable
-  useEffect(() => {
-    loadNews();
-    // Load local news if city is already saved
-    const savedCity = localStorage.getItem("userLocation");
-    if (savedCity) {
-      loadLocalNews(savedCity);
-    }
-  }, [loadLocalNews]);
-
-  const filtered = news.filter((n) => {
-    const matchesCategory =
-      activeCategory === "All" ||
-      n.category.toLowerCase().includes(activeCategory.toLowerCase());
-    const matchesSearch =
-      !searchQuery.trim() ||
-      n.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (n.summary || "").toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
-
-  const displayed = filtered.slice(0, page * ITEMS_PER_PAGE);
-  const hero = displayed[0];
-  const rest = displayed.slice(1);
-
-  return (
-    <div>
-      {/* Search bar */}
-      <div className="relative mb-4">
-        <Search
-          className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
-          style={{ color: "oklch(0.55 0.06 240)" }}
-        />
-        <Input
-          data-ocid="news.search_input"
-          value={searchQuery}
-          onChange={(e) => {
-            setSearchQuery(e.target.value);
-            setPage(1);
-          }}
-          placeholder="Search news articles..."
-          className="pl-9 h-10"
-          style={{
-            background: "oklch(0.15 0.03 260)",
-            borderColor: "oklch(0.26 0.05 260)",
-            color: "white",
-          }}
-        />
-      </div>
-
-      {/* Location-based news */}
-      {userLocation && localNews.length > 0 && (
-        <div
-          className="mb-6 p-4 rounded-2xl"
-          style={{
-            background: "oklch(0.14 0.04 260)",
-            border: "1px solid oklch(0.25 0.06 220 / 0.4)",
-          }}
-        >
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-sm font-bold text-white">
-              📍 News near {userLocation}
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                setUserLocation("");
-                setLocalNews([]);
-                localStorage.removeItem("userLocation");
-              }}
-              className="ml-auto text-xs px-2 py-0.5 rounded"
-              style={{ color: "oklch(0.55 0.05 240)" }}
-            >
-              Change
-            </button>
-          </div>
-          <div className="space-y-2">
-            {localNews.slice(0, 3).map((item, i) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => onSelectArticle(item)}
-                data-ocid={`news.local.item.${i + 1}`}
-                className="w-full text-left px-3 py-2 rounded-xl transition-all hover:opacity-80"
-                style={{ background: "oklch(0.12 0.02 260)" }}
-              >
-                <p className="text-sm font-medium text-white line-clamp-2">
-                  {item.title}
-                </p>
-                {item.summary && (
-                  <p
-                    className="text-xs mt-0.5 line-clamp-1"
-                    style={{ color: "oklch(0.58 0.04 240)" }}
-                  >
-                    {item.summary}
-                  </p>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* No location set - manual input */}
-      {!userLocation && (
-        <div
-          className="mb-5 p-3 rounded-xl flex items-center gap-2"
-          style={{
-            background: "oklch(0.13 0.03 260)",
-            border: "1px solid oklch(0.24 0.05 260)",
-          }}
-        >
-          <span
-            className="text-xs flex-1"
-            style={{ color: "oklch(0.60 0.04 240)" }}
-          >
-            📍 Enter your city for local news
-          </span>
-          <input
-            value={locationInput}
-            onChange={(e) => setLocationInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && locationInput.trim()) {
-                setUserLocation(locationInput.trim());
-                localStorage.setItem("userLocation", locationInput.trim());
-                loadLocalNews(locationInput.trim());
-                setLocationInput("");
-              }
-            }}
-            placeholder="e.g. Indianapolis"
-            className="text-xs px-2 py-1 rounded border w-32"
-            style={{
-              background: "oklch(0.16 0.04 260)",
-              borderColor: "oklch(0.28 0.05 260)",
-              color: "white",
-            }}
-            data-ocid="news.location_input"
-          />
-          <button
-            type="button"
-            onClick={() => {
-              if (locationInput.trim()) {
-                setUserLocation(locationInput.trim());
-                localStorage.setItem("userLocation", locationInput.trim());
-                loadLocalNews(locationInput.trim());
-                setLocationInput("");
-              }
-            }}
-            className="text-xs px-2 py-1 rounded"
-            style={{ background: "oklch(0.52 0.18 220)", color: "white" }}
-            data-ocid="news.location_button"
-          >
-            Go
-          </button>
-        </div>
-      )}
-
-      {/* Category filter bar */}
-      <div
-        className="flex gap-2 overflow-x-auto pb-2 mb-5"
-        style={{ scrollbarWidth: "none" } as React.CSSProperties}
-      >
-        {NEWS_CATEGORIES.filter((c) => c !== "Community").map((cat) => (
-          <button
-            key={cat}
-            type="button"
-            onClick={() => {
-              setActiveCategory(cat);
-              setPage(1);
-            }}
-            data-ocid="news.category_tab"
-            className="flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-medium transition-all"
-            style={{
-              background:
-                activeCategory === cat
-                  ? "oklch(0.52 0.18 220)"
-                  : "oklch(0.15 0.03 260)",
-              color: activeCategory === cat ? "white" : "oklch(0.58 0.05 240)",
-              border:
-                activeCategory === cat
-                  ? "none"
-                  : "1px solid oklch(0.22 0.04 260)",
-            }}
-          >
-            {cat}
-          </button>
-        ))}
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={loadNews}
-          disabled={loading}
-          className="flex-shrink-0 h-7 px-3"
-          style={{ color: "oklch(0.55 0.05 240)" }}
-          data-ocid="news.refresh_button"
-        >
-          <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
-        </Button>
-      </div>
-
-      {/* Loading state */}
-      {loading && news.length === 0 && (
-        <div data-ocid="news.loading_state" className="flex flex-col gap-3">
-          {Array.from({ length: 6 }, (_, i) => `skel-${i}`).map((key) => (
-            <div
-              key={key}
-              className="h-32 rounded-xl animate-pulse"
-              style={{ background: "oklch(0.14 0.025 260)" }}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Empty state */}
-      {!loading && news.length === 0 && (
-        <div
-          data-ocid="news.empty_state"
-          className="flex flex-col items-center py-16 text-center"
-        >
-          <Newspaper
-            className="w-10 h-10 mb-3"
-            style={{ color: "oklch(0.35 0.04 260)" }}
-          />
-          <p className="text-sm" style={{ color: "oklch(0.50 0.05 240)" }}>
-            Couldn&apos;t load news. Check your connection.
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-4"
-            onClick={loadNews}
-          >
-            Try Again
-          </Button>
-        </div>
-      )}
-
-      {/* Hero card */}
-      {hero && (
-        <div className="mb-5">
-          <HeroCard item={hero} onClick={() => onSelectArticle(hero)} />
-        </div>
-      )}
-
-      {/* Grid */}
-      {rest.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-5">
-          {rest.map((item, i) => (
-            <NewsCard
-              key={item.id}
-              item={item}
-              index={i + 1}
-              onClick={() => onSelectArticle(item)}
-            />
-          ))}
-        </div>
-      )}
-
-      {displayed.length < filtered.length && (
-        <div className="flex justify-center">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setPage((p) => p + 1)}
-            data-ocid="news.pagination_next"
-            style={{
-              borderColor: "oklch(0.28 0.04 260)",
-              color: "oklch(0.65 0.05 240)",
-            }}
-          >
-            Load More
-          </Button>
-        </div>
-      )}
-    </div>
-  );
+    return items;
+  } catch {
+    return [];
+  }
 }
 
-// ─── Community Posts ──────────────────────────────────────────────────────────
+async function fetchNewsVideos(): Promise<VideoNewsItem[]> {
+  const collections = [
+    { id: "prelinger", label: "Prelinger Archives" },
+    { id: "newsandpublicaffairs", label: "News & Public Affairs" },
+    { id: "computersandtechvideos", label: "Tech Videos" },
+    { id: "911", label: "Historical News" },
+    { id: "moviesandfilms", label: "Newsreels" },
+  ];
+  const results: VideoNewsItem[] = [];
+  try {
+    const settled = await Promise.allSettled(
+      collections.map((col) =>
+        fetch(
+          `https://archive.org/advancedsearch.php?q=collection:${col.id}+AND+mediatype:movies&output=json&rows=4&fl[]=identifier,title,description&sort[]=downloads+desc`,
+        ).then((r) => r.json()),
+      ),
+    );
+    for (let i = 0; i < settled.length; i++) {
+      const res = settled[i];
+      if (res.status !== "fulfilled") continue;
+      const docs = res.value?.response?.docs ?? [];
+      for (const doc of docs.slice(0, 2)) {
+        results.push({
+          id: `av-${doc.identifier}`,
+          title: doc.title || doc.identifier,
+          thumbnail: `https://archive.org/services/img/${doc.identifier}`,
+          embedUrl: `https://archive.org/embed/${doc.identifier}`,
+          source: collections[i].label,
+        });
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return results;
+}
 
-const INITIAL_COMMUNITY_POSTS: NewsItem[] = [
-  {
-    id: "comm-1",
-    title:
-      "I spent a week reading every Wikipedia article on the Byzantine Empire — here's what I learned",
-    summary:
-      "An amateur historian's deep dive into one of history's most misunderstood civilizations. Spoiler: they called themselves Romans until the very end.",
-    body: "Last month I decided to go deep on Byzantine history using only Wikipedia and Archive.org sources. What I found was a civilization far more sophisticated and culturally rich than the caricature of 'the eastern Roman Empire that declined slowly.'\n\nKey takeaways:\n\n1. The Byzantines never called themselves Byzantine — that term was invented by 16th century western historians. They called themselves Romans (Romaioi).\n\n2. Constantinople in the 10th century was the largest city in Europe, with a population of around 400,000 — dwarfing Paris and London at the time.\n\n3. The Byzantines preserved classical Greek texts that would otherwise be lost. Much of what we know about Aristotle came through Byzantine scholars.\n\nI've linked to all my sources in the comments. Would love to discuss!\n",
-    source: "Community",
-    sourceType: "community" as const,
-    category: "History",
-    publishedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-    author: "MayaPatel",
-    comments: [
-      {
-        id: 1,
-        author: "AlexChen",
-        text: "Excellent write-up! The point about their self-identification is something most people don't know.",
-        time: "1d ago",
-      },
-      {
-        id: 2,
-        author: "JordanLee",
-        text: "Have you read John Julius Norwich's trilogy? He covers this in great depth.",
-        time: "20h ago",
-      },
-    ],
-  },
-  {
-    id: "comm-2",
-    title:
-      "Open science is changing how research works — and most people haven't noticed",
-    summary:
-      "Pre-prints, open data, and tools like arXiv are quietly transforming academic publishing. Here's why it matters for everyone.",
-    body: "The academic publishing system has been under pressure for years. Journals charge universities billions annually for access to publicly-funded research. But a quiet revolution is underway.\n\nPre-print servers like arXiv, bioRxiv, and medRxiv now host millions of papers before (and sometimes instead of) peer review. During COVID, this allowed research to spread in days rather than months.\n\nWhat this means for you:\n- Research is increasingly free to access\n- You can read papers before they're 'officially' published\n- Tools like Semantic Scholar and OpenAlex make searching this literature easier than ever\n\nThe gatekeepers are losing their grip. Science is becoming more open.\n",
-    source: "Community",
-    sourceType: "community" as const,
-    category: "Science",
-    publishedAt: new Date(Date.now() - 86400000 * 1).toISOString(),
-    author: "JordanLee",
-    comments: [],
-  },
-];
+// ─── Helpers ──────────────────────────────────────────────────────────
 
-function CommunityPostsFeed({
-  onSelectArticle,
-}: { onSelectArticle: (item: NewsItem) => void }) {
-  const [posts, setPosts] = useState<NewsItem[]>(INITIAL_COMMUNITY_POSTS);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [newTitle, setNewTitle] = useState("");
-  const [newBody, setNewBody] = useState("");
-  const [newCategory, setNewCategory] = useState("World");
-  const [newImageUrl, setNewImageUrl] = useState("");
+function timeAgo(iso: string): string {
+  try {
+    const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+    if (diff < 60) return `${Math.floor(diff)}s ago`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
+  } catch {
+    return "";
+  }
+}
 
-  const createPost = () => {
-    if (!newTitle.trim() || !newBody.trim()) return;
-    const post: NewsItem = {
-      id: `comm-${Date.now()}`,
-      title: newTitle.trim(),
-      summary:
-        newBody.trim().slice(0, 200) +
-        (newBody.trim().length > 200 ? "..." : ""),
-      body: newBody.trim(),
-      source: "Community",
-      sourceType: "community",
-      category: newCategory,
-      publishedAt: new Date().toISOString(),
-      author: "You",
-      thumbnail: newImageUrl.trim() || undefined,
-      comments: [],
-    };
-    setPosts((prev) => [post, ...prev]);
-    setNewTitle("");
-    setNewBody("");
-    setNewCategory("World");
-    setNewImageUrl("");
-    setCreateOpen(false);
-    toast.success("Post published!");
-  };
+function gradientForCategory(category: string): string {
+  return CATEGORY_GRADIENTS[category] || CATEGORY_GRADIENTS.default;
+}
+
+function loadCommunityPosts(): CommunityPost[] {
+  try {
+    return JSON.parse(localStorage.getItem("newsCommunityPosts") || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function saveCommunityPosts(posts: CommunityPost[]) {
+  localStorage.setItem("newsCommunityPosts", JSON.stringify(posts));
+}
+
+// ─── Article Reader ────────────────────────────────────────────────────
+
+function ArticleReader({
+  article,
+  onClose,
+}: {
+  article: NewsItem | CommunityPost;
+  onClose: () => void;
+}) {
+  const isNews = "sourceType" in article;
+  const title = isNews ? article.title : (article as CommunityPost).headline;
+  const body = isNews
+    ? (article as NewsItem).body ||
+      (article as NewsItem).summary ||
+      "No content available."
+    : (article as CommunityPost).body;
+  const thumbnail = isNews
+    ? (article as NewsItem).thumbnail
+    : (article as CommunityPost).imageUrl;
+  const source = isNews ? (article as NewsItem).source : "Community";
+  const time = isNews
+    ? timeAgo((article as NewsItem).publishedAt)
+    : timeAgo(new Date((article as CommunityPost).createdAt).toISOString());
+  const hashtags = isNews
+    ? (article as NewsItem).hashtags || []
+    : (article as CommunityPost).hashtags || [];
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <h2 className="font-display font-bold text-white text-lg">
-            Community Posts
-          </h2>
-          <p
-            className="text-xs mt-0.5"
-            style={{ color: "oklch(0.55 0.05 240)" }}
-          >
-            Articles and research written by community members
-          </p>
-        </div>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger asChild>
-            <Button
-              type="button"
-              style={{ background: "oklch(0.52 0.18 220)", color: "white" }}
-              data-ocid="news.create_post_button"
-            >
-              <Plus className="w-4 h-4 mr-1" /> Write Post
-            </Button>
-          </DialogTrigger>
-          <DialogContent
-            style={{
-              background: "oklch(0.12 0.025 260)",
-              border: "1px solid oklch(0.22 0.04 260)",
-              maxWidth: "600px",
-            }}
-            data-ocid="news.create_post_dialog"
-          >
-            <DialogHeader>
-              <DialogTitle className="text-white">
-                Write a News Post
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-2">
-              <div>
-                <Label className="text-white text-xs mb-1.5 block">
-                  Title *
-                </Label>
-                <Input
-                  placeholder="Your headline..."
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  style={{
-                    background: "oklch(0.15 0.03 260)",
-                    borderColor: "oklch(0.25 0.04 260)",
-                    color: "white",
-                  }}
-                  data-ocid="news.post_title_input"
-                />
-              </div>
-              <div>
-                <Label className="text-white text-xs mb-1.5 block">
-                  Category
-                </Label>
-                <div className="flex flex-wrap gap-2">
-                  {NEWS_CATEGORIES.filter(
-                    (c) => c !== "All" && c !== "Community",
-                  ).map((cat) => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setNewCategory(cat)}
-                      className="px-3 py-1 rounded-full text-xs font-medium transition-all"
-                      style={{
-                        background:
-                          newCategory === cat
-                            ? "oklch(0.52 0.18 220)"
-                            : "oklch(0.18 0.03 260)",
-                        color:
-                          newCategory === cat
-                            ? "white"
-                            : "oklch(0.60 0.05 240)",
-                        border:
-                          newCategory === cat
-                            ? "none"
-                            : "1px solid oklch(0.25 0.04 260)",
-                      }}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <Label className="text-white text-xs mb-1.5 block">
-                  Article Body *
-                </Label>
-                <Textarea
-                  placeholder="Write your article here..."
-                  value={newBody}
-                  onChange={(e) => setNewBody(e.target.value)}
-                  rows={8}
-                  className="resize-none"
-                  style={{
-                    background: "oklch(0.15 0.03 260)",
-                    borderColor: "oklch(0.25 0.04 260)",
-                    color: "white",
-                  }}
-                  data-ocid="news.post_body_textarea"
-                />
-              </div>
-              <div>
-                <Label className="text-white text-xs mb-1.5 block">
-                  Image URL (optional)
-                </Label>
-                <Input
-                  placeholder="https://..."
-                  value={newImageUrl}
-                  onChange={(e) => setNewImageUrl(e.target.value)}
-                  style={{
-                    background: "oklch(0.15 0.03 260)",
-                    borderColor: "oklch(0.25 0.04 260)",
-                    color: "white",
-                  }}
-                  data-ocid="news.post_image_input"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setCreateOpen(false)}
-                style={{ color: "oklch(0.55 0.05 240)" }}
-                data-ocid="news.post_cancel_button"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                onClick={createPost}
-                disabled={!newTitle.trim() || !newBody.trim()}
-                style={{ background: "oklch(0.70 0.16 140)", color: "white" }}
-                data-ocid="news.post_submit_button"
-              >
-                Publish
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+    <motion.div
+      initial={{ opacity: 0, x: 40 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 40 }}
+      className="fixed inset-0 z-50 flex flex-col"
+      style={{ background: "oklch(0.10 0.02 260)" }}
+    >
+      {/* Reader header */}
+      <div
+        className="flex items-center gap-3 px-4 py-3 border-b flex-shrink-0"
+        style={{
+          background: "oklch(0.12 0.04 260)",
+          borderColor: "oklch(0.20 0.04 260)",
+        }}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          data-ocid="news.reader.button"
+          className="flex items-center gap-2 text-sm font-medium transition-opacity hover:opacity-70"
+          style={{ color: "oklch(0.75 0.14 220)" }}
+        >
+          <ArrowLeft className="w-4 h-4" /> Back
+        </button>
+        <div className="flex-1" />
+        <span
+          className="text-xs px-2 py-0.5 rounded-full"
+          style={{
+            background:
+              SOURCE_STYLES[
+                isNews ? (article as NewsItem).sourceType : "community"
+              ]?.bg || "oklch(0.20 0.06 260)",
+            color:
+              SOURCE_STYLES[
+                isNews ? (article as NewsItem).sourceType : "community"
+              ]?.color || "oklch(0.75 0.08 240)",
+          }}
+        >
+          {source}
+        </span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {posts.map((post, i) => (
-          <button
-            key={post.id}
-            type="button"
-            onClick={() => onSelectArticle(post)}
-            data-ocid={`news.community_post.item.${i + 1}`}
-            className="text-left rounded-xl overflow-hidden transition-all hover:scale-[1.02] active:scale-[0.99]"
-            style={{
-              background: "oklch(0.13 0.025 260)",
-              border: "1px solid oklch(0.25 0.07 140 / 0.4)",
-            }}
-          >
-            {post.thumbnail && (
-              <div className="h-32 overflow-hidden">
+      {/* Article content */}
+      <ScrollArea className="flex-1">
+        <article className="max-w-2xl mx-auto px-4 py-6">
+          {thumbnail && (
+            <div className="rounded-xl overflow-hidden mb-5 aspect-video">
+              <SensitiveContentBlur label={title}>
                 <img
-                  src={post.thumbnail}
-                  alt={post.title}
+                  src={thumbnail}
+                  alt={title}
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = "none";
                   }}
                 />
-              </div>
-            )}
-            <div className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <SourceBadge type="community" source="Community" />
-                <span
-                  className="text-[10px]"
-                  style={{ color: "oklch(0.45 0.04 240)" }}
-                >
-                  {post.author} · {timeAgo(post.publishedAt)}
-                </span>
-              </div>
-              <h3 className="font-semibold text-white text-sm leading-snug line-clamp-3 mb-2">
-                {post.title}
-              </h3>
-              <p
-                className="text-xs line-clamp-2"
-                style={{ color: "oklch(0.55 0.04 240)" }}
-              >
-                {post.summary}
-              </p>
-              <div
-                className="flex items-center gap-1 mt-3"
-                style={{ color: "oklch(0.50 0.04 240)" }}
-              >
-                <MessageCircle className="w-3 h-3" />
-                <span className="text-[10px]">
-                  {post.comments?.length || 0} comments
-                </span>
-              </div>
+              </SensitiveContentBlur>
             </div>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── Forum Discussions ─────────────────────────────────────────────────────────
-
-function DiscussionsFeed() {
-  const [threads, setThreads] = useState<ForumThread[]>(MOCK_FORUM_THREADS);
-  const [selected, setSelected] = useState<ForumThread | null>(null);
-  const [replyText, setReplyText] = useState("");
-  const bottomRef = useRef<HTMLDivElement>(null);
-
-  const submitReply = () => {
-    if (!replyText.trim() || !selected) return;
-    const reply: ForumReply = {
-      id: Date.now(),
-      author: "You",
-      body: replyText.trim(),
-      createdAt: "Just now",
-    };
-    const updated = { ...selected, replies: [...selected.replies, reply] };
-    setSelected(updated);
-    setThreads((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-    setReplyText("");
-    toast.success("Reply posted!");
-    setTimeout(
-      () => bottomRef.current?.scrollIntoView({ behavior: "smooth" }),
-      50,
-    );
-  };
-
-  if (selected) {
-    return (
-      <div>
-        <button
-          type="button"
-          onClick={() => setSelected(null)}
-          className="flex items-center gap-2 text-sm mb-5 hover:opacity-80"
-          style={{ color: "oklch(0.65 0.12 220)" }}
-          data-ocid="news.discussion_back_button"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back to discussions
-        </button>
-
-        <div
-          className="p-4 rounded-xl mb-5"
-          style={{
-            background: "oklch(0.13 0.025 260)",
-            border: "1px solid oklch(0.22 0.04 260)",
-          }}
-        >
-          <span
-            className="text-[10px] font-semibold px-2 py-0.5 rounded-full mb-3 inline-block"
-            style={{
-              background: "oklch(0.20 0.05 220 / 0.3)",
-              color: "oklch(0.65 0.12 220)",
-            }}
+          )}
+          <h1
+            className="text-xl font-bold leading-tight mb-3"
+            style={{ color: "oklch(0.95 0.02 240)" }}
           >
-            {selected.category}
-          </span>
-          <h2 className="font-display font-bold text-white text-lg leading-snug mb-2">
-            {selected.title}
-          </h2>
-          <p
-            className="text-sm leading-relaxed mb-3"
-            style={{ color: "oklch(0.70 0.04 240)" }}
-          >
-            {selected.body}
-          </p>
+            {title}
+          </h1>
           <div
-            className="flex items-center gap-3"
-            style={{ color: "oklch(0.48 0.04 240)" }}
+            className="flex items-center gap-3 mb-4 text-xs"
+            style={{ color: "oklch(0.55 0.05 240)" }}
           >
-            <span className="text-xs">{selected.author}</span>
-            <span className="text-xs">{selected.createdAt}</span>
-            <span className="text-xs flex items-center gap-1 ml-auto">
-              <TrendingUp className="w-3 h-3" /> {selected.views} views
-            </span>
+            <span>{source}</span>
+            <span>·</span>
+            <span>{time}</span>
+            {isNews && (article as NewsItem).author && (
+              <>
+                <span>·</span>
+                <span>by {(article as NewsItem).author}</span>
+              </>
+            )}
           </div>
-        </div>
-
-        <div className="space-y-3 mb-5">
-          {selected.replies.map((reply, i) => (
-            <div
-              key={reply.id}
-              data-ocid={`news.discussion_reply.item.${i + 1}`}
-              className="flex gap-3 p-3 rounded-xl"
-              style={{
-                background: "oklch(0.12 0.02 260)",
-                border: "1px solid oklch(0.20 0.03 260)",
-              }}
-            >
-              <Avatar className="w-7 h-7 flex-shrink-0">
-                <AvatarFallback
+          {hashtags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mb-4">
+              {hashtags.map((tag) => (
+                <span
+                  key={tag}
+                  className="text-xs px-2 py-0.5 rounded-full"
                   style={{
-                    background: "oklch(0.20 0.05 260)",
-                    color: "oklch(0.72 0.08 240)",
-                    fontSize: "10px",
+                    background: "oklch(0.52 0.18 220 / 0.15)",
+                    color: "oklch(0.72 0.14 220)",
                   }}
                 >
-                  {reply.author.slice(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-semibold text-white">
-                    {reply.author}
-                  </span>
-                  <span
-                    className="text-[10px]"
-                    style={{ color: "oklch(0.45 0.04 240)" }}
-                  >
-                    {reply.createdAt}
-                  </span>
-                </div>
-                <p
-                  className="text-sm leading-relaxed"
-                  style={{ color: "oklch(0.72 0.04 240)" }}
-                >
-                  {reply.body}
-                </p>
-              </div>
+                  #{tag}
+                </span>
+              ))}
             </div>
-          ))}
-          {selected.replies.length === 0 && (
-            <p
-              className="text-center text-sm py-6"
-              style={{ color: "oklch(0.45 0.04 240)" }}
-            >
-              No replies yet. Start the discussion!
-            </p>
           )}
-          <div ref={bottomRef} />
-        </div>
-
-        <div className="flex gap-2">
-          <Input
-            placeholder="Write a reply..."
-            value={replyText}
-            onChange={(e) => setReplyText(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && submitReply()}
-            style={{
-              background: "oklch(0.13 0.025 260)",
-              borderColor: "oklch(0.22 0.04 260)",
-              color: "white",
-            }}
-            data-ocid="news.discussion_reply_input"
-          />
-          <Button
-            type="button"
-            onClick={submitReply}
-            disabled={!replyText.trim()}
-            style={{ background: "oklch(0.52 0.18 220)" }}
-            data-ocid="news.discussion_reply_button"
+          <div
+            className="text-sm leading-relaxed whitespace-pre-wrap"
+            style={{ color: "oklch(0.82 0.02 240)" }}
           >
-            <Send className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <div className="mb-5">
-        <h2 className="font-display font-bold text-white text-lg">
-          Research Discussions
-        </h2>
-        <p className="text-xs mt-0.5" style={{ color: "oklch(0.55 0.05 240)" }}>
-          Community debates on current events and research topics
-        </p>
-      </div>
-      <div className="space-y-3">
-        {threads.map((thread, i) => (
-          <button
-            key={thread.id}
-            type="button"
-            onClick={() => setSelected(thread)}
-            data-ocid={`news.discussion.item.${i + 1}`}
-            className="w-full text-left p-4 rounded-xl transition-all hover:scale-[1.005]"
-            style={{
-              background: "oklch(0.13 0.025 260)",
-              border: "1px solid oklch(0.22 0.04 260)",
-            }}
-          >
-            <div className="flex items-start gap-3">
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
-                style={{ background: "oklch(0.18 0.05 220 / 0.3)" }}
+            {body}
+          </div>
+          {isNews && (article as NewsItem).url && (
+            <div className="mt-6">
+              <a
+                href={(article as NewsItem).url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-sm font-medium transition-opacity hover:opacity-70"
+                style={{ color: "oklch(0.72 0.14 220)" }}
               >
-                <MessageCircle
-                  className="w-4 h-4"
-                  style={{ color: "oklch(0.65 0.12 220)" }}
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span
-                    className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                    style={{
-                      background: "oklch(0.20 0.05 220 / 0.3)",
-                      color: "oklch(0.65 0.12 220)",
-                    }}
-                  >
-                    {thread.category}
-                  </span>
-                  <span
-                    className="text-[10px]"
-                    style={{ color: "oklch(0.45 0.04 240)" }}
-                  >
-                    {thread.createdAt}
-                  </span>
-                </div>
-                <p className="font-semibold text-white text-sm leading-snug line-clamp-2 mb-2">
-                  {thread.title}
-                </p>
-                <div
-                  className="flex items-center gap-3"
-                  style={{ color: "oklch(0.48 0.04 240)" }}
-                >
-                  <span className="text-[10px]">{thread.author}</span>
-                  <span className="text-[10px] flex items-center gap-1">
-                    <MessageCircle className="w-3 h-3" />{" "}
-                    {thread.replies.length} replies
-                  </span>
-                  <span className="text-[10px] flex items-center gap-1 ml-auto">
-                    <TrendingUp className="w-3 h-3" />{" "}
-                    {thread.views.toLocaleString()} views
-                  </span>
-                </div>
-              </div>
+                View original source ↗
+              </a>
             </div>
-          </button>
-        ))}
+          )}
+        </article>
+      </ScrollArea>
+    </motion.div>
+  );
+}
+
+// ─── Video Card ────────────────────────────────────────────────────────
+
+function VideoNewsCard({ video }: { video: VideoNewsItem }) {
+  const [playing, setPlaying] = useState(false);
+  return (
+    <div
+      className="flex-shrink-0 rounded-xl overflow-hidden w-56"
+      style={{
+        background: "oklch(0.14 0.03 260)",
+        border: "1px solid oklch(0.22 0.04 260)",
+      }}
+    >
+      {playing ? (
+        <iframe
+          src={video.embedUrl}
+          title={video.title}
+          className="w-full aspect-video"
+          allow="autoplay"
+          allowFullScreen
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setPlaying(true)}
+          data-ocid="news.video.button"
+          className="relative w-full aspect-video group"
+        >
+          <img
+            src={video.thumbnail}
+            alt={video.title}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              const el = e.target as HTMLImageElement;
+              el.style.display = "none";
+            }}
+          />
+          <div
+            className="absolute inset-0 flex items-center justify-center"
+            style={{ background: "oklch(0 0 0 / 0.45)" }}
+          >
+            <div
+              className="w-10 h-10 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform"
+              style={{ background: "oklch(0.52 0.18 220 / 0.9)" }}
+            >
+              <Play className="w-5 h-5 text-white ml-0.5" />
+            </div>
+          </div>
+        </button>
+      )}
+      <div className="p-2">
+        <p
+          className="text-xs font-medium line-clamp-2"
+          style={{ color: "oklch(0.88 0.02 240)" }}
+        >
+          {video.title}
+        </p>
+        <p className="text-xs mt-0.5" style={{ color: "oklch(0.50 0.05 240)" }}>
+          {video.source}
+        </p>
       </div>
     </div>
   );
 }
 
-// ─── Main NewsTab ────────────────────────────────────────────────────────────────
+// ─── News Card ─────────────────────────────────────────────────────────
 
-type NewsSection = "top" | "community" | "discussions";
-
-export function NewsTab() {
-  const [section, setSection] = useState<NewsSection>("top");
-  const [selectedArticle, setSelectedArticle] = useState<NewsItem | null>(null);
-
-  if (selectedArticle) {
-    return (
-      <AnimatePresence mode="wait">
-        <ArticleReader
-          key={selectedArticle.id}
-          article={selectedArticle}
-          onBack={() => setSelectedArticle(null)}
-        />
-      </AnimatePresence>
-    );
-  }
+function NewsCard({
+  item,
+  onOpen,
+  onHashtagClick,
+}: {
+  item: NewsItem;
+  onOpen: () => void;
+  onHashtagClick: (tag: string) => void;
+}) {
+  const srcStyle = SOURCE_STYLES[item.sourceType] || SOURCE_STYLES.wikipedia;
+  const grad = gradientForCategory(item.category);
 
   return (
-    <div data-ocid="news.section">
-      {/* Tab bar */}
-      <div
-        className="flex gap-2 mb-6 overflow-x-auto pb-1"
-        style={{ scrollbarWidth: "none" } as React.CSSProperties}
-      >
-        {(
-          [
-            {
-              key: "top",
-              label: "Top News",
-              icon: <Newspaper className="w-3.5 h-3.5" />,
-            },
-            {
-              key: "community",
-              label: "Community Posts",
-              icon: <MessageCircle className="w-3.5 h-3.5" />,
-            },
-            {
-              key: "discussions",
-              label: "Discussions",
-              icon: <TrendingUp className="w-3.5 h-3.5" />,
-            },
-          ] as { key: NewsSection; label: string; icon: React.ReactNode }[]
-        ).map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            onClick={() => setSection(tab.key)}
-            data-ocid={`news.${tab.key}_tab`}
-            className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all"
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-xl overflow-hidden cursor-pointer group"
+      style={{
+        background: "oklch(0.13 0.03 260)",
+        border: "1px solid oklch(0.22 0.04 260)",
+      }}
+      onClick={onOpen}
+      data-ocid="news.card"
+    >
+      {/* Thumbnail */}
+      <div className="relative aspect-video overflow-hidden">
+        {item.thumbnail ? (
+          <SensitiveContentBlur label={item.title}>
+            <img
+              src={item.thumbnail}
+              alt={item.title}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              onError={(e) => {
+                const el = e.target as HTMLImageElement;
+                el.parentElement!.style.background = `linear-gradient(135deg, ${grad})`;
+                el.style.display = "none";
+              }}
+            />
+          </SensitiveContentBlur>
+        ) : (
+          <div
+            className="w-full h-full"
             style={{
-              background:
-                section === tab.key
-                  ? "oklch(0.52 0.18 220)"
-                  : "oklch(0.15 0.03 260)",
-              color: section === tab.key ? "white" : "oklch(0.58 0.05 240)",
-              border:
-                section === tab.key ? "none" : "1px solid oklch(0.22 0.04 260)",
+              background: `linear-gradient(135deg, ${grad})`,
             }}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
+          />
+        )}
+        {/* Source badge overlay */}
+        <span
+          className="absolute top-2 left-2 text-xs px-2 py-0.5 rounded-full font-medium backdrop-blur-sm"
+          style={{ background: srcStyle.bg, color: srcStyle.color }}
+        >
+          {srcStyle.label}
+        </span>
       </div>
 
       {/* Content */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={section}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          transition={{ duration: 0.2 }}
+      <div className="p-3">
+        <h3
+          className="text-sm font-bold leading-snug mb-1.5 line-clamp-2 group-hover:opacity-80 transition-opacity"
+          style={{ color: "oklch(0.94 0.02 240)" }}
         >
-          {section === "top" && (
-            <TopNewsFeed onSelectArticle={setSelectedArticle} />
+          {item.title}
+        </h3>
+        <p
+          className="text-xs line-clamp-2 mb-2"
+          style={{ color: "oklch(0.58 0.04 240)" }}
+        >
+          {item.summary}
+        </p>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between">
+          <span className="text-xs" style={{ color: "oklch(0.45 0.04 240)" }}>
+            {timeAgo(item.publishedAt)}
+          </span>
+          <div
+            className="flex gap-1"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            {(item.hashtags || []).slice(0, 2).map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onHashtagClick(tag);
+                }}
+                className="text-xs px-1.5 py-0.5 rounded-full transition-opacity hover:opacity-70"
+                style={{
+                  background: "oklch(0.52 0.18 220 / 0.12)",
+                  color: "oklch(0.68 0.12 220)",
+                }}
+                data-ocid="news.hashtag.button"
+              >
+                #{tag}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Community Post Card ───────────────────────────────────────────────
+
+function CommunityCard({
+  post,
+  onOpen,
+  onHashtagClick,
+}: {
+  post: CommunityPost;
+  onOpen: () => void;
+  onHashtagClick: (tag: string) => void;
+}) {
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-xl overflow-hidden cursor-pointer group"
+      style={{
+        background: "oklch(0.13 0.03 260)",
+        border: "1px solid oklch(0.25 0.06 140 / 0.4)",
+      }}
+      onClick={onOpen}
+      data-ocid="news.community.card"
+    >
+      {post.imageUrl && (
+        <div className="aspect-video overflow-hidden">
+          <SensitiveContentBlur label={post.headline}>
+            <img
+              src={post.imageUrl}
+              alt={post.headline}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            />
+          </SensitiveContentBlur>
+        </div>
+      )}
+      {!post.imageUrl && (
+        <div
+          className="aspect-video"
+          style={{
+            background:
+              "linear-gradient(135deg, oklch(0.28 0.10 130), oklch(0.20 0.06 160))",
+          }}
+        />
+      )}
+      <div className="p-3">
+        <div className="flex items-center gap-2 mb-1.5">
+          <span
+            className="text-xs px-2 py-0.5 rounded-full"
+            style={{
+              background: SOURCE_STYLES.community.bg,
+              color: SOURCE_STYLES.community.color,
+            }}
+          >
+            Community
+          </span>
+          <span className="text-xs" style={{ color: "oklch(0.45 0.04 240)" }}>
+            by {post.author}
+          </span>
+        </div>
+        <h3
+          className="text-sm font-bold leading-snug mb-1.5 line-clamp-2"
+          style={{ color: "oklch(0.94 0.02 240)" }}
+        >
+          {post.headline}
+        </h3>
+        <p
+          className="text-xs line-clamp-2 mb-2"
+          style={{ color: "oklch(0.58 0.04 240)" }}
+        >
+          {post.body}
+        </p>
+        <div
+          className="flex gap-1"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          {post.hashtags.slice(0, 3).map((tag) => (
+            <button
+              key={tag}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onHashtagClick(tag);
+              }}
+              className="text-xs px-1.5 py-0.5 rounded-full transition-opacity hover:opacity-70"
+              style={{
+                background: "oklch(0.70 0.16 140 / 0.12)",
+                color: "oklch(0.70 0.14 140)",
+              }}
+            >
+              #{tag}
+            </button>
+          ))}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Main Component ────────────────────────────────────────────────────
+
+export function NewsTab() {
+  const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
+  const [videoItems, setVideoItems] = useState<VideoNewsItem[]>([]);
+  const [communityPosts, setCommunityPosts] =
+    useState<CommunityPost[]>(loadCommunityPosts);
+  const [loading, setLoading] = useState(true);
+  const [searchQ, setSearchQ] = useState("");
+  const [activeCategory, setActiveCategory] = useState("All");
+  const [activeHashtag, setActiveHashtag] = useState<string | null>(null);
+  const [openArticle, setOpenArticle] = useState<
+    NewsItem | CommunityPost | null
+  >(null);
+  const [showPostModal, setShowPostModal] = useState(false);
+  const [postHeadline, setPostHeadline] = useState("");
+  const [postBody, setPostBody] = useState("");
+  const [postHashtagInput, setPostHashtagInput] = useState("");
+  const [postHashtags, setPostHashtags] = useState<string[]>([]);
+  const [postImageUrl, setPostImageUrl] = useState("");
+  const [postImagePreview, setPostImagePreview] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+  const tickerRef = useRef<HTMLDivElement>(null);
+
+  const currentUser = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("researchHubUser") || "{}");
+    } catch {
+      return {};
+    }
+  })();
+
+  const loadNews = useCallback(async () => {
+    setLoading(true);
+    const [hn, reddit, guardian, wiki, videos] = await Promise.allSettled([
+      fetchHackerNews(20),
+      fetchRedditNews(),
+      fetchGuardianNews(),
+      fetchWikipediaCurrentEvents(),
+      fetchNewsVideos(),
+    ]);
+
+    const allNews = [
+      ...(hn.status === "fulfilled" ? hn.value : []),
+      ...(reddit.status === "fulfilled" ? reddit.value : []),
+      ...(guardian.status === "fulfilled" ? guardian.value : []),
+      ...(wiki.status === "fulfilled" ? wiki.value : []),
+    ];
+    setNewsItems(
+      allNews.sort(
+        (a, b) =>
+          new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime(),
+      ),
+    );
+    if (videos.status === "fulfilled") setVideoItems(videos.value);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    loadNews();
+  }, [loadNews]);
+
+  // Breaking news ticker auto-scroll - restart when new items arrive
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional restart on newsItems
+  useEffect(() => {
+    const ticker = tickerRef.current;
+    if (!ticker) return;
+    let pos = 0;
+    const speed = 0.5;
+    const animate = () => {
+      pos += speed;
+      if (pos >= ticker.scrollWidth / 2) pos = 0;
+      ticker.scrollLeft = pos;
+      raf = requestAnimationFrame(animate);
+    };
+    let raf = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(raf);
+  }, [newsItems]);
+
+  const handleHashtagKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.key === " " || e.key === "Enter") && postHashtagInput.trim()) {
+      e.preventDefault();
+      const tag = postHashtagInput.trim().replace(/^#/, "").toLowerCase();
+      if (tag && !postHashtags.includes(tag)) {
+        setPostHashtags((prev) => [...prev, tag]);
+      }
+      setPostHashtagInput("");
+    }
+  };
+
+  const handleImageFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const data = ev.target?.result as string;
+      setPostImageUrl(data);
+      setPostImagePreview(data);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCreatePost = () => {
+    if (!postHeadline.trim() || !postBody.trim()) return;
+    const author = currentUser?.username || "Anonymous";
+    const post: CommunityPost = {
+      id: `cp-${Date.now()}`,
+      headline: postHeadline.trim(),
+      body: postBody.trim(),
+      hashtags: postHashtags,
+      imageUrl: postImageUrl || undefined,
+      author,
+      createdAt: Date.now(),
+    };
+    const updated = [post, ...communityPosts];
+    setCommunityPosts(updated);
+    saveCommunityPosts(updated);
+    setPostHeadline("");
+    setPostBody("");
+    setPostHashtags([]);
+    setPostHashtagInput("");
+    setPostImageUrl("");
+    setPostImagePreview("");
+    setShowPostModal(false);
+    toast.success("News post published!");
+  };
+
+  // Filtered items
+  const q = searchQ.toLowerCase().trim();
+  const filteredNews = newsItems.filter((item) => {
+    if (activeCategory !== "All" && item.category !== activeCategory)
+      return false;
+    if (activeHashtag && !(item.hashtags || []).includes(activeHashtag))
+      return false;
+    if (
+      q &&
+      !item.title.toLowerCase().includes(q) &&
+      !item.summary.toLowerCase().includes(q)
+    )
+      return false;
+    return true;
+  });
+
+  const filteredCommunity = communityPosts.filter((post) => {
+    if (activeCategory !== "All" && activeCategory !== "Community")
+      return false;
+    if (activeHashtag && !post.hashtags.includes(activeHashtag)) return false;
+    if (
+      q &&
+      !post.headline.toLowerCase().includes(q) &&
+      !post.body.toLowerCase().includes(q)
+    )
+      return false;
+    return true;
+  });
+
+  const tickerHeadlines = newsItems.slice(0, 20);
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* ── Header ── */}
+      <div
+        className="flex-shrink-0"
+        style={{
+          background:
+            "linear-gradient(180deg, oklch(0.14 0.05 220) 0%, oklch(0.11 0.03 240) 100%)",
+          borderBottom: "1px solid oklch(0.20 0.04 240)",
+        }}
+      >
+        {/* Top bar */}
+        <div className="flex items-center gap-3 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Newspaper
+              className="w-5 h-5"
+              style={{ color: "oklch(0.72 0.18 220)" }}
+            />
+            <span
+              className="font-bold text-base tracking-tight"
+              style={{ color: "oklch(0.95 0.02 240)" }}
+            >
+              Research Hub{" "}
+              <span style={{ color: "oklch(0.72 0.18 220)" }}>News</span>
+            </span>
+          </div>
+          <div className="flex-1 relative">
+            <Search
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none"
+              style={{ color: "oklch(0.50 0.06 240)" }}
+            />
+            <input
+              data-ocid="news.search_input"
+              value={searchQ}
+              onChange={(e) => setSearchQ(e.target.value)}
+              placeholder="Search news..."
+              className="w-full pl-8 pr-3 h-8 text-xs rounded-lg outline-none transition-all"
+              style={{
+                background: "oklch(0.17 0.04 260)",
+                border: "1px solid oklch(0.26 0.05 260)",
+                color: "oklch(0.92 0.02 240)",
+              }}
+            />
+          </div>
+          <Button
+            data-ocid="news.post.open_modal_button"
+            size="sm"
+            onClick={() => setShowPostModal(true)}
+            className="h-8 px-3 text-xs flex-shrink-0"
+            style={{ background: "oklch(0.52 0.18 220)", color: "white" }}
+          >
+            <Plus className="w-3 h-3 mr-1" /> Post News
+          </Button>
+          <Button
+            data-ocid="news.refresh.button"
+            size="sm"
+            variant="ghost"
+            onClick={loadNews}
+            disabled={loading}
+            className="h-8 w-8 p-0 flex-shrink-0"
+            style={{ color: "oklch(0.60 0.06 240)" }}
+          >
+            <RefreshCw
+              className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`}
+            />
+          </Button>
+        </div>
+
+        {/* Breaking news ticker */}
+        {tickerHeadlines.length > 0 && (
+          <div
+            className="flex items-center overflow-hidden border-t"
+            style={{
+              borderColor: "oklch(0.20 0.04 240)",
+              background: "oklch(0.52 0.18 220)",
+              height: "28px",
+            }}
+          >
+            <div
+              className="flex-shrink-0 px-3 text-xs font-bold tracking-widest uppercase h-full flex items-center"
+              style={{
+                background: "oklch(0.38 0.16 220)",
+                color: "white",
+              }}
+            >
+              LIVE
+            </div>
+            <div
+              ref={tickerRef}
+              className="flex items-center gap-0 overflow-hidden whitespace-nowrap"
+              style={{ scrollBehavior: "auto" }}
+            >
+              {/* Duplicate for seamless loop */}
+              {[...tickerHeadlines, ...tickerHeadlines].map((h, i) => (
+                <span
+                  key={`ticker-${h.id}-${i}`}
+                  className="text-xs font-medium px-4 inline-block"
+                  style={{ color: "white" }}
+                >
+                  {h.title}
+                  <span className="mx-4 opacity-50">•</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Active hashtag filter */}
+        {activeHashtag && (
+          <div
+            className="flex items-center gap-2 px-4 py-1.5 border-t"
+            style={{ borderColor: "oklch(0.20 0.04 240)" }}
+          >
+            <Hash
+              className="w-3 h-3"
+              style={{ color: "oklch(0.68 0.14 220)" }}
+            />
+            <span className="text-xs" style={{ color: "oklch(0.80 0.10 220)" }}>
+              #{activeHashtag}
+            </span>
+            <button
+              type="button"
+              onClick={() => setActiveHashtag(null)}
+              data-ocid="news.hashtag.close_button"
+              className="ml-auto"
+              style={{ color: "oklch(0.55 0.06 240)" }}
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+
+        {/* Category tabs */}
+        <div
+          className="flex gap-1 px-3 py-2 overflow-x-auto"
+          style={{ scrollbarWidth: "none" }}
+        >
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              data-ocid="news.category.tab"
+              onClick={() => setActiveCategory(cat)}
+              className="flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-all"
+              style={{
+                background:
+                  activeCategory === cat
+                    ? "oklch(0.52 0.18 220)"
+                    : "oklch(0.16 0.04 260 / 0.6)",
+                color:
+                  activeCategory === cat ? "white" : "oklch(0.68 0.06 240)",
+              }}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Content ── */}
+      <ScrollArea className="flex-1">
+        <div className="p-4 space-y-6">
+          {/* News Videos row */}
+          {videoItems.length > 0 && (
+            <section>
+              <div className="flex items-center gap-2 mb-3">
+                <TrendingUp
+                  className="w-4 h-4"
+                  style={{ color: "oklch(0.72 0.18 220)" }}
+                />
+                <h2
+                  className="text-sm font-bold"
+                  style={{ color: "oklch(0.90 0.02 240)" }}
+                >
+                  News Reels
+                </h2>
+              </div>
+              <div
+                className="flex gap-3 overflow-x-auto pb-1"
+                style={{ scrollbarWidth: "none" }}
+              >
+                {videoItems.map((v) => (
+                  <VideoNewsCard key={v.id} video={v} />
+                ))}
+              </div>
+            </section>
           )}
-          {section === "community" && (
-            <CommunityPostsFeed onSelectArticle={setSelectedArticle} />
+
+          {/* Loading skeletons */}
+          {loading && (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {Array.from({ length: 6 }, (_, i) => i).map((i) => (
+                <div
+                  key={`skeleton-${i}`}
+                  className="rounded-xl overflow-hidden"
+                  style={{ background: "oklch(0.13 0.03 260)" }}
+                >
+                  <Skeleton className="aspect-video w-full" />
+                  <div className="p-3 space-y-1.5">
+                    <Skeleton className="h-3.5 w-full rounded" />
+                    <Skeleton className="h-3 w-4/5 rounded" />
+                    <Skeleton className="h-3 w-3/5 rounded" />
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
-          {section === "discussions" && <DiscussionsFeed />}
-        </motion.div>
+
+          {/* Empty state */}
+          {!loading &&
+            filteredNews.length === 0 &&
+            filteredCommunity.length === 0 && (
+              <div className="text-center py-12" data-ocid="news.empty_state">
+                <Newspaper
+                  className="w-10 h-10 mx-auto mb-3"
+                  style={{ color: "oklch(0.35 0.05 240)" }}
+                />
+                <p
+                  className="text-sm"
+                  style={{ color: "oklch(0.55 0.04 240)" }}
+                >
+                  No articles found. Try a different search.
+                </p>
+                <Button
+                  onClick={loadNews}
+                  size="sm"
+                  className="mt-3"
+                  style={{ background: "oklch(0.52 0.18 220)", color: "white" }}
+                >
+                  Refresh
+                </Button>
+              </div>
+            )}
+
+          {/* News grid */}
+          {!loading &&
+            (filteredNews.length > 0 || filteredCommunity.length > 0) && (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {/* Community posts first */}
+                {filteredCommunity.map((post, idx) => (
+                  <CommunityCard
+                    key={post.id}
+                    post={post}
+                    onOpen={() => setOpenArticle(post)}
+                    onHashtagClick={setActiveHashtag}
+                    data-ocid={`news.community.item.${idx + 1}`}
+                  />
+                ))}
+                {/* News articles */}
+                {filteredNews.map((item, idx) => (
+                  <NewsCard
+                    key={item.id}
+                    item={item}
+                    onOpen={() => setOpenArticle(item)}
+                    onHashtagClick={setActiveHashtag}
+                    data-ocid={`news.article.item.${idx + 1}`}
+                  />
+                ))}
+              </div>
+            )}
+        </div>
+      </ScrollArea>
+
+      {/* ── Article Reader Overlay ── */}
+      <AnimatePresence>
+        {openArticle && (
+          <ArticleReader
+            article={openArticle}
+            onClose={() => setOpenArticle(null)}
+          />
+        )}
       </AnimatePresence>
+
+      {/* ── Post News Modal ── */}
+      <Dialog open={showPostModal} onOpenChange={setShowPostModal}>
+        <DialogContent
+          data-ocid="news.post.dialog"
+          className="max-w-md"
+          style={{
+            background: "oklch(0.13 0.03 260)",
+            borderColor: "oklch(0.22 0.04 260)",
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle style={{ color: "oklch(0.92 0.02 240)" }}>
+              Post News Article
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div>
+              <Label
+                className="text-xs mb-1 block"
+                style={{ color: "oklch(0.65 0.04 240)" }}
+              >
+                Headline *
+              </Label>
+              <Input
+                data-ocid="news.post.input"
+                value={postHeadline}
+                onChange={(e) => setPostHeadline(e.target.value)}
+                placeholder="Enter your headline..."
+                style={{
+                  background: "oklch(0.16 0.03 260)",
+                  borderColor: "oklch(0.26 0.05 260)",
+                  color: "white",
+                }}
+              />
+            </div>
+            <div>
+              <Label
+                className="text-xs mb-1 block"
+                style={{ color: "oklch(0.65 0.04 240)" }}
+              >
+                Article Body *
+              </Label>
+              <Textarea
+                data-ocid="news.post.textarea"
+                value={postBody}
+                onChange={(e) => setPostBody(e.target.value)}
+                placeholder="Write your article..."
+                className="min-h-[100px] resize-none text-sm"
+                style={{
+                  background: "oklch(0.16 0.03 260)",
+                  borderColor: "oklch(0.26 0.05 260)",
+                  color: "white",
+                }}
+              />
+            </div>
+            <div>
+              <Label
+                className="text-xs mb-1 block"
+                style={{ color: "oklch(0.65 0.04 240)" }}
+              >
+                Hashtags (press Space or Enter to add)
+              </Label>
+              <div
+                className="flex flex-wrap gap-1 p-2 rounded-md mb-1.5 min-h-[32px]"
+                style={{
+                  background: "oklch(0.16 0.03 260)",
+                  border: "1px solid oklch(0.26 0.05 260)",
+                }}
+              >
+                {postHashtags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full"
+                    style={{
+                      background: "oklch(0.52 0.18 220 / 0.2)",
+                      color: "oklch(0.75 0.14 220)",
+                    }}
+                  >
+                    #{tag}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPostHashtags((prev) => prev.filter((t) => t !== tag))
+                      }
+                      style={{ color: "oklch(0.55 0.08 220)" }}
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  </span>
+                ))}
+                <input
+                  data-ocid="news.post.hashtag.input"
+                  value={postHashtagInput}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v.includes(" ") || v.includes("#")) {
+                      const tag = v.replace(/[# ]/g, "").toLowerCase().trim();
+                      if (tag && !postHashtags.includes(tag)) {
+                        setPostHashtags((prev) => [...prev, tag]);
+                      }
+                      setPostHashtagInput("");
+                    } else {
+                      setPostHashtagInput(v);
+                    }
+                  }}
+                  onKeyDown={handleHashtagKeyDown}
+                  placeholder="#topic"
+                  className="flex-1 min-w-[80px] bg-transparent text-xs outline-none"
+                  style={{ color: "oklch(0.88 0.02 240)" }}
+                />
+              </div>
+            </div>
+            <div>
+              <Label
+                className="text-xs mb-1 block"
+                style={{ color: "oklch(0.65 0.04 240)" }}
+              >
+                Image (optional)
+              </Label>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageFile}
+              />
+              <div className="flex gap-2 items-center">
+                <Input
+                  value={postImageUrl.startsWith("data:") ? "" : postImageUrl}
+                  onChange={(e) => {
+                    setPostImageUrl(e.target.value);
+                    setPostImagePreview(e.target.value);
+                  }}
+                  placeholder="Image URL..."
+                  style={{
+                    background: "oklch(0.16 0.03 260)",
+                    borderColor: "oklch(0.26 0.05 260)",
+                    color: "white",
+                  }}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  data-ocid="news.post.upload_button"
+                  onClick={() => fileRef.current?.click()}
+                  className="flex-shrink-0"
+                  style={{
+                    borderColor: "oklch(0.28 0.05 260)",
+                    color: "oklch(0.70 0.08 240)",
+                  }}
+                >
+                  <Image className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+              {postImagePreview && (
+                <div className="mt-2 relative rounded-lg overflow-hidden">
+                  <img
+                    src={postImagePreview}
+                    alt="Preview"
+                    className="w-full h-24 object-cover rounded-lg"
+                    onError={() => setPostImagePreview("")}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPostImageUrl("");
+                      setPostImagePreview("");
+                    }}
+                    className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center"
+                    style={{ background: "oklch(0 0 0 / 0.6)" }}
+                  >
+                    <X className="w-3 h-3 text-white" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              data-ocid="news.post.cancel_button"
+              variant="ghost"
+              onClick={() => setShowPostModal(false)}
+              style={{ color: "oklch(0.60 0.04 240)" }}
+            >
+              Cancel
+            </Button>
+            <Button
+              data-ocid="news.post.submit_button"
+              onClick={handleCreatePost}
+              disabled={!postHeadline.trim() || !postBody.trim()}
+              style={{ background: "oklch(0.52 0.18 220)", color: "white" }}
+            >
+              Publish
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

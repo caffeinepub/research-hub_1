@@ -27,6 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowBigUp,
   ArrowLeft,
+  Ban,
   Clock,
   Edit3,
   Flag,
@@ -1207,7 +1208,11 @@ function ThreadView({
       {!post.locked && (
         <div
           className="p-3 border-t flex-shrink-0"
-          style={{ borderColor: "oklch(0.20 0.04 260)" }}
+          style={{
+            borderColor: "oklch(0.20 0.04 260)",
+            position: "relative",
+            zIndex: 10,
+          }}
         >
           {replyTo && (
             <div
@@ -1239,10 +1244,23 @@ function ThreadView({
               </button>
             </div>
           )}
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            id="community-reply-file"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = (ev) =>
+                setReplyImage((ev.target?.result as string) ?? "");
+              reader.readAsDataURL(file);
+            }}
+          />
           <div className="flex gap-2 items-end">
             <Textarea
               data-ocid="community.reply.textarea"
-              autoFocus
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
               placeholder="Write a reply..."
@@ -1251,6 +1269,7 @@ function ThreadView({
                 background: "oklch(0.16 0.04 260)",
                 borderColor: "oklch(0.26 0.05 260)",
                 color: "white",
+                pointerEvents: "all",
               }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
@@ -1338,13 +1357,60 @@ const SORT_OPTIONS = [
 
 export function CommunityChatsPage({
   currentUser,
+  onOpenAuth,
 }: {
   currentUser: CurrentUser;
+  onOpenAuth?: () => void;
 }) {
   const [customChannels, setCustomChannels] = useState(loadCustomChannels);
   const allChannels = [...DEFAULT_CHANNELS, ...customChannels];
 
   const [posts, setPosts] = useState<ForumPost[]>(() => loadPosts());
+
+  // Live counts (simulated, refreshes every 30s)
+  const [liveCounts, setLiveCounts] = useState<Record<string, number>>(() =>
+    Object.fromEntries(
+      allChannels.map((ch) => [ch, Math.floor(Math.random() * 50) + 1]),
+    ),
+  );
+  // biome-ignore lint/correctness/useExhaustiveDependencies: allChannels is stable
+  useEffect(() => {
+    const id = setInterval(() => {
+      setLiveCounts(
+        Object.fromEntries(
+          allChannels.map((ch) => [ch, Math.floor(Math.random() * 50) + 1]),
+        ),
+      );
+    }, 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Chat blocks from admin
+  const getChatBlocks = (): Record<string, string[]> => {
+    try {
+      return JSON.parse(
+        localStorage.getItem("researchhub_chat_blocks") || "{}",
+      );
+    } catch {
+      return {};
+    }
+  };
+  const isBlockedFromChannel = (channel: string): boolean => {
+    const myUser = localStorage.getItem("chat_username") || "";
+    const blocks = getChatBlocks();
+    return (blocks[channel] || []).includes(myUser);
+  };
+
+  // Active polls
+  const getActivePolls = () => {
+    try {
+      return JSON.parse(
+        localStorage.getItem("researchhub_polls") || "[]",
+      ).filter((p: { resolved: boolean }) => !p.resolved);
+    } catch {
+      return [];
+    }
+  };
 
   const [activeChannel, setActiveChannel] = useState("general");
   const [sort, setSort] = useState<"hot" | "new" | "top">("hot");
@@ -1586,6 +1652,53 @@ export function CommunityChatsPage({
     ? posts.find((p) => p.id === openPost.id) || openPost
     : null;
 
+  // Login gate: require a username to access community
+  const isLoggedIn = !!(
+    currentUser.username && currentUser.username !== "Guest"
+  );
+  if (!isLoggedIn) {
+    return (
+      <div
+        data-ocid="community.section"
+        className="flex flex-col items-center justify-center h-full py-20 px-6 text-center gap-6"
+        style={{ background: "oklch(0.11 0.02 260)" }}
+      >
+        <div
+          className="w-16 h-16 rounded-full flex items-center justify-center text-3xl"
+          style={{ background: "oklch(0.18 0.05 260)" }}
+        >
+          👥
+        </div>
+        <div>
+          <h2
+            className="text-2xl font-bold mb-2"
+            style={{ color: "oklch(0.92 0.01 240)" }}
+          >
+            Join the Community
+          </h2>
+          <p
+            className="text-sm max-w-xs mx-auto"
+            style={{ color: "oklch(0.55 0.05 240)" }}
+          >
+            Sign in to join the conversation, post to forums, follow users, and
+            send direct messages.
+          </p>
+        </div>
+        <button
+          type="button"
+          data-ocid="community.primary_button"
+          onClick={() => {
+            if (onOpenAuth) onOpenAuth();
+          }}
+          className="px-8 py-3 rounded-xl font-semibold text-sm transition-all hover:opacity-90"
+          style={{ background: "oklch(0.52 0.18 220)", color: "white" }}
+        >
+          Sign In to Join
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div
       className="flex h-full min-h-0"
@@ -1632,7 +1745,18 @@ export function CommunityChatsPage({
                 }}
               >
                 <Hash className="w-3.5 h-3.5 flex-shrink-0" />
-                <span className="truncate">{ch}</span>
+                <span className="flex-1 truncate">{ch}</span>
+                {liveCounts[ch] && (
+                  <span
+                    className="text-[9px] px-1 py-0.5 rounded-full flex-shrink-0"
+                    style={{
+                      background: "oklch(0.52 0.18 145 / 0.15)",
+                      color: "oklch(0.65 0.18 145)",
+                    }}
+                  >
+                    {liveCounts[ch]}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -1899,7 +2023,119 @@ export function CommunityChatsPage({
             {/* Posts feed */}
             <ScrollArea className="flex-1">
               <div className="p-4 space-y-3">
-                {filtered.length === 0 ? (
+                {/* Active polls in this channel */}
+                {getActivePolls()
+                  .filter((p: { roomId: string }) => p.roomId === activeChannel)
+                  .map(
+                    (poll: {
+                      id: number;
+                      question: string;
+                      yesVotes: number;
+                      noVotes: number;
+                      targetUser: string;
+                    }) => (
+                      <div
+                        key={poll.id}
+                        className="p-3 rounded-xl"
+                        style={{
+                          background: "oklch(0.16 0.06 260)",
+                          border: "1px solid oklch(0.30 0.08 260)",
+                        }}
+                      >
+                        <p
+                          className="text-xs font-semibold mb-2"
+                          style={{ color: "oklch(0.80 0.10 260)" }}
+                        >
+                          📊 Community Poll
+                        </p>
+                        <p
+                          className="text-sm mb-2"
+                          style={{ color: "oklch(0.88 0.02 240)" }}
+                        >
+                          {poll.question}
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all"
+                            style={{
+                              background: "oklch(0.52 0.18 145 / 0.2)",
+                              color: "oklch(0.72 0.18 145)",
+                              border: "1px solid oklch(0.52 0.18 145 / 0.3)",
+                            }}
+                            onClick={() => {
+                              const p = JSON.parse(
+                                localStorage.getItem("researchhub_polls") ||
+                                  "[]",
+                              );
+                              const u = p.map((x: typeof poll) =>
+                                x.id === poll.id
+                                  ? { ...x, yesVotes: x.yesVotes + 1 }
+                                  : x,
+                              );
+                              localStorage.setItem(
+                                "researchhub_polls",
+                                JSON.stringify(u),
+                              );
+                            }}
+                          >
+                            Yes ({poll.yesVotes})
+                          </button>
+                          <button
+                            type="button"
+                            className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all"
+                            style={{
+                              background: "oklch(0.60 0.18 30 / 0.2)",
+                              color: "oklch(0.72 0.18 30)",
+                              border: "1px solid oklch(0.60 0.18 30 / 0.3)",
+                            }}
+                            onClick={() => {
+                              const p = JSON.parse(
+                                localStorage.getItem("researchhub_polls") ||
+                                  "[]",
+                              );
+                              const u = p.map((x: typeof poll) =>
+                                x.id === poll.id
+                                  ? { ...x, noVotes: x.noVotes + 1 }
+                                  : x,
+                              );
+                              localStorage.setItem(
+                                "researchhub_polls",
+                                JSON.stringify(u),
+                              );
+                            }}
+                          >
+                            No ({poll.noVotes})
+                          </button>
+                        </div>
+                      </div>
+                    ),
+                  )}
+
+                {/* Blocked state */}
+                {isBlockedFromChannel(activeChannel) ? (
+                  <div
+                    className="text-center py-16"
+                    data-ocid="community.blocked.error_state"
+                  >
+                    <Ban
+                      className="w-12 h-12 mx-auto mb-3 opacity-30"
+                      style={{ color: "oklch(0.65 0.18 30)" }}
+                    />
+                    <p
+                      className="text-sm font-medium"
+                      style={{ color: "oklch(0.65 0.18 30)" }}
+                    >
+                      You are blocked from this room
+                    </p>
+                    <p
+                      className="text-xs mt-1"
+                      style={{ color: "oklch(0.50 0.04 240)" }}
+                    >
+                      Contact an admin if you believe this is a mistake.
+                    </p>
+                  </div>
+                ) : filtered.length === 0 ? (
                   <div
                     data-ocid="community.posts.empty_state"
                     className="text-center py-16"
@@ -2142,12 +2378,26 @@ export function CommunityChatsPage({
                 className="text-xs mb-1 block"
                 style={{ color: "oklch(0.65 0.04 240)" }}
               >
-                Image URL (optional)
+                Image (optional)
               </Label>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                id="community-post-file"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = (ev) =>
+                    setNewImageUrl((ev.target?.result as string) ?? "");
+                  reader.readAsDataURL(file);
+                }}
+              />
               <div className="flex gap-2">
                 <Input
                   data-ocid="community.create.image.input"
-                  value={newImageUrl}
+                  value={newImageUrl.startsWith("data:") ? "" : newImageUrl}
                   onChange={(e) => setNewImageUrl(e.target.value)}
                   placeholder="https://... or pick a GIF/sticker"
                   style={{
@@ -2156,6 +2406,21 @@ export function CommunityChatsPage({
                     color: "oklch(0.92 0.01 240)",
                   }}
                 />
+                <button
+                  type="button"
+                  data-ocid="community.create.upload_button"
+                  onClick={() =>
+                    document.getElementById("community-post-file")?.click()
+                  }
+                  className="px-2 py-1 rounded text-xs flex-shrink-0"
+                  style={{
+                    background: "oklch(0.20 0.04 260)",
+                    color: "oklch(0.70 0.08 240)",
+                    border: "1px solid oklch(0.28 0.05 260)",
+                  }}
+                >
+                  📁
+                </button>
                 {/* GIF in post */}
                 <Popover open={showGifInPost} onOpenChange={setShowGifInPost}>
                   <PopoverTrigger asChild>

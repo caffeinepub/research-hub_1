@@ -1,6 +1,7 @@
 import { EyeOff } from "lucide-react";
 import { useState } from "react";
 import { isSensitiveContent } from "../utils/sensitiveContent";
+import { getSettings } from "../utils/settings";
 
 interface Props {
   children: React.ReactNode;
@@ -10,8 +11,10 @@ interface Props {
 export function SensitiveContentBlur({ children, label }: Props) {
   const [revealed, setRevealed] = useState(false);
   const sensitive = isSensitiveContent(label ?? "");
+  const { sensitiveContentFilter } = getSettings();
 
-  if (!sensitive || revealed) {
+  // If filter is off or content isn't sensitive or already revealed, show directly
+  if (!sensitiveContentFilter || !sensitive || revealed) {
     return <>{children}</>;
   }
 

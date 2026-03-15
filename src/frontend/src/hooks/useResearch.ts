@@ -46,6 +46,7 @@ import {
   fetchCustomDomainAudio,
 } from "./fetchAudio";
 import {
+  fetchArchiveImagesExtra,
   fetchArtInstituteImages,
   fetchClevelandMuseumImages,
   fetchDeviantArtImages,
@@ -57,36 +58,58 @@ import {
   fetchMetMuseumImages,
   fetchNasaImages,
   fetchOpenverseImages,
+  fetchPexelsImages,
   fetchPixabayImages,
   fetchRedditImages,
   fetchRijksmuseumImages,
   fetchSmithsonianImages,
+  fetchUnsplashImages,
+  fetchWikimediaImages,
 } from "./fetchImages";
 import {
   fetchArchiveAnimation,
+  fetchArchiveComedyFilms,
   fetchArchiveComputerChronicles,
+  fetchArchiveDocumentaries,
   fetchArchiveEducation,
   fetchArchiveFeatureFilms,
+  fetchArchiveFilmNoir,
   fetchArchiveGovernment,
   fetchArchiveHomeMovies,
+  fetchArchiveHorrorFilms,
+  fetchArchiveInstructional,
+  fetchArchiveMusicVideos,
+  fetchArchiveMystery,
   fetchArchiveNews,
+  fetchArchiveNewsreels,
   fetchArchiveOpenSourceMovies,
   fetchArchivePublicAffairs,
+  fetchArchiveShortFilms,
+  fetchArchiveSilentFilms,
   fetchArchiveSportsVideos,
+  fetchArchiveWesternFilms,
   fetchBritishPatheVideos,
   fetchCSpanVideos,
   fetchClassicCartoonsVideos,
   fetchClassicTvVideos,
+  fetchDailymotionVideos,
   fetchDemocracyNowVideos,
   fetchDplaVideos,
   fetchEuropeanFilmGateway,
+  fetchFreeMovies,
+  fetchInternetArchiveAll,
   fetchInternetArchiveVideos,
   fetchLocFilms,
   fetchMitOcwVideos,
+  fetchMusicConcerts,
+  fetchNFLFootage,
   fetchNasaVideos,
   fetchNewsPublicAffairsVideos,
   fetchNfbVideos,
+  fetchOdyseeVideos,
+  fetchOpenCulture,
   fetchPbsVideos,
+  fetchPeertubeVideos,
   fetchPrelingerVideos,
   fetchSciFiHorrorVideos,
   fetchTedTalksVideos,
@@ -253,7 +276,7 @@ export function useResearch() {
         ]);
       }
 
-      const T = 18000;
+      const T = 25000;
 
       // Articles (background)
       withTimeout(fetchInternetArchiveArticles(query), T)
@@ -485,6 +508,26 @@ export function useResearch() {
           setResults((prev) => ({ ...prev, images: [...prev.images, ...r] })),
         )
         .catch(() => {});
+      withTimeout(fetchUnsplashImages(query), T)
+        .then((r) =>
+          setResults((prev) => ({ ...prev, images: [...prev.images, ...r] })),
+        )
+        .catch(() => {});
+      withTimeout(fetchPexelsImages(query), T)
+        .then((r) =>
+          setResults((prev) => ({ ...prev, images: [...prev.images, ...r] })),
+        )
+        .catch(() => {});
+      withTimeout(fetchWikimediaImages(query), T)
+        .then((r) =>
+          setResults((prev) => ({ ...prev, images: [...prev.images, ...r] })),
+        )
+        .catch(() => {});
+      withTimeout(fetchArchiveImagesExtra(query), T)
+        .then((r) =>
+          setResults((prev) => ({ ...prev, images: [...prev.images, ...r] })),
+        )
+        .catch(() => {});
 
       // Videos (background)
       withTimeout(fetchInternetArchiveVideos(query), T)
@@ -628,6 +671,96 @@ export function useResearch() {
         )
         .catch(() => {});
       withTimeout(fetchArchiveHomeMovies(query), T)
+        .then((r) =>
+          setResults((prev) => ({ ...prev, videos: [...prev.videos, ...r] })),
+        )
+        .catch(() => {});
+      withTimeout(fetchArchiveDocumentaries(query), T)
+        .then((r) =>
+          setResults((prev) => ({ ...prev, videos: [...prev.videos, ...r] })),
+        )
+        .catch(() => {});
+      withTimeout(fetchArchiveSilentFilms(query), T)
+        .then((r) =>
+          setResults((prev) => ({ ...prev, videos: [...prev.videos, ...r] })),
+        )
+        .catch(() => {});
+      withTimeout(fetchArchiveShortFilms(query), T)
+        .then((r) =>
+          setResults((prev) => ({ ...prev, videos: [...prev.videos, ...r] })),
+        )
+        .catch(() => {});
+      withTimeout(fetchArchiveComedyFilms(query), T)
+        .then((r) =>
+          setResults((prev) => ({ ...prev, videos: [...prev.videos, ...r] })),
+        )
+        .catch(() => {});
+      withTimeout(fetchArchiveWesternFilms(query), T)
+        .then((r) =>
+          setResults((prev) => ({ ...prev, videos: [...prev.videos, ...r] })),
+        )
+        .catch(() => {});
+      withTimeout(fetchArchiveHorrorFilms(query), T)
+        .then((r) =>
+          setResults((prev) => ({ ...prev, videos: [...prev.videos, ...r] })),
+        )
+        .catch(() => {});
+      withTimeout(fetchInternetArchiveAll(query), T)
+        .then((r) =>
+          setResults((prev) => ({ ...prev, videos: [...prev.videos, ...r] })),
+        )
+        .catch(() => {});
+      withTimeout(fetchDailymotionVideos(query), T)
+        .then((r) =>
+          setResults((prev) => ({ ...prev, videos: [...prev.videos, ...r] })),
+        )
+        .catch(() => {});
+      withTimeout(fetchFreeMovies(query), T)
+        .then((r) =>
+          setResults((prev) => ({ ...prev, videos: [...prev.videos, ...r] })),
+        )
+        .catch(() => {});
+      withTimeout(fetchArchiveMystery(query), T)
+        .then((r) =>
+          setResults((prev) => ({ ...prev, videos: [...prev.videos, ...r] })),
+        )
+        .catch(() => {});
+      withTimeout(fetchArchiveFilmNoir(query), T)
+        .then((r) =>
+          setResults((prev) => ({ ...prev, videos: [...prev.videos, ...r] })),
+        )
+        .catch(() => {});
+      withTimeout(fetchArchiveNewsreels(query), T)
+        .then((r) =>
+          setResults((prev) => ({ ...prev, videos: [...prev.videos, ...r] })),
+        )
+        .catch(() => {});
+      withTimeout(fetchArchiveInstructional(query), T)
+        .then((r) =>
+          setResults((prev) => ({ ...prev, videos: [...prev.videos, ...r] })),
+        )
+        .catch(() => {});
+      withTimeout(fetchNFLFootage(query), T)
+        .then((r) =>
+          setResults((prev) => ({ ...prev, videos: [...prev.videos, ...r] })),
+        )
+        .catch(() => {});
+      withTimeout(fetchMusicConcerts(query), T)
+        .then((r) =>
+          setResults((prev) => ({ ...prev, videos: [...prev.videos, ...r] })),
+        )
+        .catch(() => {});
+      withTimeout(fetchOpenCulture(query), T)
+        .then((r) =>
+          setResults((prev) => ({ ...prev, videos: [...prev.videos, ...r] })),
+        )
+        .catch(() => {});
+      withTimeout(fetchPeertubeVideos(query), T)
+        .then((r) =>
+          setResults((prev) => ({ ...prev, videos: [...prev.videos, ...r] })),
+        )
+        .catch(() => {});
+      withTimeout(fetchOdyseeVideos(query), T)
         .then((r) =>
           setResults((prev) => ({ ...prev, videos: [...prev.videos, ...r] })),
         )

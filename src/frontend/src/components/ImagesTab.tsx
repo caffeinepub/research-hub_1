@@ -10,7 +10,7 @@ import {
   ZoomIn,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { WikiImage } from "../types/research";
 import { SensitiveContentBlur } from "./SensitiveContentBlur";
 
@@ -19,6 +19,7 @@ interface Props {
   loading: boolean;
   fuzzyUsed?: boolean;
   hasSearched?: boolean;
+  query?: string;
 }
 
 const PAGE_SIZE = 30;
@@ -52,6 +53,7 @@ const SOURCE_COLORS: Record<string, string> = {
   DPLA: "bg-purple-500/10 text-purple-400 border-purple-500/20",
   Rijksmuseum: "bg-orange-600/10 text-orange-400 border-orange-600/20",
   Pixabay: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+  Reddit: "bg-orange-500/10 text-orange-400 border-orange-500/20",
 };
 
 const TOPIC_CHIPS = [
@@ -61,7 +63,13 @@ const TOPIC_CHIPS = [
   { label: "History", query: "history" },
 ];
 
-export function ImagesTab({ images, loading, fuzzyUsed, hasSearched }: Props) {
+export function ImagesTab({
+  images,
+  loading,
+  fuzzyUsed,
+  hasSearched,
+  query,
+}: Props) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -71,40 +79,93 @@ export function ImagesTab({ images, loading, fuzzyUsed, hasSearched }: Props) {
     setVisibleCount(PAGE_SIZE);
   }, [images]);
 
+  const [redditImages, setRedditImages] = useState<WikiImage[]>([]);
+
+  useEffect(() => {
+    if (!query) {
+      setRedditImages([]);
+      return;
+    }
+    const controller = new AbortController();
+    fetch(
+      `https://www.reddit.com/r/pics/search.json?q=${encodeURIComponent(query)}&sort=top&limit=25&t=all`,
+      { headers: { Accept: "application/json" }, signal: controller.signal },
+    )
+      .then((r) => r.json())
+      .then((data) => {
+        const imgs: WikiImage[] = (data?.data?.children ?? [])
+          .filter(
+            (c: any) =>
+              c.data.url && /\.(jpg|jpeg|png|gif|webp)$/i.test(c.data.url),
+          )
+          .map((c: any) => ({
+            pageid: c.data.id,
+            title: c.data.title,
+            url: c.data.url,
+            thumbUrl:
+              c.data.thumbnail !== "self" && c.data.thumbnail !== "default"
+                ? c.data.thumbnail
+                : c.data.url,
+            source: "Reddit",
+            license: "Reddit post",
+            artist: c.data.author,
+            description: c.data.subreddit_name_prefixed,
+            sensitive: false,
+          }));
+        setRedditImages(imgs);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [query]);
+
+  const allImages: WikiImage[] = useMemo(() => {
+    const seen = new Set<string | number>();
+    const merged: WikiImage[] = [];
+    for (const img of [...images, ...redditImages]) {
+      if (!seen.has(img.pageid)) {
+        seen.add(img.pageid);
+        merged.push(img);
+      }
+    }
+    return merged;
+  }, [images, redditImages]);
+
   // Infinite scroll via IntersectionObserver
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting && visibleCount < images.length) {
-          setVisibleCount((c) => Math.min(c + PAGE_SIZE, images.length));
+        if (entries[0]?.isIntersecting && visibleCount < allImages.length) {
+          setVisibleCount((c) => Math.min(c + PAGE_SIZE, allImages.length));
         }
       },
       { rootMargin: "200px" },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [visibleCount, images.length]);
+  }, [visibleCount, allImages.length]);
 
   useEffect(() => {
     if (lightboxIndex === null) return;
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowLeft") {
         setLightboxIndex((i) =>
-          i === null ? null : (i - 1 + images.length) % images.length,
+          i === null ? null : (i - 1 + allImages.length) % allImages.length,
         );
       } else if (e.key === "ArrowRight") {
-        setLightboxIndex((i) => (i === null ? null : (i + 1) % images.length));
+        setLightboxIndex((i) =>
+          i === null ? null : (i + 1) % allImages.length,
+        );
       } else if (e.key === "Escape") {
         setLightboxIndex(null);
       }
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [lightboxIndex, images.length]);
+  }, [lightboxIndex, allImages.length]);
 
-  const visibleImages = images.slice(0, visibleCount);
+  const visibleImages = allImages.slice(0, visibleCount);
   const lightboxImage = lightboxIndex !== null ? images[lightboxIndex] : null;
 
   if (loading) {
@@ -157,7 +218,7 @@ export function ImagesTab({ images, loading, fuzzyUsed, hasSearched }: Props) {
     );
   }
 
-  if (images.length === 0) {
+  if (allImages.length === 0) {
     return (
       <div
         data-ocid="images.empty_state"
@@ -256,7 +317,7 @@ export function ImagesTab({ images, loading, fuzzyUsed, hasSearched }: Props) {
               </button>
             )}
 
-            {lightboxIndex < images.length - 1 && (
+            {lightboxIndex < allImages.length - 1 && (
               <button
                 type="button"
                 data-ocid="images.pagination_next"

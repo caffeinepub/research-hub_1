@@ -20,21 +20,26 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Ban,
+  BookImage,
   CheckCircle,
+  Crown,
   Flag,
   Globe,
   Lock,
   LogOut,
   MessageSquare,
   Plus,
+  RefreshCw,
   Settings,
   Shield,
   Trash2,
   Users,
   VolumeX,
+  Vote,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { ComicsTab } from "./ComicsTab";
 
 const ADMIN_PASSCODE = "TRX";
 
@@ -143,6 +148,151 @@ export function AdminPage() {
   const [domains, setDomains] = useState<string[]>([]);
   const [newDomain, setNewDomain] = useState("");
   const [reports, setReports] = useState<ReportEntry[]>([]);
+
+  // Role management state
+  const [roles, setRoles] = useState<
+    Record<string, "user" | "moderator" | "admin">
+  >(() => {
+    try {
+      return JSON.parse(localStorage.getItem("researchhub_roles") || "{}");
+    } catch {
+      return {};
+    }
+  });
+  const [roleRequests, setRoleRequests] = useState<
+    {
+      id: number;
+      requester: string;
+      targetUser: string;
+      targetRole: string;
+      timestamp: number;
+    }[]
+  >(() => {
+    try {
+      return JSON.parse(
+        localStorage.getItem("researchhub_role_requests") || "[]",
+      );
+    } catch {
+      return [];
+    }
+  });
+
+  // Chat controls state
+  const [chatBlocks, setChatBlocks] = useState<Record<string, string[]>>(() => {
+    try {
+      return JSON.parse(
+        localStorage.getItem("researchhub_chat_blocks") || "{}",
+      );
+    } catch {
+      return {};
+    }
+  });
+  const [polls, setPolls] = useState<
+    {
+      id: number;
+      roomId: string;
+      targetUser: string;
+      question: string;
+      yesVotes: number;
+      noVotes: number;
+      createdAt: number;
+      resolved: boolean;
+    }[]
+  >(() => {
+    try {
+      return JSON.parse(localStorage.getItem("researchhub_polls") || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [liveCounts] = useState<Record<string, number>>(() => {
+    const rooms = [
+      "general",
+      "science",
+      "history",
+      "technology",
+      "art",
+      "memes",
+    ];
+    return Object.fromEntries(
+      rooms.map((r) => [r, Math.floor(Math.random() * 50) + 1]),
+    );
+  });
+
+  const [blockChatTarget, setBlockChatTarget] = useState<{
+    room: string;
+    username: string;
+  } | null>(null);
+  const [pollTarget, setPollTarget] = useState<{
+    room: string;
+    username: string;
+  } | null>(null);
+  const [newBlockUser, setNewBlockUser] = useState("");
+  const [newPollUser, setNewPollUser] = useState("");
+
+  const saveRoles = (r: Record<string, "user" | "moderator" | "admin">) => {
+    localStorage.setItem("researchhub_roles", JSON.stringify(r));
+    setRoles(r);
+  };
+
+  const promoteUser = (
+    username: string,
+    role: "user" | "moderator" | "admin",
+  ) => {
+    const updated = { ...roles, [username]: role };
+    saveRoles(updated);
+    toast.success(`${username} is now ${role}`);
+  };
+
+  const blockFromChat = (room: string, username: string) => {
+    const updated = {
+      ...chatBlocks,
+      [room]: [...(chatBlocks[room] || []), username],
+    };
+    localStorage.setItem("researchhub_chat_blocks", JSON.stringify(updated));
+    setChatBlocks(updated);
+    toast.success(`${username} blocked from #${room}`);
+    setBlockChatTarget(null);
+    setNewBlockUser("");
+  };
+
+  const unblockFromChat = (room: string, username: string) => {
+    const updated = {
+      ...chatBlocks,
+      [room]: (chatBlocks[room] || []).filter((u) => u !== username),
+    };
+    localStorage.setItem("researchhub_chat_blocks", JSON.stringify(updated));
+    setChatBlocks(updated);
+    toast.success(`${username} unblocked from #${room}`);
+  };
+
+  const createPoll = (room: string, username: string) => {
+    const newPoll = {
+      id: Date.now(),
+      roomId: room,
+      targetUser: username,
+      question: `Should ${username} be blocked from #${room}?`,
+      yesVotes: 0,
+      noVotes: 0,
+      createdAt: Date.now(),
+      resolved: false,
+    };
+    const updated = [...polls, newPoll];
+    localStorage.setItem("researchhub_polls", JSON.stringify(updated));
+    setPolls(updated);
+    toast.success(`Poll created for ${username} in #${room}`);
+    setPollTarget(null);
+    setNewPollUser("");
+  };
+
+  const resolvePoll = (pollId: number) => {
+    const updated = polls.map((p) =>
+      p.id === pollId ? { ...p, resolved: true } : p,
+    );
+    localStorage.setItem("researchhub_polls", JSON.stringify(updated));
+    setPolls(updated);
+    toast.success("Poll resolved");
+  };
 
   // Ban dialog state
   const [banTarget, setBanTarget] = useState<string | null>(null);
@@ -412,31 +562,39 @@ export function AdminPage() {
       </div>
 
       <Tabs defaultValue="overview" className="flex-1 flex flex-col">
-        <TabsList
-          className="mx-3 mt-3 mb-0 grid grid-cols-6 h-8"
-          style={{ background: "oklch(0.15 0.03 260)" }}
+        <div
+          className="overflow-x-auto mx-3 mt-3 mb-0"
+          style={{ scrollbarWidth: "none" }}
         >
-          {(
-            [
-              "overview",
-              "reports",
-              "users",
-              "posts",
-              "banned",
-              "settings",
-            ] as const
-          ).map((tab) => (
-            <TabsTrigger
-              key={tab}
-              value={tab}
-              data-ocid={`admin.${tab}.tab`}
-              className="text-xs capitalize"
-              style={{ color: "oklch(0.65 0.04 240)" }}
-            >
-              {tab}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+          <TabsList
+            className="grid grid-cols-9 h-8 w-max min-w-full"
+            style={{ background: "oklch(0.15 0.03 260)" }}
+          >
+            {(
+              [
+                "overview",
+                "reports",
+                "users",
+                "posts",
+                "banned",
+                "roles",
+                "chats",
+                "comics",
+                "settings",
+              ] as const
+            ).map((tab) => (
+              <TabsTrigger
+                key={tab}
+                value={tab}
+                data-ocid={`admin.${tab}.tab`}
+                className="text-xs capitalize"
+                style={{ color: "oklch(0.65 0.04 240)" }}
+              >
+                {tab}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
 
         <ScrollArea className="flex-1">
           {/* ── Overview ── */}
@@ -1032,8 +1190,474 @@ export function AdminPage() {
               </Button>
             </div>
           </TabsContent>
+
+          {/* ── Roles Tab ── */}
+          <TabsContent value="roles" className="p-3 space-y-3 m-0">
+            <h3
+              className="text-xs font-semibold"
+              style={{ color: "oklch(0.60 0.04 240)" }}
+            >
+              USER ROLES
+            </h3>
+            <p className="text-xs" style={{ color: "oklch(0.50 0.04 240)" }}>
+              As head admin, you can promote/demote any user. Lower admins can
+              only submit promotion requests.
+            </p>
+            {/* Pending requests */}
+            {roleRequests.filter((r) => !r.id).length > 0 && (
+              <div
+                style={{
+                  background: "oklch(0.14 0.03 260)",
+                  borderRadius: 8,
+                  padding: 12,
+                }}
+              >
+                <p
+                  className="text-xs font-semibold mb-2"
+                  style={{ color: "oklch(0.75 0.14 50)" }}
+                >
+                  Pending Requests
+                </p>
+                {roleRequests.map((req) => (
+                  <div
+                    key={req.id}
+                    className="flex items-center justify-between gap-2 py-1"
+                  >
+                    <p
+                      className="text-xs"
+                      style={{ color: "oklch(0.80 0.02 240)" }}
+                    >
+                      Promote <strong>{req.targetUser}</strong> to{" "}
+                      {req.targetRole}
+                    </p>
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        className="h-6 text-xs px-2"
+                        style={{ background: "oklch(0.52 0.18 145)" }}
+                        onClick={() => {
+                          promoteUser(
+                            req.targetUser,
+                            req.targetRole as "moderator" | "admin",
+                          );
+                          setRoleRequests((prev) =>
+                            prev.filter((r) => r.id !== req.id),
+                          );
+                          localStorage.setItem(
+                            "researchhub_role_requests",
+                            JSON.stringify(
+                              roleRequests.filter((r) => r.id !== req.id),
+                            ),
+                          );
+                        }}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-6 text-xs px-2"
+                        onClick={() => {
+                          const u = roleRequests.filter((r) => r.id !== req.id);
+                          setRoleRequests(u);
+                          localStorage.setItem(
+                            "researchhub_role_requests",
+                            JSON.stringify(u),
+                          );
+                        }}
+                      >
+                        Deny
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* User list */}
+            <div className="space-y-2">
+              {allUsers.map((username) => {
+                const role = roles[username] || "user";
+                return (
+                  <div
+                    key={username}
+                    className="flex items-center justify-between p-2 rounded-lg"
+                    style={{ background: "oklch(0.14 0.03 260)" }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+                        style={{
+                          background: "oklch(0.22 0.05 260)",
+                          color: "oklch(0.72 0.08 240)",
+                        }}
+                      >
+                        {username.slice(0, 2).toUpperCase()}
+                      </div>
+                      <span
+                        className="text-sm"
+                        style={{ color: "oklch(0.88 0.02 240)" }}
+                      >
+                        {username}
+                      </span>
+                      <span
+                        className="text-[10px] px-1.5 py-0.5 rounded-full"
+                        style={{
+                          background:
+                            role === "admin"
+                              ? "oklch(0.60 0.18 30 / 0.2)"
+                              : role === "moderator"
+                                ? "oklch(0.60 0.18 220 / 0.2)"
+                                : "oklch(0.22 0.04 260)",
+                          color:
+                            role === "admin"
+                              ? "oklch(0.80 0.18 30)"
+                              : role === "moderator"
+                                ? "oklch(0.72 0.18 220)"
+                                : "oklch(0.60 0.04 240)",
+                        }}
+                      >
+                        {role}
+                      </span>
+                    </div>
+                    <div className="flex gap-1">
+                      {role !== "admin" && (
+                        <Button
+                          size="sm"
+                          className="h-6 text-[10px] px-2"
+                          style={{
+                            background: "oklch(0.60 0.18 30 / 0.2)",
+                            color: "oklch(0.80 0.18 30)",
+                          }}
+                          onClick={() => promoteUser(username, "admin")}
+                        >
+                          <Crown className="w-3 h-3 mr-1" />
+                          Admin
+                        </Button>
+                      )}
+                      {role !== "moderator" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-[10px] px-2"
+                          onClick={() =>
+                            promoteUser(
+                              username,
+                              role === "admin" ? "moderator" : "moderator",
+                            )
+                          }
+                        >
+                          Mod
+                        </Button>
+                      )}
+                      {role !== "user" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-[10px] px-2"
+                          onClick={() => promoteUser(username, "user")}
+                        >
+                          Demote
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {allUsers.length === 0 && (
+                <p
+                  className="text-sm italic text-center py-8"
+                  style={{ color: "oklch(0.50 0.04 240)" }}
+                >
+                  No users yet. Users appear here once they post in Community.
+                </p>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* ── Chats Tab ── */}
+          <TabsContent value="chats" className="p-3 space-y-3 m-0">
+            <div className="flex items-center justify-between">
+              <h3
+                className="text-xs font-semibold"
+                style={{ color: "oklch(0.60 0.04 240)" }}
+              >
+                LIVE CHAT CONTROLS
+              </h3>
+            </div>
+            <p className="text-xs" style={{ color: "oklch(0.50 0.04 240)" }}>
+              Head admin can block directly. Lower admins must run a poll
+              (majority Yes required to block).
+            </p>
+            {Object.entries(liveCounts).map(([room, count]) => (
+              <div
+                key={room}
+                className="p-3 rounded-xl space-y-2"
+                style={{
+                  background: "oklch(0.14 0.03 260)",
+                  border: "1px solid oklch(0.22 0.04 260)",
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare
+                      className="w-3.5 h-3.5"
+                      style={{ color: "oklch(0.60 0.10 220)" }}
+                    />
+                    <span
+                      className="text-sm font-semibold"
+                      style={{ color: "oklch(0.88 0.02 240)" }}
+                    >
+                      #{room}
+                    </span>
+                    <span
+                      className="text-[10px] px-1.5 py-0.5 rounded-full"
+                      style={{
+                        background: "oklch(0.52 0.18 145 / 0.15)",
+                        color: "oklch(0.65 0.18 145)",
+                      }}
+                    >
+                      {count} online
+                    </span>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <Button
+                      size="sm"
+                      className="h-6 text-[10px] px-2"
+                      style={{
+                        background: "oklch(0.60 0.18 30 / 0.2)",
+                        color: "oklch(0.80 0.18 30)",
+                      }}
+                      onClick={() => setBlockChatTarget({ room, username: "" })}
+                    >
+                      <Ban className="w-3 h-3 mr-1" />
+                      Block User
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[10px] px-2"
+                      onClick={() => setPollTarget({ room, username: "" })}
+                    >
+                      <Vote className="w-3 h-3 mr-1" />
+                      Run Poll
+                    </Button>
+                  </div>
+                </div>
+                {/* Blocked users in this room */}
+                {(chatBlocks[room] || []).length > 0 && (
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {(chatBlocks[room] || []).map((u) => (
+                      <span
+                        key={u}
+                        className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full"
+                        style={{
+                          background: "oklch(0.60 0.18 30 / 0.1)",
+                          color: "oklch(0.70 0.10 30)",
+                        }}
+                      >
+                        {u}
+                        <button
+                          type="button"
+                          onClick={() => unblockFromChat(room, u)}
+                          className="hover:opacity-70"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {/* Active polls for this room */}
+                {polls
+                  .filter((p) => p.roomId === room && !p.resolved)
+                  .map((poll) => (
+                    <div
+                      key={poll.id}
+                      className="p-2 rounded-lg"
+                      style={{
+                        background: "oklch(0.18 0.05 260)",
+                        border: "1px solid oklch(0.28 0.06 260)",
+                      }}
+                    >
+                      <p
+                        className="text-xs mb-1"
+                        style={{ color: "oklch(0.80 0.02 240)" }}
+                      >
+                        {poll.question}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="text-[10px]"
+                          style={{ color: "oklch(0.65 0.18 145)" }}
+                        >
+                          Yes: {poll.yesVotes}
+                        </span>
+                        <span
+                          className="text-[10px]"
+                          style={{ color: "oklch(0.65 0.18 30)" }}
+                        >
+                          No: {poll.noVotes}
+                        </span>
+                        <Button
+                          size="sm"
+                          className="h-5 text-[10px] px-2 ml-auto"
+                          style={{
+                            background: "oklch(0.60 0.18 220 / 0.2)",
+                            color: "oklch(0.72 0.18 220)",
+                          }}
+                          onClick={() => resolvePoll(poll.id)}
+                        >
+                          Resolve
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            ))}
+          </TabsContent>
+
+          {/* ── Comics Tab ── */}
+          <TabsContent value="comics" className="p-3 m-0">
+            <div className="flex items-center gap-2 mb-3">
+              <BookImage
+                className="w-4 h-4"
+                style={{ color: "oklch(0.72 0.14 280)" }}
+              />
+              <h3
+                className="text-xs font-semibold"
+                style={{ color: "oklch(0.60 0.04 240)" }}
+              >
+                COMICS LIBRARY
+              </h3>
+              <span
+                className="text-xs"
+                style={{ color: "oklch(0.50 0.04 240)" }}
+              >
+                (Admin only)
+              </span>
+            </div>
+            <ComicsTab />
+          </TabsContent>
         </ScrollArea>
       </Tabs>
+
+      {/* Block from Chat Dialog */}
+      <Dialog
+        open={!!blockChatTarget}
+        onOpenChange={(v) => !v && setBlockChatTarget(null)}
+      >
+        <DialogContent
+          data-ocid="admin.block_chat.dialog"
+          style={{
+            background: "oklch(0.13 0.03 260)",
+            border: "1px solid oklch(0.22 0.04 260)",
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle style={{ color: "oklch(0.92 0.02 240)" }}>
+              Block User from Chat
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs" style={{ color: "oklch(0.60 0.04 240)" }}>
+              Room: #{blockChatTarget?.room}
+            </p>
+            <div>
+              <Label style={{ color: "oklch(0.65 0.04 240)" }}>
+                Username to block
+              </Label>
+              <Input
+                value={newBlockUser}
+                onChange={(e) => setNewBlockUser(e.target.value)}
+                placeholder="Enter username"
+                style={{ background: "oklch(0.16 0.03 260)", color: "white" }}
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setBlockChatTarget(null)}
+              data-ocid="admin.block_chat.cancel_button"
+            >
+              Cancel
+            </Button>
+            <Button
+              style={{ background: "oklch(0.60 0.18 30)" }}
+              data-ocid="admin.block_chat.confirm_button"
+              onClick={() =>
+                blockChatTarget &&
+                newBlockUser.trim() &&
+                blockFromChat(blockChatTarget.room, newBlockUser.trim())
+              }
+            >
+              Block User
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Run Poll Dialog */}
+      <Dialog
+        open={!!pollTarget}
+        onOpenChange={(v) => !v && setPollTarget(null)}
+      >
+        <DialogContent
+          data-ocid="admin.poll.dialog"
+          style={{
+            background: "oklch(0.13 0.03 260)",
+            border: "1px solid oklch(0.22 0.04 260)",
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle style={{ color: "oklch(0.92 0.02 240)" }}>
+              Run a Poll
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs" style={{ color: "oklch(0.60 0.04 240)" }}>
+              Room: #{pollTarget?.room}
+            </p>
+            <div>
+              <Label style={{ color: "oklch(0.65 0.04 240)" }}>
+                Username for poll
+              </Label>
+              <Input
+                value={newPollUser}
+                onChange={(e) => setNewPollUser(e.target.value)}
+                placeholder="Enter username"
+                style={{ background: "oklch(0.16 0.03 260)", color: "white" }}
+                className="mt-1"
+              />
+            </div>
+            <p className="text-xs" style={{ color: "oklch(0.55 0.04 240)" }}>
+              A poll will be created: "Should [username] be blocked from
+              #[room]?"
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPollTarget(null)}
+              data-ocid="admin.poll.cancel_button"
+            >
+              Cancel
+            </Button>
+            <Button
+              style={{ background: "oklch(0.60 0.18 220)" }}
+              data-ocid="admin.poll.confirm_button"
+              onClick={() =>
+                pollTarget &&
+                newPollUser.trim() &&
+                createPoll(pollTarget.room, newPollUser.trim())
+              }
+            >
+              Create Poll
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Ban / Mute Dialog */}
       <Dialog open={!!banTarget} onOpenChange={(v) => !v && setBanTarget(null)}>

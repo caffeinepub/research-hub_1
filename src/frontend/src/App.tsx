@@ -44,25 +44,31 @@ import { ArchiveTab } from "./components/ArchiveTab";
 import { ArticleDetailPage } from "./components/ArticleDetailPage";
 import { ArticlesTab } from "./components/ArticlesTab";
 import { AudioTab } from "./components/AudioTab";
+import { AuthModal } from "./components/AuthModal";
 import { BrowserPage } from "./components/BrowserPage";
 import { ComicsTab } from "./components/ComicsTab";
 import { CommunityChatsPage } from "./components/CommunityChatsPage";
 import { DatasetsTab } from "./components/DatasetsTab";
 import { DictionaryTab } from "./components/DictionaryTab";
 import { DiscoverPage } from "./components/DiscoverPage";
+import { EBooksTab } from "./components/EBooksTab";
 import { FilmsTab } from "./components/FilmsTab";
 import { ImagesTab } from "./components/ImagesTab";
 import { InteractiveToolsTab } from "./components/InteractiveToolsTab";
+import { LandingPage } from "./components/LandingPage";
+import { LiteratureTab } from "./components/LiteratureTab";
 import { MemesTab } from "./components/MemesTab";
 import { MessagesPage } from "./components/MessagesPage";
 import { NewsTab } from "./components/NewsTab";
 import { ProfilePage } from "./components/ProfilePage";
+import { ResearchHubBrowser } from "./components/ResearchHubBrowser";
 import { SettingsPage } from "./components/SettingsPage";
 import { UniversalSearchResults } from "./components/UniversalSearchResults";
 import { VideosTab } from "./components/VideosTab";
 import { useResearch } from "./hooks/useResearch";
 import type { WikiArticle } from "./types/research";
 import { claimDailyLogin } from "./utils/aiCredits";
+import { getSettings } from "./utils/settings";
 
 const TOPIC_CHIPS = [
   { label: "Space", query: "space cosmos universe" },
@@ -71,7 +77,7 @@ const TOPIC_CHIPS = [
   { label: "Technology", query: "technology computing innovation" },
   { label: "Nature", query: "nature wildlife environment" },
   { label: "Art", query: "art culture renaissance" },
-  { label: "Comics", query: "comics superhero batman superman" },
+  { label: "Literature", query: "classic novels literature" },
 ];
 
 const COLLECTION_TILES = [
@@ -124,12 +130,12 @@ const COLLECTION_TILES = [
     count: "Millions of GIFs",
   },
   {
-    id: "comics",
-    icon: BookImage,
-    title: "Comics",
-    desc: "Public domain comics from Archive.org, Digital Comic Museum & more",
-    colorVar: "--comics-accent",
-    count: "50K+ comics",
+    id: "ebooks",
+    icon: BookOpen,
+    title: "Literature",
+    desc: "Books, comics, graphic novels from Project Gutenberg, Open Library, Archive.org and more",
+    colorVar: "--books-accent",
+    count: "3M+ books",
   },
 ];
 
@@ -141,13 +147,16 @@ type NavKey =
   | "dictionary"
   | "profile"
   | "comics"
+  | "ebooks"
+  | "literature"
   | "admin"
   | "settings"
   | "messages"
   | "news"
   | "datasets"
   | "tools"
-  | "archive";
+  | "archive"
+  | "browser";
 
 export default function App() {
   const [query, setQuery] = useState("");
@@ -160,14 +169,27 @@ export default function App() {
   const [prevView, setPrevView] = useState<"search" | "discover">("search");
   const [showUniversal, setShowUniversal] = useState(true);
   const [showBrowser, setShowBrowser] = useState(false);
+  const [browserUrl, setBrowserUrl] = useState<string | undefined>(undefined);
   const [viewingProfileUser, setViewingProfileUser] = useState<
     string | undefined
   >(undefined);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [, forceRefresh] = useState(0);
 
-  // Claim daily login reward silently on app start
+  // Claim daily login reward silently on app start + apply settings
   useEffect(() => {
     claimDailyLogin();
+    // Apply persisted settings
+    const s = getSettings();
+    if (s.darkMode) document.documentElement.classList.add("dark");
+    else document.documentElement.classList.remove("dark");
+    const sizeMap: Record<string, string> = {
+      small: "14px",
+      medium: "16px",
+      large: "18px",
+    };
+    document.body.style.fontSize = sizeMap[s.textSize] || "16px";
   }, []);
   const {
     status,
@@ -179,9 +201,26 @@ export default function App() {
     expandArticle,
   } = useResearch();
 
+  const looksLikeUrl = (s: string) => {
+    const trimmed = s.trim();
+    return (
+      /^https?:\/\//i.test(trimmed) ||
+      /^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}([\/\?#]|$)/.test(trimmed)
+    );
+  };
+
   const handleSearch = (q?: string) => {
     const searchQuery = q ?? query;
     if (!searchQuery.trim()) return;
+    if (looksLikeUrl(searchQuery)) {
+      const url = /^https?:\/\//i.test(searchQuery)
+        ? searchQuery
+        : `https://${searchQuery}`;
+      setBrowserUrl(url);
+      setView("browser");
+      setBottomNav("browser");
+      return;
+    }
     search(searchQuery);
     setActiveTab("articles");
     setShowUniversal(true);
@@ -230,6 +269,30 @@ export default function App() {
   const isLoading = status === "loading";
 
   void inputRef;
+
+  // Show landing page if not logged in
+  const currentUserRaw = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("researchHubUser") || "null");
+    } catch {
+      return null;
+    }
+  })();
+  if (!currentUserRaw) {
+    return (
+      <>
+        <LandingPage onGetStarted={() => setShowAuthModal(true)} />
+        <AuthModal
+          open={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+          onSuccess={() => {
+            setShowAuthModal(false);
+            forceRefresh((n) => n + 1);
+          }}
+        />
+      </>
+    );
+  }
 
   // Article detail view
   if (view === "article" && selectedArticle) {
@@ -336,7 +399,34 @@ export default function App() {
         >
           <div className="flex-1 flex flex-col min-h-0">
             <CommunityChatsPage
-              currentUser={{ username: "Guest", avatar: "", isAdmin: false }}
+              currentUser={{
+                username: (() => {
+                  try {
+                    return (
+                      JSON.parse(
+                        localStorage.getItem("researchHubUser") || "null",
+                      )?.username ||
+                      localStorage.getItem("chat_username") ||
+                      ""
+                    );
+                  } catch {
+                    return "";
+                  }
+                })(),
+                avatar: "",
+                isAdmin: (() => {
+                  try {
+                    return (
+                      JSON.parse(
+                        localStorage.getItem("researchHubUser") || "null",
+                      )?.isAdmin ?? false
+                    );
+                  } catch {
+                    return false;
+                  }
+                })(),
+              }}
+              onOpenAuth={() => setShowAuthModal(true)}
             />
           </div>
         </main>
@@ -397,6 +487,53 @@ export default function App() {
   }
 
   // Comics view
+  if (view === "literature") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <ArchiveHeader
+          query={query}
+          setQuery={setQuery}
+          onSearch={handleSearch}
+          isLoading={isLoading}
+          activeNav={bottomNav}
+          onNav={handleBottomNav}
+          onToggleBrowser={() => setShowBrowser(!showBrowser)}
+          showBrowser={showBrowser}
+        />
+        <main
+          className="flex-1 flex flex-col overflow-hidden"
+          style={{ paddingBottom: "56px", paddingTop: 0 }}
+        >
+          <div className="flex-1 overflow-y-auto px-4 py-4">
+            <LiteratureTab />
+          </div>
+        </main>
+        <BottomNav current={bottomNav} onChange={handleBottomNav} />
+      </div>
+    );
+  }
+
+  if (view === "ebooks") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <ArchiveHeader
+          query={query}
+          setQuery={setQuery}
+          onSearch={handleSearch}
+          isLoading={isLoading}
+          activeNav={bottomNav}
+          onNav={handleBottomNav}
+          showBrowser={showBrowser}
+          onToggleBrowser={() => setShowBrowser((b) => !b)}
+        />
+        <main className="flex-1 container mx-auto px-4 py-4 max-w-6xl pb-24 overflow-auto">
+          <EBooksTab />
+        </main>
+        <BottomNav current={bottomNav} onChange={handleBottomNav} />
+      </div>
+    );
+  }
+
   if (view === "comics") {
     return (
       <div className="min-h-screen bg-background flex flex-col">
@@ -465,7 +602,7 @@ export default function App() {
   // Messages view
   if (view === "messages") {
     return (
-      <div className="min-h-screen bg-background flex flex-col">
+      <div className="h-screen bg-background flex flex-col overflow-hidden">
         <ArchiveHeader
           query={query}
           setQuery={setQuery}
@@ -476,7 +613,10 @@ export default function App() {
           showBrowser={showBrowser}
           onToggleBrowser={() => setShowBrowser((b) => !b)}
         />
-        <main className="flex-1 container mx-auto px-4 py-4 max-w-5xl pb-24 overflow-auto">
+        <main
+          className="flex-1 min-h-0 overflow-hidden"
+          style={{ paddingBottom: "56px" }}
+        >
           <MessagesPage />
         </main>
         <BottomNav current={bottomNav} onChange={handleBottomNav} />
@@ -545,6 +685,17 @@ export default function App() {
         <main className="flex-1 container mx-auto px-4 py-4 max-w-6xl pb-24 overflow-auto">
           <ArchiveTab />
         </main>
+        <BottomNav current={bottomNav} onChange={handleBottomNav} />
+      </div>
+    );
+  }
+
+  if (view === "browser") {
+    return (
+      <div className="h-screen bg-background flex flex-col overflow-hidden">
+        <div className="flex-1 min-h-0">
+          <ResearchHubBrowser initialUrl={browserUrl} />
+        </div>
         <BottomNav current={bottomNav} onChange={handleBottomNav} />
       </div>
     );
@@ -635,7 +786,7 @@ export default function App() {
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search articles, images, videos, comics, audio..."
+                placeholder="Search articles, images, videos, e-books, audio..."
                 className="flex-1 bg-transparent outline-none text-white placeholder:text-muted-foreground text-base"
                 style={{ color: "white" }}
               />
@@ -695,8 +846,8 @@ export default function App() {
                 },
               },
               {
-                label: "Comics",
-                nav: "comics" as NavKey,
+                label: "Literature",
+                nav: "literature" as NavKey,
                 color: "oklch(0.72 0.18 30)",
                 action: null as null | (() => void),
               },
@@ -858,6 +1009,8 @@ export default function App() {
                     onClick={() => {
                       if (tile.id === "study") {
                         handleBottomNav("ai");
+                      } else if (tile.id === "ebooks") {
+                        handleBottomNav("literature");
                       } else if (tile.id === "comics") {
                         handleBottomNav("comics");
                       } else {
@@ -1102,6 +1255,7 @@ export default function App() {
                       loading={isLoading}
                       fuzzyUsed={fuzzyUsed}
                       hasSearched={hasResults || isLoading}
+                      query={query}
                     />
                   </TabsContent>
                   <TabsContent value="audio">
@@ -1117,6 +1271,7 @@ export default function App() {
                       loading={isLoading}
                       fuzzyUsed={fuzzyUsed}
                       hasSearched={hasResults || isLoading}
+                      query={query}
                     />
                   </TabsContent>
                   <TabsContent value="films">
@@ -1151,15 +1306,13 @@ export default function App() {
             </span>
           </div>
           <p>
-            &copy; {new Date().getFullYear()}. Built with ❤️ using{" "}
-            <a
-              href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-foreground transition-colors"
+            &copy; {new Date().getFullYear()} by{" "}
+            <span
+              className="font-semibold"
+              style={{ color: "oklch(0.65 0.10 220)" }}
             >
-              caffeine.ai
-            </a>
+              MEGATRX design
+            </span>
           </p>
         </div>
       </footer>
@@ -1369,7 +1522,11 @@ function ArchiveHeader({
                 icon: BookType,
                 label: "Dictionary",
               },
-              { key: "comics" as NavKey, icon: BookImage, label: "Comics" },
+              {
+                key: "literature" as NavKey,
+                icon: BookImage,
+                label: "Literature",
+              },
               { key: "messages" as NavKey, icon: Mail, label: "Messages" },
               { key: "settings" as NavKey, icon: Settings, label: "Settings" },
               { key: "archive" as NavKey, icon: Archive, label: "Archive" },
@@ -1419,7 +1576,7 @@ function BottomNav({
     label: string;
   }[] = [
     { key: "search", icon: Search, label: "Search" },
-    { key: "discover", icon: Compass, label: "Discover" },
+    { key: "browser" as NavKey, icon: Globe2, label: "Browser" },
     { key: "news", icon: Newspaper, label: "News" },
     { key: "ai", icon: Sparkles, label: "AI" },
     { key: "chat", icon: MessageSquare, label: "Community" },
@@ -1427,8 +1584,9 @@ function BottomNav({
   ];
 
   const moreItems: { key: NavKey; icon: React.ElementType; label: string }[] = [
+    { key: "discover" as NavKey, icon: Compass, label: "Discover" },
     { key: "dictionary", icon: BookType, label: "Dictionary" },
-    { key: "comics", icon: BookImage, label: "Comics" },
+    { key: "literature" as NavKey, icon: BookImage, label: "Literature" },
     { key: "archive" as NavKey, icon: Archive, label: "Archive" },
     { key: "datasets", icon: BarChart3, label: "Datasets" },
     { key: "tools", icon: FlaskConical, label: "Tools" },

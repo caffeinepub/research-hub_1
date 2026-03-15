@@ -239,8 +239,10 @@ export async function fetchClevelandMuseumImages(
 // Archive.org image search with proper URLSearchParams
 export async function fetchArchiveImages(query: string): Promise<WikiImage[]> {
   try {
+    const q =
+      query.trim() || "subject:(photograph OR illustration OR art OR image)";
     const params = new URLSearchParams({
-      q: `${query} AND mediatype:image`,
+      q: `(${q}) AND mediatype:image`,
       output: "json",
       rows: "50",
     });
@@ -249,7 +251,10 @@ export async function fetchArchiveImages(query: string): Promise<WikiImage[]> {
     params.append("fl[]", "description");
     params.append("sort[]", "downloads desc");
     const url = `https://archive.org/advancedsearch.php?${params.toString()}`;
-    const res = await fetch(url);
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 25000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(tid);
     if (!res.ok) return [];
     const data = await res.json();
     return (data?.response?.docs ?? [])
@@ -429,6 +434,127 @@ export async function fetchImgurImages(query: string): Promise<WikiImage[]> {
       description: item.description ?? "",
       source: "Imgur",
     }));
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchUnsplashImages(query: string): Promise<WikiImage[]> {
+  try {
+    const url = `https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&source=unsplash&page_size=30`;
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data?.results ?? []).map((item: any, idx: number) => ({
+      pageid: 10000000 + idx,
+      title: item.title ?? "Unsplash Photo",
+      url: item.url,
+      thumbUrl: item.thumbnail ?? item.url,
+      description: item.description ?? "",
+      author: item.creator ?? undefined,
+      license: item.license ?? undefined,
+      source: "Unsplash",
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchPexelsImages(query: string): Promise<WikiImage[]> {
+  try {
+    const url = `https://api.openverse.org/v1/images/?q=${encodeURIComponent(query)}&source=stocksnap&page_size=30`;
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data?.results ?? []).map((item: any, idx: number) => ({
+      pageid: 11000000 + idx,
+      title: item.title ?? "Pexels Photo",
+      url: item.url,
+      thumbUrl: item.thumbnail ?? item.url,
+      description: item.description ?? "",
+      author: item.creator ?? undefined,
+      license: item.license ?? undefined,
+      source: "Pexels",
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchWikimediaImages(
+  query: string,
+): Promise<WikiImage[]> {
+  try {
+    const url = `https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&srnamespace=6&srlimit=30&format=json&origin=*`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const data = await res.json();
+    const titles: string[] = (data?.query?.search ?? []).map(
+      (s: any) => s.title,
+    );
+    if (titles.length === 0) return [];
+    const infoUrl = `https://commons.wikimedia.org/w/api.php?action=query&titles=${encodeURIComponent(titles.slice(0, 20).join("|"))}&prop=imageinfo&iiprop=url|mime&format=json&origin=*`;
+    const infoRes = await fetch(infoUrl);
+    if (!infoRes.ok) return [];
+    const infoData = await infoRes.json();
+    const pages = infoData?.query?.pages
+      ? Object.values(infoData.query.pages)
+      : [];
+    return (pages as any[])
+      .filter(
+        (p: any) =>
+          p.imageinfo?.[0]?.url &&
+          /\.(jpg|jpeg|png|gif|webp)$/i.test(p.imageinfo[0].url),
+      )
+      .map((p: any, idx: number) => ({
+        pageid: 12000000 + idx,
+        title: (p.title ?? "Wikimedia Image").replace(/^File:/, ""),
+        url: p.imageinfo[0].url,
+        thumbUrl: p.imageinfo[0].url,
+        description: "",
+        source: "Wikimedia Commons",
+      }));
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchArchiveImagesExtra(
+  query: string,
+): Promise<WikiImage[]> {
+  try {
+    const params = new URLSearchParams({
+      q: `(${query.trim() || "subject:(photograph OR art OR illustration OR history)"}) AND mediatype:image`,
+      output: "json",
+      rows: "50",
+    });
+    params.append("fl[]", "identifier");
+    params.append("fl[]", "title");
+    params.append("fl[]", "description");
+    params.append("sort[]", "downloads desc");
+    const url = `https://archive.org/advancedsearch.php?${params.toString()}`;
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 25000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(tid);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data?.response?.docs ?? [])
+      .filter((doc: any) => doc.identifier)
+      .map((doc: any, idx: number) => {
+        const id = doc.identifier;
+        const thumb = `https://archive.org/services/img/${id}`;
+        return {
+          pageid: 13000000 + idx,
+          title: doc.title ?? "Archive.org Image",
+          url: thumb,
+          thumbUrl: thumb,
+          description: Array.isArray(doc.description)
+            ? doc.description[0]
+            : (doc.description ?? ""),
+          source: "Internet Archive",
+        };
+      });
   } catch {
     return [];
   }

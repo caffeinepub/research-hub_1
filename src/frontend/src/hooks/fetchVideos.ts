@@ -266,9 +266,12 @@ export function searchYouTubePublicDomain(query: string): WikiVideo[] {
 function archiveVideo(collection: string, source: string, baseId: number) {
   return async (query: string): Promise<WikiVideo[]> => {
     try {
+      const baseQuery =
+        query.trim() ||
+        "subject:(history OR science OR art OR education OR documentary OR film)";
       const queryStr = collection
-        ? `${query} AND collection:${collection} AND mediatype:movies`
-        : `${query} AND mediatype:movies`;
+        ? `(${baseQuery}) AND collection:${collection} AND mediatype:movies`
+        : `(${baseQuery}) AND mediatype:movies`;
       const params = new URLSearchParams({
         q: queryStr,
         output: "json",
@@ -433,19 +436,46 @@ export async function fetchNasaVideos(query: string): Promise<WikiVideo[]> {
     const res = await fetch(url);
     if (!res.ok) return [];
     const data = await res.json();
-    return (data?.collection?.items ?? [])
-      .filter((item: any) => item.links?.[0]?.href && item.data?.[0])
-      .map((item: any, idx: number) => {
+    const items = (data?.collection?.items ?? [])
+      .filter((item: any) => item.data?.[0]?.nasa_id)
+      .slice(0, 6);
+    const results = await Promise.allSettled(
+      items.map(async (item: any, idx: number) => {
         const meta = item.data[0];
+        const nasaId = meta.nasa_id;
+        let embedUrl: string | undefined;
+        try {
+          const manifestRes = await fetch(
+            `https://images.nasa.gov/api/v1/asset/${nasaId}`,
+          );
+          if (manifestRes.ok) {
+            const manifest = await manifestRes.json();
+            const mp4 = (manifest?.collection?.items ?? [])
+              .map((i: any) => i.href as string)
+              .find(
+                (href: string) =>
+                  href.endsWith(".mp4") && !href.includes("~mobile"),
+              );
+            embedUrl = mp4;
+          }
+        } catch {}
         return {
           pageid: 100000 + idx,
           title: meta.title ?? "NASA Video",
-          url: item.links[0].href,
-          mime: "video/mp4",
+          url: `https://images.nasa.gov/details-${nasaId}`,
+          mime: "video/mp4" as const,
+          embedUrl,
+          thumbUrl: item.links?.[0]?.href,
           description: meta.description ?? "",
           source: "NASA",
-        };
-      });
+        } as WikiVideo;
+      }),
+    );
+    return results
+      .filter(
+        (r): r is PromiseFulfilledResult<WikiVideo> => r.status === "fulfilled",
+      )
+      .map((r) => r.value);
   } catch {
     return [];
   }
@@ -565,25 +595,218 @@ export async function fetchWikimediaVideos(
 
 export async function fetchVimeoCC(query: string): Promise<WikiVideo[]> {
   try {
-    const url = `https://api.openverse.org/v1/videos/?q=${encodeURIComponent(query)}&source=vimeo&page_size=8`;
-    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    const params = new URLSearchParams({
+      q: `(${query || "documentary"}) AND collection:(vimeo OR vimeo-staff-picks) AND mediatype:movies`,
+      output: "json",
+      rows: "10",
+    });
+    params.append("fl[]", "identifier");
+    params.append("fl[]", "title");
+    params.append("fl[]", "description");
+    params.append("sort[]", "downloads desc");
+    const res = await fetch(
+      `https://archive.org/advancedsearch.php?${params.toString()}`,
+    );
     if (!res.ok) return [];
     const data = await res.json();
-    return (data?.results ?? []).map((item: any, idx: number) => {
-      const pageUrl: string = item.url ?? "";
-      const vimeoMatch = pageUrl.match(/vimeo\.com\/(\d+)/);
-      const embedUrl = vimeoMatch
-        ? `https://player.vimeo.com/video/${vimeoMatch[1]}`
-        : undefined;
-      return {
-        pageid: 2700000 + idx,
-        title: item.title ?? "Vimeo Video",
-        url: pageUrl,
+    return (data?.response?.docs ?? []).map((doc: any, idx: number) => ({
+      pageid: 2700000 + idx,
+      title: doc.title ?? "Vimeo Video",
+      url: `https://archive.org/details/${doc.identifier}`,
+      embedUrl: `https://archive.org/embed/${doc.identifier}`,
+      mime: "video/mp4" as const,
+      thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
+      description: doc.description ?? "",
+      source: "Vimeo CC",
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export const fetchArchiveDocumentaries = archiveVideo(
+  "documentaries",
+  "Documentaries",
+  7100000,
+);
+export const fetchArchiveMusicVideos = archiveVideo(
+  "musicvideos",
+  "Music Videos",
+  7200000,
+);
+export const fetchArchiveShortFilms = archiveVideo(
+  "shortfilms",
+  "Short Films",
+  7300000,
+);
+export const fetchArchiveClassicFilms = archiveVideo(
+  "classic_tv",
+  "Classic Films",
+  7400000,
+);
+export const fetchArchiveComedyFilms = archiveVideo(
+  "comedy_films",
+  "Comedy Films",
+  7500000,
+);
+export const fetchArchiveSilentFilms = archiveVideo(
+  "silenthalloffame",
+  "Silent Films",
+  7600000,
+);
+export const fetchArchiveWesternFilms = archiveVideo(
+  "westerns",
+  "Westerns",
+  7700000,
+);
+export const fetchArchiveHorrorFilms = archiveVideo(
+  "SciFi_Horror",
+  "Horror Films",
+  7800000,
+);
+
+export async function fetchInternetArchiveAll(
+  query: string,
+): Promise<WikiVideo[]> {
+  try {
+    const params = new URLSearchParams({
+      q: `(${query.trim() || "subject:(history OR science OR art OR documentary OR film)"}) AND mediatype:movies`,
+      output: "json",
+      rows: "50",
+    });
+    params.append("fl[]", "identifier");
+    params.append("fl[]", "title");
+    params.append("fl[]", "description");
+    params.append("sort[]", "downloads desc");
+    const url = `https://archive.org/advancedsearch.php?${params.toString()}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data?.response?.docs ?? []).map((doc: any, idx: number) => ({
+      pageid: 7900000 + idx,
+      title: doc.title ?? doc.identifier ?? "Untitled",
+      url: `https://archive.org/details/${doc.identifier}`,
+      embedUrl: `https://archive.org/embed/${doc.identifier}`,
+      mime: "video/mp4" as const,
+      thumbUrl: `https://archive.org/services/img/${doc.identifier}`,
+      description: doc.description ?? "",
+      source: "Internet Archive",
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchDailymotionVideos(
+  query: string,
+): Promise<WikiVideo[]> {
+  try {
+    const url = `https://api.dailymotion.com/videos?search=${encodeURIComponent(query || "documentary")}&fields=id,title,thumbnail_url,embed_url,description&limit=25&family_filter=1`;
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 15000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(tid);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data?.list ?? [])
+      .filter((item: any) => item.id && item.embed_url)
+      .map((item: any, idx: number) => ({
+        pageid: 8000000 + idx,
+        title: item.title ?? "Dailymotion Video",
+        url: `https://www.dailymotion.com/video/${item.id}`,
+        embedUrl: item.embed_url,
         mime: "video/mp4" as const,
-        embedUrl,
-        thumbUrl: item.thumbnail ?? undefined,
+        thumbUrl: item.thumbnail_url ?? undefined,
         description: item.description ?? "",
-        source: "Vimeo CC",
+        source: "Dailymotion",
+      }));
+  } catch {
+    return [];
+  }
+}
+
+export const fetchFreeMovies = archiveVideo("movies", "Free Movies", 8100000);
+export const fetchArchiveMystery = archiveVideo(
+  "mystery_sf",
+  "Mystery & Sci-Fi",
+  8200000,
+);
+export const fetchArchiveFilmNoir = archiveVideo(
+  "film_noir",
+  "Film Noir",
+  8300000,
+);
+export const fetchArchiveNewsreels = archiveVideo(
+  "newsreels",
+  "Newsreels",
+  8400000,
+);
+export const fetchArchiveInstructional = archiveVideo(
+  "prelinger",
+  "Instructional Films",
+  8500000,
+);
+export const fetchNFLFootage = archiveVideo("nflfilms", "NFL Films", 8600000);
+export const fetchMusicConcerts = archiveVideo(
+  "stream_only",
+  "Live Concerts",
+  8700000,
+);
+export const fetchOpenCulture = archiveVideo(
+  "open-culture",
+  "Open Culture",
+  8800000,
+);
+
+export async function fetchPeertubeVideos(query: string): Promise<WikiVideo[]> {
+  try {
+    const res = await fetch(
+      `https://tube.tchncs.de/api/v1/search/videos?search=${encodeURIComponent(query || "documentary")}&count=10&isLive=false&nsfw=false`,
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data?.data ?? []).map((v: any, idx: number) => {
+      const uuid = v.uuid;
+      return {
+        pageid: 9100000 + idx,
+        title: v.name ?? "PeerTube Video",
+        url: `https://tube.tchncs.de/videos/watch/${uuid}`,
+        embedUrl: `https://tube.tchncs.de/videos/embed/${uuid}`,
+        mime: "video/mp4" as const,
+        thumbUrl: v.thumbnailPath
+          ? `https://tube.tchncs.de${v.thumbnailPath}`
+          : undefined,
+        description: v.description ?? "",
+        source: "PeerTube",
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchOdyseeVideos(query: string): Promise<WikiVideo[]> {
+  try {
+    const res = await fetch(
+      `https://odysee.com/$/api/content/v1/get?page_size=10&page=1&order_by=relevance&claim_type=stream&media_type=video&text=${encodeURIComponent(query || "documentary")}`,
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data?.data?.items ?? []).map((v: any, idx: number) => {
+      const claimId = v.claim_id;
+      const name = v.name;
+      return {
+        pageid: 9200000 + idx,
+        title: v.value?.title ?? name ?? "Odysee Video",
+        url: `https://odysee.com/${name}:${claimId}`,
+        embedUrl: `https://odysee.com/$/embed/${name}/${claimId}`,
+        mime: "video/mp4" as const,
+        thumbUrl: v.value?.thumbnail?.url ?? undefined,
+        description: v.value?.description ?? "",
+        source: "Odysee",
       };
     });
   } catch {

@@ -184,7 +184,7 @@ export function ArchiveTab() {
       try {
         const q =
           query.trim() ||
-          "subject:(history OR science OR art OR music OR film)";
+          "subject:(history OR science OR art OR music OR film OR comics OR books OR videos)";
         const mtPart =
           mt === "all"
             ? "(mediatype:movies OR mediatype:audio OR mediatype:texts OR mediatype:image)"
@@ -205,7 +205,7 @@ export function ArchiveTab() {
         const url = `https://archive.org/advancedsearch.php?${params.toString()}`;
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
         const res = await fetch(url, { signal: controller.signal });
         clearTimeout(timeoutId);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);

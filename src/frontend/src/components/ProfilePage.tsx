@@ -7,10 +7,13 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Camera,
   Edit2,
+  ImageIcon,
   Loader2,
   LogIn,
   MessageSquare,
   Save,
+  Send,
+  Users,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -50,10 +53,47 @@ export function ProfilePage({
   const [editColor, setEditColor] = useState(AVATAR_COLORS[0]);
   const [saving, setSaving] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
-
   const myUsername = localStorage.getItem("chat_username") || "default";
 
+  // Social posts
+  const targetUser = viewingUser || myUsername;
+  const getPostsFor = (username: string) => {
+    try {
+      return JSON.parse(
+        localStorage.getItem(`posts_${username}`) || "[]",
+      ) as Array<{
+        id: string;
+        text: string;
+        imageUrl?: string;
+        timestamp: number;
+        author: string;
+      }>;
+    } catch {
+      return [];
+    }
+  };
+  const [posts, setPosts] = useState(() => getPostsFor(targetUser));
+  const [newPostText, setNewPostText] = useState("");
+
+  const handleCreatePost = () => {
+    if (!newPostText.trim()) return;
+    const post = {
+      id: `p-${Date.now()}`,
+      text: newPostText.trim(),
+      timestamp: Date.now(),
+      author: myUsername,
+    };
+    const updated = [post, ...getPostsFor(myUsername)];
+    localStorage.setItem(`posts_${myUsername}`, JSON.stringify(updated));
+    setPosts(updated);
+    setNewPostText("");
+  };
+
   const [avatarImage, setAvatarImage] = useState<string | null>(() => {
+    // If viewing another user's profile, try to load their saved avatar
+    if (viewingUser) {
+      return localStorage.getItem(`profile_avatar_${viewingUser}`) || null;
+    }
     const username = localStorage.getItem("chat_username") || "default";
     return localStorage.getItem(`profile_avatar_${username}`) || null;
   });
@@ -72,6 +112,41 @@ export function ProfilePage({
     } catch {
       return false;
     }
+  };
+
+  // Follow system
+  const getFollowing = (): string[] => {
+    try {
+      return JSON.parse(localStorage.getItem("researchhub_following") || "[]");
+    } catch {
+      return [];
+    }
+  };
+
+  const [isFollowing, setIsFollowing] = useState(() => {
+    if (!viewingUser) return false;
+    return getFollowing().includes(viewingUser);
+  });
+
+  const [followingList, setFollowingList] = useState<string[]>(() =>
+    getFollowing(),
+  );
+
+  const handleFollow = () => {
+    if (!viewingUser) return;
+    const current = getFollowing();
+    let updated: string[];
+    if (current.includes(viewingUser)) {
+      updated = current.filter((u) => u !== viewingUser);
+      setIsFollowing(false);
+      toast.success(`Unfollowed ${viewingUser}`);
+    } else {
+      updated = [...current, viewingUser];
+      setIsFollowing(true);
+      toast.success(`Now following ${viewingUser}!`);
+    }
+    localStorage.setItem("researchhub_following", JSON.stringify(updated));
+    setFollowingList(updated);
   };
 
   const handleAddFriend = () => {
@@ -283,22 +358,64 @@ export function ProfilePage({
               >
                 {profile?.username || "No username set"}
               </h2>
+              {(() => {
+                const friendCount = (() => {
+                  try {
+                    const key = viewingUser
+                      ? `friends_${viewingUser}`
+                      : `friends_${myUsername}`;
+                    return (
+                      JSON.parse(localStorage.getItem(key) || "[]") as string[]
+                    ).length;
+                  } catch {
+                    return 0;
+                  }
+                })();
+                return (
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <Users
+                      className="w-3.5 h-3.5"
+                      style={{ color: "oklch(0.52 0.18 220)" }}
+                    />
+                    <span
+                      className="text-sm font-semibold"
+                      style={{ color: "oklch(0.72 0.14 220)" }}
+                    >
+                      {friendCount} {friendCount === 1 ? "Friend" : "Friends"}
+                    </span>
+                  </div>
+                );
+              })()}
               <p
-                className="text-sm truncate"
+                className="text-xs truncate"
                 style={{ color: "oklch(0.55 0.05 240)" }}
               >
-                {identity?.getPrincipal().toString().slice(0, 24)}...
+                {isOwnProfile
+                  ? `${identity?.getPrincipal().toString().slice(0, 24) ?? ""}...`
+                  : ""}
               </p>
             </>
           )}
         </div>
         {!isOwnProfile && viewingUser && (
           <div className="flex gap-2">
+            <Button
+              data-ocid="profile.primary_button"
+              size="sm"
+              style={{
+                background: isFollowing
+                  ? "oklch(0.22 0.05 260)"
+                  : "oklch(0.52 0.18 220)",
+              }}
+              onClick={handleFollow}
+            >
+              {isFollowing ? "Following ✓" : "Follow"}
+            </Button>
             {!isFriend() ? (
               <Button
-                data-ocid="profile.primary_button"
+                data-ocid="profile.secondary_button"
                 size="sm"
-                style={{ background: "oklch(0.52 0.18 220)" }}
+                variant="outline"
                 onClick={handleAddFriend}
               >
                 Add Friend
@@ -506,6 +623,54 @@ export function ProfilePage({
         )}
       </div>
 
+      {/* Following list - own profile only */}
+      {isOwnProfile && followingList.length > 0 && (
+        <div
+          className="rounded-2xl p-5 space-y-3"
+          style={{
+            background: "oklch(0.16 0.04 260)",
+            border: "1px solid oklch(0.28 0.06 260)",
+          }}
+          data-ocid="profile.card"
+        >
+          <div className="flex items-center justify-between">
+            <h3
+              className="text-xs font-semibold uppercase tracking-wider"
+              style={{ color: "oklch(0.55 0.05 240)" }}
+            >
+              Following
+            </h3>
+            <span
+              className="text-xs px-2 py-0.5 rounded-full font-mono"
+              style={{
+                background: "oklch(0.22 0.05 260)",
+                color: "oklch(0.65 0.08 240)",
+              }}
+            >
+              {followingList.length}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {followingList.map((username) => (
+              <button
+                key={username}
+                type="button"
+                data-ocid="profile.secondary_button"
+                onClick={() => onViewProfile?.(username)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all hover:opacity-80"
+                style={{
+                  background: "oklch(0.20 0.06 220 / 0.4)",
+                  border: "1px solid oklch(0.35 0.10 220 / 0.3)",
+                  color: "oklch(0.72 0.14 220)",
+                }}
+              >
+                {username}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* AI Credits card - own profile only */}
       {isOwnProfile &&
         (() => {
@@ -691,6 +856,157 @@ export function ProfilePage({
             </div>
           );
         })()}
+
+      {/* Social Posts Section */}
+      <div
+        className="rounded-2xl p-5 space-y-4"
+        style={{
+          background: "oklch(0.16 0.04 260)",
+          border: "1px solid oklch(0.28 0.06 260)",
+        }}
+        data-ocid="profile.card"
+      >
+        <div className="flex items-center justify-between">
+          <h3
+            className="text-xs font-semibold uppercase tracking-wider"
+            style={{ color: "oklch(0.55 0.05 240)" }}
+          >
+            Posts
+          </h3>
+          <span
+            className="text-xs px-2 py-0.5 rounded-full font-mono"
+            style={{
+              background: "oklch(0.22 0.05 260)",
+              color: "oklch(0.65 0.08 240)",
+            }}
+          >
+            {posts.length}
+          </span>
+        </div>
+
+        {/* Create post - only on own profile */}
+        {isOwnProfile && (
+          <div className="flex gap-2 items-start">
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+              style={{ background: avatarColor, color: "white" }}
+            >
+              {initials}
+            </div>
+            <div className="flex-1 flex flex-col gap-2">
+              <textarea
+                data-ocid="profile.textarea"
+                value={newPostText}
+                onChange={(e) => setNewPostText(e.target.value)}
+                placeholder="Share something with your followers..."
+                rows={2}
+                className="w-full resize-none rounded-xl px-3 py-2 text-sm"
+                style={{
+                  background: "oklch(0.13 0.025 260)",
+                  border: "1px solid oklch(0.28 0.06 260)",
+                  color: "white",
+                  outline: "none",
+                }}
+              />
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  data-ocid="profile.primary_button"
+                  onClick={handleCreatePost}
+                  disabled={!newPostText.trim()}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold transition-all disabled:opacity-40"
+                  style={{
+                    background: "oklch(0.52 0.18 220)",
+                    color: "white",
+                  }}
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  Post
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Post feed */}
+        {posts.length === 0 ? (
+          <p
+            className="text-sm italic text-center py-4"
+            style={{ color: "oklch(0.45 0.04 240)" }}
+            data-ocid="profile.empty_state"
+          >
+            {isOwnProfile
+              ? "You haven't posted anything yet."
+              : "No posts yet."}
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {posts.slice(0, 20).map((post, idx) => {
+              const postAvatar = localStorage.getItem(
+                `profile_avatar_${post.author}`,
+              );
+              return (
+                <div
+                  key={post.id}
+                  data-ocid={`profile.item.${idx + 1}`}
+                  className="flex gap-3 p-3 rounded-xl"
+                  style={{
+                    background: "oklch(0.13 0.025 260)",
+                    border: "1px solid oklch(0.22 0.04 260)",
+                  }}
+                >
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 overflow-hidden"
+                    style={{ background: avatarColor, color: "white" }}
+                  >
+                    {postAvatar ? (
+                      <img
+                        src={postAvatar}
+                        alt={post.author}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      post.author.slice(0, 2).toUpperCase()
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline gap-2 mb-1">
+                      <span
+                        className="text-xs font-semibold"
+                        style={{ color: "oklch(0.85 0.04 240)" }}
+                      >
+                        {post.author}
+                      </span>
+                      <span
+                        className="text-[10px]"
+                        style={{ color: "oklch(0.45 0.04 240)" }}
+                      >
+                        {new Date(post.timestamp).toLocaleDateString(
+                          undefined,
+                          { month: "short", day: "numeric" },
+                        )}
+                      </span>
+                    </div>
+                    <p
+                      className="text-sm"
+                      style={{ color: "oklch(0.82 0.02 240)" }}
+                    >
+                      {post.text}
+                    </p>
+                    {post.imageUrl && (
+                      <img
+                        src={post.imageUrl}
+                        alt="post"
+                        className="mt-2 rounded-lg max-h-48 object-cover"
+                      />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* No profile yet */}
       {!loadingProfile && !profile && (
