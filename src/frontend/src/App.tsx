@@ -27,6 +27,7 @@ import {
   Microscope,
   MoreHorizontal,
   Music,
+  Music2,
   Newspaper,
   Search,
   Settings,
@@ -59,6 +60,7 @@ import { LandingPage } from "./components/LandingPage";
 import { LiteratureTab } from "./components/LiteratureTab";
 import { MemesTab } from "./components/MemesTab";
 import { MessagesPage } from "./components/MessagesPage";
+import { MusicToolsPage } from "./components/MusicToolsPage";
 import { NewsTab } from "./components/NewsTab";
 import { ProfilePage } from "./components/ProfilePage";
 import { ResearchHubBrowser } from "./components/ResearchHubBrowser";
@@ -156,7 +158,8 @@ type NavKey =
   | "datasets"
   | "tools"
   | "archive"
-  | "browser";
+  | "browser"
+  | "music";
 
 export default function App() {
   const [query, setQuery] = useState("");
@@ -717,6 +720,28 @@ export default function App() {
         />
         <main className="flex-1 container mx-auto px-4 py-4 max-w-6xl pb-24 overflow-auto">
           <InteractiveToolsTab />
+        </main>
+        <BottomNav current={bottomNav} onChange={handleBottomNav} />
+      </div>
+    );
+  }
+
+  // Music Tools view
+  if (view === "music") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <ArchiveHeader
+          query={query}
+          setQuery={setQuery}
+          onSearch={handleSearch}
+          isLoading={isLoading}
+          activeNav={bottomNav}
+          onNav={handleBottomNav}
+          showBrowser={showBrowser}
+          onToggleBrowser={() => setShowBrowser((b) => !b)}
+        />
+        <main className="flex-1 container mx-auto px-4 py-4 max-w-6xl pb-24 overflow-auto">
+          <MusicToolsPage />
         </main>
         <BottomNav current={bottomNav} onChange={handleBottomNav} />
       </div>
@@ -1590,6 +1615,7 @@ function BottomNav({
     { key: "archive" as NavKey, icon: Archive, label: "Archive" },
     { key: "datasets", icon: BarChart3, label: "Datasets" },
     { key: "tools", icon: FlaskConical, label: "Tools" },
+    { key: "music" as NavKey, icon: Music2, label: "Music" },
     { key: "messages", icon: Mail, label: "Messages" },
     { key: "settings", icon: Settings, label: "Settings" },
     { key: "admin", icon: ShieldAlert, label: "Admin" },

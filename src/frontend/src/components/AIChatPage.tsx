@@ -7,6 +7,7 @@ import {
   Search,
   Send,
   Sparkles,
+  Trash2,
   User,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
@@ -39,8 +40,6 @@ function evaluateMath(query: string): string | null {
       .replace(/divided by/g, "/")
       .replace(/x/g, "*")
       .replace(/[^0-9\+\-\*\/\(\)\.\%\s]/g, "");
-    // biome-ignore lint/security/noGlobalEval: using Function constructor for safe math
-    // biome-ignore lint/security/noGlobalEval: safe
     const result = Function(`"use strict"; return (${expr})`)();
     if (typeof result === "number" && Number.isFinite(result)) {
       return result % 1 === 0
@@ -472,13 +471,40 @@ interface AIChatPageProps {
 }
 
 export function AIChatPage({ onSearchMore }: AIChatPageProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(() => {
+    try {
+      const stored = localStorage.getItem("rh_ai_chat_history");
+      if (!stored) return [];
+      const parsed: Message[] = JSON.parse(stored);
+      return parsed.slice(-50).map((m) => ({ ...m, isLoading: false }));
+    } catch {
+      return [];
+    }
+  });
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<"research" | "study">("research");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { search, results, status } = useResearch();
   const pendingQueryRef = useRef<string | null>(null);
+
+  // Save chat history to localStorage
+  useEffect(() => {
+    const saveable = messages
+      .filter((m) => !m.isLoading)
+      .map((m) => ({
+        ...m,
+        results: undefined,
+      }));
+    try {
+      localStorage.setItem(
+        "rh_ai_chat_history",
+        JSON.stringify(saveable.slice(-50)),
+      );
+    } catch {
+      // ignore quota errors
+    }
+  }, [messages]);
 
   // When results come in, update the pending assistant message
   useEffect(() => {
@@ -652,47 +678,70 @@ export function AIChatPage({ onSearchMore }: AIChatPageProps) {
 
   return (
     <div className="flex flex-col" style={{ height: "100%" }}>
-      {/* Mode toggle */}
+      {/* Header: mode toggle + clear history */}
       <div
-        className="flex-shrink-0 flex justify-center pt-3 px-4"
+        className="flex-shrink-0 flex items-center justify-between pt-3 px-4 gap-2"
         style={{ background: "oklch(0.10 0.04 265)" }}
       >
-        <div
-          className="flex rounded-full p-0.5 gap-0"
-          style={{
-            background: "oklch(0.18 0.05 260)",
-            border: "1px solid oklch(0.28 0.06 255 / 0.5)",
-          }}
-        >
+        {messages.length > 0 ? (
           <button
             type="button"
-            data-ocid="ai.tab"
-            onClick={() => setMode("research")}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold transition-all"
+            data-ocid="ai.delete_button"
+            onClick={() => {
+              setMessages([]);
+              localStorage.removeItem("rh_ai_chat_history");
+            }}
+            className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg transition-all flex-shrink-0"
             style={{
-              background:
-                mode === "research" ? "oklch(0.52 0.18 220)" : "transparent",
-              color: mode === "research" ? "white" : "oklch(0.55 0.06 240)",
+              color: "oklch(0.55 0.06 240)",
+              border: "1px solid oklch(0.22 0.04 260)",
             }}
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            Research
+            <Trash2 className="w-3.5 h-3.5" />
+            Clear
           </button>
-          <button
-            type="button"
-            data-ocid="ai.tab"
-            onClick={() => setMode("study")}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold transition-all"
+        ) : (
+          <div className="w-16" />
+        )}
+        <div>
+          <div
+            className="flex rounded-full p-0.5 gap-0"
             style={{
-              background:
-                mode === "study" ? "oklch(0.65 0.18 145)" : "transparent",
-              color: mode === "study" ? "white" : "oklch(0.55 0.06 240)",
+              background: "oklch(0.18 0.05 260)",
+              border: "1px solid oklch(0.28 0.06 255 / 0.5)",
             }}
           >
-            <BookOpen className="w-3.5 h-3.5" />
-            Study
-          </button>
+            <button
+              type="button"
+              data-ocid="ai.tab"
+              onClick={() => setMode("research")}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold transition-all"
+              style={{
+                background:
+                  mode === "research" ? "oklch(0.52 0.18 220)" : "transparent",
+                color: mode === "research" ? "white" : "oklch(0.55 0.06 240)",
+              }}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Research
+            </button>
+            <button
+              type="button"
+              data-ocid="ai.tab"
+              onClick={() => setMode("study")}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold transition-all"
+              style={{
+                background:
+                  mode === "study" ? "oklch(0.65 0.18 145)" : "transparent",
+                color: mode === "study" ? "white" : "oklch(0.55 0.06 240)",
+              }}
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              Study
+            </button>
+          </div>
         </div>
+        <div className="w-16" />
       </div>
 
       {/* Messages scroll area */}

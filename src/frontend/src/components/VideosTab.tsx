@@ -61,6 +61,12 @@ const SOURCE_COLORS: Record<string, string> = {
   "NFL Films": "bg-green-600/10 text-green-300 border-green-600/20",
   "Live Concerts": "bg-pink-600/10 text-pink-400 border-pink-600/20",
   "Open Culture": "bg-teal-400/10 text-teal-300 border-teal-400/20",
+  "Vimeo Archive": "bg-cyan-600/10 text-cyan-400 border-cyan-600/20",
+  "PeerTube (Framatube)":
+    "bg-orange-500/10 text-orange-300 border-orange-500/20",
+  "Archive Documentary":
+    "bg-emerald-700/10 text-emerald-400 border-emerald-700/20",
+  "Archive Science": "bg-blue-700/10 text-blue-400 border-blue-700/20",
 };
 
 function isArchiveSource(source: string) {
@@ -261,7 +267,6 @@ export function VideosTab({
 
   const [localVideos, setLocalVideos] = useState<WikiVideo[]>([]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: fetch local sources on query change
   useEffect(() => {
     if (!query) {
       setLocalVideos([]);
@@ -320,6 +325,75 @@ export function VideosTab({
               }))
               .filter((v: WikiVideo) => v.embedUrl);
             results.push(...redditVideos);
+          })
+          .catch(() => {}),
+        // Vimeo via Archive.org
+        fetch(
+          `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+vimeo&mediatype=movies&output=json&rows=5&fl[]=identifier,title`,
+          { signal: controller.signal },
+        )
+          .then((r) => r.json())
+          .then((data) => {
+            const vs: WikiVideo[] = (data?.response?.docs ?? []).map(
+              (d: any) => ({
+                pageid: d.identifier,
+                title: d.title || d.identifier,
+                url: `https://archive.org/details/${d.identifier}`,
+                embedUrl: `https://archive.org/embed/${d.identifier}`,
+                thumbUrl: `https://archive.org/services/img/${d.identifier}`,
+                mime: "video/mp4",
+                source: "Vimeo Archive",
+                description: "",
+                sensitive: false,
+              }),
+            );
+            results.push(...vs);
+          })
+          .catch(() => {}),
+        // PeerTube (Framatube)
+        fetch(
+          `https://framatube.org/api/v1/search/videos?search=${encodeURIComponent(query)}&count=5`,
+          { signal: controller.signal },
+        )
+          .then((r) => r.json())
+          .then((data) => {
+            const vs: WikiVideo[] = (data?.data ?? []).map((v: any) => ({
+              pageid: v.id?.toString() || v.uuid,
+              title: v.name,
+              url: `https://framatube.org/w/${v.uuid}`,
+              embedUrl: `https://framatube.org/videos/embed/${v.uuid}`,
+              thumbUrl: v.thumbnailPath
+                ? `https://framatube.org${v.thumbnailPath}`
+                : "",
+              mime: "video/mp4",
+              source: "PeerTube (Framatube)",
+              description: v.description || "",
+              sensitive: false,
+            }));
+            results.push(...vs);
+          })
+          .catch(() => {}),
+        // Archive Documentary
+        fetch(
+          `https://archive.org/advancedsearch.php?q=${encodeURIComponent(query)}+documentary&mediatype=movies&output=json&rows=5&fl[]=identifier,title`,
+          { signal: controller.signal },
+        )
+          .then((r) => r.json())
+          .then((data) => {
+            const vs: WikiVideo[] = (data?.response?.docs ?? []).map(
+              (d: any) => ({
+                pageid: `doc-${d.identifier}`,
+                title: d.title || d.identifier,
+                url: `https://archive.org/details/${d.identifier}`,
+                embedUrl: `https://archive.org/embed/${d.identifier}`,
+                thumbUrl: `https://archive.org/services/img/${d.identifier}`,
+                mime: "video/mp4",
+                source: "Archive Documentary",
+                description: "",
+                sensitive: false,
+              }),
+            );
+            results.push(...vs);
           })
           .catch(() => {}),
       ]);
