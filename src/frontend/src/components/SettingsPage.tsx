@@ -24,6 +24,11 @@ export function SettingsPage() {
     }
   });
   const [credits, setCredits] = useState(() => getCreditsBalance());
+  const [voucherCode, setVoucherCode] = useState("");
+  const [voucherMsg, setVoucherMsg] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const [settings, setSettings] = useState<AppSettings>(() => getSettings());
 
   // Apply settings to DOM on change
@@ -94,6 +99,45 @@ export function SettingsPage() {
       setCredits(getCreditsBalance());
       toast.success("+5 credits added!");
     } else toast.error("Install reward already claimed.");
+  };
+
+  const VALID_VOUCHERS: Record<string, number> = {
+    RESEARCH50: 50,
+    MEGATRX: 100,
+    HUB2025: 25,
+  };
+
+  const handleRedeem = () => {
+    const code = voucherCode.trim().toUpperCase();
+    if (!code) return;
+    const redeemedCodes: string[] = JSON.parse(
+      localStorage.getItem("redeemed_codes") || "[]",
+    );
+    if (redeemedCodes.includes(code)) {
+      setVoucherMsg({
+        type: "error",
+        text: "This code has already been redeemed.",
+      });
+      return;
+    }
+    const bonus = VALID_VOUCHERS[code];
+    if (!bonus) {
+      setVoucherMsg({ type: "error", text: "Invalid voucher code." });
+      return;
+    }
+    // Add credits
+    const user = JSON.parse(localStorage.getItem("researchHubUser") || "{}");
+    user.credits = (user.credits || 0) + bonus;
+    localStorage.setItem("researchHubUser", JSON.stringify(user));
+    redeemedCodes.push(code);
+    localStorage.setItem("redeemed_codes", JSON.stringify(redeemedCodes));
+    setCredits(getCreditsBalance());
+    setVoucherCode("");
+    setVoucherMsg({
+      type: "success",
+      text: `+${bonus} credits added! New balance: ${user.credits}`,
+    });
+    toast.success(`Voucher redeemed! +${bonus} credits`);
   };
 
   const handleSave = () => {
@@ -398,6 +442,68 @@ export function SettingsPage() {
           </div>
         </div>
       )}
+
+      {/* Voucher / Promo Code */}
+      <div className="p-4 rounded-xl" style={card}>
+        <h2
+          className="text-sm font-semibold mb-1"
+          style={{ color: "oklch(0.88 0.03 240)" }}
+        >
+          Voucher / Promo Code
+        </h2>
+        <p className="text-xs mb-3" style={{ color: "oklch(0.50 0.05 240)" }}>
+          Balance:{" "}
+          <span className="font-mono" style={{ color: "oklch(0.65 0.18 145)" }}>
+            {credits} credits
+          </span>
+        </p>
+        <div className="flex gap-2 mb-2">
+          <Input
+            data-ocid="settings.input"
+            value={voucherCode}
+            onChange={(e) => {
+              setVoucherCode(e.target.value.toUpperCase());
+              setVoucherMsg(null);
+            }}
+            placeholder="Enter code (e.g. MEGATRX)"
+            className="flex-1 text-white font-mono tracking-wider"
+            style={{ color: "white" }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleRedeem();
+              }
+            }}
+          />
+          <Button
+            type="button"
+            data-ocid="settings.primary_button"
+            onClick={handleRedeem}
+            size="sm"
+            style={{ background: "oklch(0.52 0.18 145)" }}
+          >
+            Redeem
+          </Button>
+        </div>
+        {voucherMsg && (
+          <p
+            data-ocid={
+              voucherMsg.type === "success"
+                ? "settings.success_state"
+                : "settings.error_state"
+            }
+            className="text-xs mt-1"
+            style={{
+              color:
+                voucherMsg.type === "success"
+                  ? "oklch(0.65 0.18 145)"
+                  : "oklch(0.65 0.18 20)",
+            }}
+          >
+            {voucherMsg.text}
+          </p>
+        )}
+      </div>
 
       {/* Save */}
       <Button

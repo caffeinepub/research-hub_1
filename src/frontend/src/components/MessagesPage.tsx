@@ -349,13 +349,33 @@ function MessageBubble({
           <button
             type="button"
             onClick={() => onProfileClick(msg.from)}
-            className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 mb-1 hover:opacity-80 transition-opacity"
+            className="w-6 h-6 rounded-full flex-shrink-0 mb-1 hover:opacity-80 transition-opacity overflow-hidden"
             style={{
               background: "oklch(0.52 0.18 220 / 0.2)",
-              color: "oklch(0.72 0.18 220)",
             }}
           >
-            {msg.from.slice(0, 2).toUpperCase()}
+            {(() => {
+              const avatarUrl = localStorage.getItem(
+                `profile_avatar_${msg.from}`,
+              );
+              if (avatarUrl) {
+                return (
+                  <img
+                    src={avatarUrl}
+                    alt={msg.from}
+                    className="w-full h-full object-cover"
+                  />
+                );
+              }
+              return (
+                <div
+                  className="w-full h-full flex items-center justify-center text-[9px] font-bold"
+                  style={{ color: "oklch(0.72 0.18 220)" }}
+                >
+                  {msg.from.slice(0, 2).toUpperCase()}
+                </div>
+              );
+            })()}
           </button>
         )}
 

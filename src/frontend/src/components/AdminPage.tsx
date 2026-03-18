@@ -141,6 +141,14 @@ export function AdminPage() {
   const [unlocked, setUnlocked] = useState(
     () => localStorage.getItem("adminLoggedIn") === "true",
   );
+  const isHeadAdmin = (() => {
+    try {
+      const role = JSON.parse(localStorage.getItem("adminRole") || "{}");
+      return role.isHeadAdmin === true;
+    } catch {
+      return false;
+    }
+  })();
   const [passcode, setPasscode] = useState("");
   const [error, setError] = useState("");
   const [posts, setPosts] = useState<ForumPost[]>([]);
@@ -312,18 +320,20 @@ export function AdminPage() {
   const handleUnlock = () => {
     if (passcode === ADMIN_PASSCODE) {
       localStorage.setItem("adminLoggedIn", "true");
+      localStorage.setItem("adminRole", JSON.stringify({ isHeadAdmin: true }));
       localStorage.setItem(
         "researchHubUser",
         JSON.stringify({
           username: "Admin",
           avatar: "",
           isAdmin: true,
+          isHeadAdmin: true,
           credits: 9999,
         }),
       );
       setUnlocked(true);
       setError("");
-      toast.success("Admin access granted");
+      toast.success("Head Admin access granted");
     } else {
       setError("Incorrect passcode");
       toast.error("Incorrect passcode");
@@ -333,6 +343,7 @@ export function AdminPage() {
   const handleLogout = () => {
     localStorage.removeItem("adminLoggedIn");
     localStorage.removeItem("researchHubUser");
+    localStorage.removeItem("adminRole");
     setUnlocked(false);
     setPasscode("");
     toast.success("Logged out");
@@ -536,12 +547,20 @@ export function AdminPage() {
               </span>
               <Badge
                 className="text-xs px-1.5 py-0 border-0"
-                style={{
-                  background: "oklch(0.60 0.18 30 / 0.2)",
-                  color: "oklch(0.80 0.18 30)",
-                }}
+                style={
+                  isHeadAdmin
+                    ? {
+                        background: "oklch(0.75 0.16 85 / 0.2)",
+                        color: "oklch(0.85 0.16 85)",
+                        border: "1px solid oklch(0.75 0.16 85 / 0.4)",
+                      }
+                    : {
+                        background: "oklch(0.60 0.18 30 / 0.2)",
+                        color: "oklch(0.80 0.18 30)",
+                      }
+                }
               >
-                ADMIN
+                {isHeadAdmin ? "HEAD ADMIN" : "ADMIN"}
               </Badge>
             </div>
             <p className="text-xs" style={{ color: "oklch(0.50 0.04 240)" }}>
@@ -1320,43 +1339,68 @@ export function AdminPage() {
                       </span>
                     </div>
                     <div className="flex gap-1">
-                      {role !== "admin" && (
+                      {isHeadAdmin ? (
+                        <>
+                          {role !== "admin" && (
+                            <Button
+                              size="sm"
+                              className="h-6 text-[10px] px-2"
+                              style={{
+                                background: "oklch(0.60 0.18 30 / 0.2)",
+                                color: "oklch(0.80 0.18 30)",
+                              }}
+                              onClick={() => promoteUser(username, "admin")}
+                            >
+                              <Crown className="w-3 h-3 mr-1" />
+                              Admin
+                            </Button>
+                          )}
+                          {role !== "moderator" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 text-[10px] px-2"
+                              onClick={() => promoteUser(username, "moderator")}
+                            >
+                              Mod
+                            </Button>
+                          )}
+                          {role !== "user" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 text-[10px] px-2"
+                              onClick={() => promoteUser(username, "user")}
+                            >
+                              Demote
+                            </Button>
+                          )}
+                        </>
+                      ) : (
                         <Button
                           size="sm"
+                          variant="outline"
                           className="h-6 text-[10px] px-2"
-                          style={{
-                            background: "oklch(0.60 0.18 30 / 0.2)",
-                            color: "oklch(0.80 0.18 30)",
+                          onClick={() => {
+                            const req = {
+                              id: Date.now(),
+                              requester: "Admin",
+                              targetUser: username,
+                              targetRole: "admin",
+                              timestamp: Date.now(),
+                            };
+                            const updated = [...roleRequests, req];
+                            setRoleRequests(updated);
+                            localStorage.setItem(
+                              "researchhub_role_requests",
+                              JSON.stringify(updated),
+                            );
+                            toast.success(
+                              `Promotion request submitted for ${username}`,
+                            );
                           }}
-                          onClick={() => promoteUser(username, "admin")}
                         >
-                          <Crown className="w-3 h-3 mr-1" />
-                          Admin
-                        </Button>
-                      )}
-                      {role !== "moderator" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-6 text-[10px] px-2"
-                          onClick={() =>
-                            promoteUser(
-                              username,
-                              role === "admin" ? "moderator" : "moderator",
-                            )
-                          }
-                        >
-                          Mod
-                        </Button>
-                      )}
-                      {role !== "user" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-6 text-[10px] px-2"
-                          onClick={() => promoteUser(username, "user")}
-                        >
-                          Demote
+                          Request Promotion
                         </Button>
                       )}
                     </div>

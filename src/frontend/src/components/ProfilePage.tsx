@@ -11,6 +11,7 @@ import {
   Loader2,
   LogIn,
   MessageSquare,
+  Paperclip,
   Save,
   Send,
   Users,
@@ -65,6 +66,7 @@ export function ProfilePage({
         id: string;
         text: string;
         imageUrl?: string;
+        attachment?: { type: "image" | "file"; data: string; name: string };
         timestamp: number;
         author: string;
       }>;
@@ -74,19 +76,50 @@ export function ProfilePage({
   };
   const [posts, setPosts] = useState(() => getPostsFor(targetUser));
   const [newPostText, setNewPostText] = useState("");
+  const [postAttachment, setPostAttachment] = useState<{
+    type: "image" | "file";
+    data: string;
+    name: string;
+  } | null>(null);
+  const postFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePostFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const data = reader.result as string;
+      const isImage = file.type.startsWith("image/");
+      setPostAttachment({
+        type: isImage ? "image" : "file",
+        data,
+        name: file.name,
+      });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
 
   const handleCreatePost = () => {
-    if (!newPostText.trim()) return;
-    const post = {
+    if (!newPostText.trim() && !postAttachment) return;
+    const post: {
+      id: string;
+      text: string;
+      timestamp: number;
+      author: string;
+      attachment?: { type: "image" | "file"; data: string; name: string };
+    } = {
       id: `p-${Date.now()}`,
       text: newPostText.trim(),
       timestamp: Date.now(),
       author: myUsername,
     };
+    if (postAttachment) post.attachment = postAttachment;
     const updated = [post, ...getPostsFor(myUsername)];
     localStorage.setItem(`posts_${myUsername}`, JSON.stringify(updated));
     setPosts(updated);
     setNewPostText("");
+    setPostAttachment(null);
   };
 
   const [avatarImage, setAvatarImage] = useState<string | null>(() => {
@@ -908,12 +941,71 @@ export function ProfilePage({
                   outline: "none",
                 }}
               />
-              <div className="flex justify-end">
+              {/* Attachment preview */}
+              {postAttachment && (
+                <div
+                  className="relative inline-flex items-center gap-2 px-3 py-2 rounded-xl"
+                  style={{
+                    background: "oklch(0.16 0.04 260)",
+                    border: "1px solid oklch(0.28 0.06 260)",
+                  }}
+                >
+                  {postAttachment.type === "image" ? (
+                    <img
+                      src={postAttachment.data}
+                      alt="preview"
+                      className="h-16 rounded-lg object-cover"
+                    />
+                  ) : (
+                    <span
+                      className="text-xs"
+                      style={{ color: "oklch(0.75 0.08 220)" }}
+                    >
+                      {postAttachment.name}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setPostAttachment(null)}
+                    className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full flex items-center justify-center"
+                    style={{
+                      background: "oklch(0.45 0.18 20)",
+                      color: "white",
+                    }}
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    data-ocid="profile.upload_button"
+                    onClick={() => postFileInputRef.current?.click()}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all"
+                    style={{
+                      background: "oklch(0.18 0.04 260)",
+                      color: "oklch(0.65 0.08 240)",
+                      border: "1px solid oklch(0.28 0.06 260)",
+                    }}
+                  >
+                    <Paperclip className="w-3.5 h-3.5" />
+                    Attach
+                  </button>
+                  <input
+                    ref={postFileInputRef}
+                    type="file"
+                    accept="image/*,video/*,.pdf,.doc,.docx,.txt"
+                    className="hidden"
+                    onChange={handlePostFileSelect}
+                  />
+                </div>
                 <button
                   type="button"
                   data-ocid="profile.primary_button"
                   onClick={handleCreatePost}
-                  disabled={!newPostText.trim()}
+                  disabled={!newPostText.trim() && !postAttachment}
                   className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-semibold transition-all disabled:opacity-40"
                   style={{
                     background: "oklch(0.52 0.18 220)",
@@ -999,6 +1091,28 @@ export function ProfilePage({
                         alt="post"
                         className="mt-2 rounded-lg max-h-48 object-cover"
                       />
+                    )}
+                    {post.attachment?.type === "image" && (
+                      <img
+                        src={post.attachment.data}
+                        alt="attachment"
+                        className="mt-2 rounded-lg max-h-64 object-cover"
+                      />
+                    )}
+                    {post.attachment?.type === "file" && (
+                      <a
+                        href={post.attachment.data}
+                        download={post.attachment.name}
+                        className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs"
+                        style={{
+                          background: "oklch(0.18 0.04 260)",
+                          color: "oklch(0.65 0.10 220)",
+                          border: "1px solid oklch(0.28 0.06 260)",
+                        }}
+                      >
+                        <Paperclip className="w-3 h-3" />
+                        {post.attachment.name}
+                      </a>
                     )}
                   </div>
                 </div>

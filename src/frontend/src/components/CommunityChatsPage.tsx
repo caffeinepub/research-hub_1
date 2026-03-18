@@ -237,6 +237,24 @@ function getAvatarColor(name: string) {
   return colors[Math.abs(hash) % colors.length];
 }
 
+function isUserAdmin(username: string): boolean {
+  try {
+    const roles = JSON.parse(localStorage.getItem("researchhub_roles") || "{}");
+    if (roles[username] === "admin") return true;
+    const userData = JSON.parse(
+      localStorage.getItem("researchHubUser") || "{}",
+    );
+    if (userData.username === username && userData.isAdmin) return true;
+    if (localStorage.getItem("adminLoggedIn") === "true") {
+      const adminUser = JSON.parse(
+        localStorage.getItem("researchHubUser") || "{}",
+      );
+      if (adminUser.username === username) return true;
+    }
+  } catch {}
+  return false;
+}
+
 // ─── GIF Picker ───────────────────────────────────────────────────────────────
 
 interface GifResult {
@@ -669,14 +687,19 @@ function PostCard({
 }) {
   const hasUpvoted = post.upvotedBy.includes(currentUser.username);
   const catColor = CATEGORY_COLORS[post.category] || "oklch(0.55 0.08 250)";
+  const authorIsAdmin = isUserAdmin(post.author);
 
   return (
     <div
       className="rounded-xl p-4 transition-all hover:translate-y-[-1px]"
       style={{
         background: "oklch(0.14 0.03 260)",
-        border: "1px solid oklch(0.22 0.04 260)",
-        boxShadow: "0 2px 8px oklch(0 0 0 / 0.3)",
+        border: authorIsAdmin
+          ? "1px solid oklch(0.65 0.18 50)"
+          : "1px solid oklch(0.22 0.04 260)",
+        boxShadow: authorIsAdmin
+          ? "0 2px 12px oklch(0.65 0.18 50 / 0.2)"
+          : "0 2px 8px oklch(0 0 0 / 0.3)",
       }}
     >
       {/* Author row */}
@@ -699,6 +722,18 @@ function PostCard({
           >
             {post.author}
           </span>
+          {authorIsAdmin && (
+            <span
+              className="text-[9px] font-bold px-1 py-0 rounded"
+              style={{
+                background: "oklch(0.60 0.18 30 / 0.2)",
+                color: "oklch(0.75 0.18 30)",
+                border: "1px solid oklch(0.60 0.18 30 / 0.4)",
+              }}
+            >
+              ADMIN
+            </span>
+          )}
         </button>
         {post.channel && (
           <span className="text-xs" style={{ color: "oklch(0.45 0.04 240)" }}>
